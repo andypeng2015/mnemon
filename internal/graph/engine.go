@@ -44,5 +44,8 @@ func (e *Engine) OnInsightCreated(insight *model.Insight) EdgeStats {
 	// 4. Causal keyword edges
 	stats.Causal = CreateCausalEdges(e.db, insight)
 
+	// 5. Auto semantic edges (when embeddings available)
+	stats.Semantic = CreateSemanticEdges(e.db, insight)
+
 	return stats
 }

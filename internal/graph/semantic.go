@@ -1,7 +1,9 @@
 package graph
 
 import (
+	"fmt"
 	"sort"
+	"time"
 
 	"github.com/Grivn/mnemon/internal/embed"
 	"github.com/Grivn/mnemon/internal/model"
@@ -15,8 +17,14 @@ const minSemanticSimilarity = 0.10
 // Minimum cosine similarity when using embedding-based candidates.
 const minEmbeddingCosine = 0.30
 
+// Minimum cosine similarity to auto-create a semantic edge (MAGMA: θ_sim).
+const autoSemanticThreshold = 0.50
+
 // Maximum number of semantic candidates to return.
 const maxSemanticCandidates = 5
+
+// Maximum number of auto-created semantic edges per insight.
+const maxAutoSemanticEdges = 3
 
 // SemanticCandidate represents a potential semantic link for Claude to evaluate.
 type SemanticCandidate struct {
@@ -24,6 +32,82 @@ type SemanticCandidate struct {
 	Content         string  `json:"content"`
 	Category        string  `json:"category"`
 	TokenSimilarity float64 `json:"token_similarity"`
+}
+
+// CreateSemanticEdges auto-creates semantic edges for insights with high
+// embedding cosine similarity (MAGMA §3.2: cos(v_i, v_j) > θ_sim).
+// Returns the number of edges created.
+func CreateSemanticEdges(db *store.DB, insight *model.Insight) int {
+	blob, err := db.GetEmbedding(insight.ID)
+	if err != nil || len(blob) == 0 {
+		return 0
+	}
+	insightVec := embed.DeserializeVector(blob)
+	if insightVec == nil {
+		return 0
+	}
+
+	allEmbedded, err := db.GetAllEmbeddings()
+	if err != nil || len(allEmbedded) == 0 {
+		return 0
+	}
+
+	type scored struct {
+		id         string
+		similarity float64
+	}
+	var candidates []scored
+	for _, other := range allEmbedded {
+		if other.ID == insight.ID {
+			continue
+		}
+		otherVec := embed.DeserializeVector(other.Embedding)
+		if otherVec == nil {
+			continue
+		}
+		cosSim := embed.CosineSimilarity(insightVec, otherVec)
+		if cosSim >= autoSemanticThreshold {
+			candidates = append(candidates, scored{id: other.ID, similarity: cosSim})
+		}
+	}
+
+	if len(candidates) == 0 {
+		return 0
+	}
+
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].similarity > candidates[j].similarity
+	})
+	if len(candidates) > maxAutoSemanticEdges {
+		candidates = candidates[:maxAutoSemanticEdges]
+	}
+
+	now := time.Now().UTC()
+	count := 0
+	for _, c := range candidates {
+		// Bidirectional semantic edges (MAGMA: undirected)
+		meta := map[string]string{
+			"created_by": "auto",
+			"cosine":     fmt.Sprintf("%.4f", c.similarity),
+		}
+		err1 := db.InsertEdge(&model.Edge{
+			SourceID: insight.ID, TargetID: c.id,
+			EdgeType: model.EdgeSemantic, Weight: c.similarity,
+			Metadata: meta, CreatedAt: now,
+		})
+		err2 := db.InsertEdge(&model.Edge{
+			SourceID: c.id, TargetID: insight.ID,
+			EdgeType: model.EdgeSemantic, Weight: c.similarity,
+			Metadata: meta, CreatedAt: now,
+		})
+		if err1 == nil {
+			count++
+		}
+		if err2 == nil {
+			count++
+		}
+	}
+	return count
 }
 
 // FindSemanticCandidates returns insights that are potential semantic matches

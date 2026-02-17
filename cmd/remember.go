@@ -73,22 +73,7 @@ var rememberCmd = &cobra.Command{
 			return fmt.Errorf("insert insight: %w", err)
 		}
 
-		// Run graph edge engine
-		engine := graph.NewEngine(db)
-		edgeStats := engine.OnInsightCreated(insight)
-
-		// Update entities extracted by the engine
-		if len(insight.Entities) > 0 {
-			_ = db.UpdateEntities(insight.ID, insight.Entities)
-		}
-
-		// Find semantic candidates for Claude to evaluate
-		semanticCandidates := graph.FindSemanticCandidates(db, insight)
-		if semanticCandidates == nil {
-			semanticCandidates = []graph.SemanticCandidate{}
-		}
-
-		// Generate embedding if Ollama is available
+		// Generate embedding BEFORE graph engine so semantic edges can use it
 		embedded := false
 		ec := embed.NewClient()
 		if ec.Available() {
@@ -98,6 +83,21 @@ var rememberCmd = &cobra.Command{
 					embedded = true
 				}
 			}
+		}
+
+		// Run graph edge engine (includes auto semantic edges when embedded)
+		engine := graph.NewEngine(db)
+		edgeStats := engine.OnInsightCreated(insight)
+
+		// Update entities extracted by the engine
+		if len(insight.Entities) > 0 {
+			_ = db.UpdateEntities(insight.ID, insight.Entities)
+		}
+
+		// Find semantic candidates for Claude to evaluate (additional manual linking)
+		semanticCandidates := graph.FindSemanticCandidates(db, insight)
+		if semanticCandidates == nil {
+			semanticCandidates = []graph.SemanticCandidate{}
 		}
 
 		db.LogOp("remember", insight.ID, insight.Content)

@@ -11,13 +11,50 @@ import (
 
 // Beam search parameters (MAGMA-aligned).
 const (
-	beamWidth      = 10  // candidates retained per level
-	maxDepth       = 5   // max traversal hops
-	maxVisited     = 50  // total node budget
-	anchorTopK     = 20  // per-signal anchor limit (MAGMA: 15-30)
-	lambda1        = 0.6 // structural weight (MAGMA default)
-	lambda2        = 0.4 // semantic weight (MAGMA default)
+	anchorTopK = 20  // per-signal anchor limit (MAGMA: 15-30)
+	lambda1    = 1.0 // structural weight (MAGMA paper: 1.0)
+	lambda2    = 0.4 // semantic weight (MAGMA paper: 0.3-0.7)
 )
+
+// TraversalParams holds per-intent adaptive beam search parameters (MAGMA §4.2).
+type TraversalParams struct {
+	BeamWidth  int // candidates retained per level
+	MaxDepth   int // max traversal hops
+	MaxVisited int // total node budget
+}
+
+// intentTraversalParams maps intent to adaptive traversal parameters.
+// MAGMA reference code uses different depths/budgets per query type.
+var intentTraversalParams = map[Intent]TraversalParams{
+	IntentWhy: {
+		BeamWidth:  15,
+		MaxDepth:   5,
+		MaxVisited: 200,
+	},
+	IntentWhen: {
+		BeamWidth:  10,
+		MaxDepth:   5,
+		MaxVisited: 150,
+	},
+	IntentEntity: {
+		BeamWidth:  10,
+		MaxDepth:   4,
+		MaxVisited: 150,
+	},
+	IntentGeneral: {
+		BeamWidth:  10,
+		MaxDepth:   4,
+		MaxVisited: 200,
+	},
+}
+
+// getTraversalParams returns the adaptive traversal parameters for the given intent.
+func getTraversalParams(intent Intent) TraversalParams {
+	if p, ok := intentTraversalParams[intent]; ok {
+		return p
+	}
+	return intentTraversalParams[IntentGeneral]
+}
 
 // RRF constant (standard value from Cormack et al. 2009).
 const rrfK = 60
@@ -38,6 +75,7 @@ type RecallResult struct {
 func IntentAwareRecall(db *store.DB, query string, queryVec []float64, limit int) ([]RecallResult, error) {
 	intent := DetectIntent(query)
 	weights := GetWeights(intent)
+	params := getTraversalParams(intent)
 
 	// Step 1: Get all active insights
 	all, err := db.GetAllActiveInsights()
@@ -140,7 +178,7 @@ func IntentAwareRecall(db *store.DB, query string, queryVec []float64, limit int
 	// Step 3: Beam search from each anchor (P0: replaces BFS)
 	// MAGMA transition score: score_v = score_u + λ₁·φ(edgeType, intent) + λ₂·sim(v_neighbor, v_query)
 	for id, a := range anchorMap {
-		beamSearchFromAnchor(db, id, a.score, queryVec, weights, scoreMap, viaMap, insightMap)
+		beamSearchFromAnchor(db, id, a.score, queryVec, weights, params, scoreMap, viaMap, insightMap)
 	}
 
 	// Step 4: Collect and sort results
@@ -168,7 +206,97 @@ func IntentAwareRecall(db *store.DB, query string, queryVec []float64, limit int
 	if limit > 0 && len(results) > limit {
 		results = results[:limit]
 	}
+
+	// P14: For WHY intent, apply topological sort on causal edges
+	// so causes appear before effects (MAGMA §4.3 linearization).
+	if intent == IntentWhy {
+		results = causalTopologicalSort(db, results)
+	}
+
 	return results, nil
+}
+
+// causalTopologicalSort reorders results so that causes appear before effects.
+// It uses causal edges to build a DAG among the result set, then applies
+// Kahn's algorithm. Nodes without causal ordering retain their score-based position.
+func causalTopologicalSort(db *store.DB, results []RecallResult) []RecallResult {
+	if len(results) <= 1 {
+		return results
+	}
+
+	// Build a set of IDs in the result set for quick lookup
+	idSet := make(map[string]bool, len(results))
+	idToResult := make(map[string]RecallResult, len(results))
+	for _, r := range results {
+		idSet[r.Insight.ID] = true
+		idToResult[r.Insight.ID] = r
+	}
+
+	// Build DAG from causal edges: source → target means source causes target
+	adj := make(map[string][]string)    // source → targets
+	inDegree := make(map[string]int)    // target → incoming edge count
+
+	for _, r := range results {
+		inDegree[r.Insight.ID] = 0
+	}
+
+	for _, r := range results {
+		edges, err := db.GetEdgesBySourceAndType(r.Insight.ID, model.EdgeCausal)
+		if err != nil {
+			continue
+		}
+		for _, e := range edges {
+			if idSet[e.TargetID] {
+				adj[e.SourceID] = append(adj[e.SourceID], e.TargetID)
+				inDegree[e.TargetID]++
+			}
+		}
+	}
+
+	// Kahn's algorithm with score-based tie-breaking
+	var queue []string
+	for _, r := range results {
+		if inDegree[r.Insight.ID] == 0 {
+			queue = append(queue, r.Insight.ID)
+		}
+	}
+	// Sort initial queue by score descending for stable ordering
+	sort.Slice(queue, func(i, j int) bool {
+		return idToResult[queue[i]].Score > idToResult[queue[j]].Score
+	})
+
+	ordered := make([]RecallResult, 0, len(results))
+	for len(queue) > 0 {
+		id := queue[0]
+		queue = queue[1:]
+		ordered = append(ordered, idToResult[id])
+
+		for _, target := range adj[id] {
+			inDegree[target]--
+			if inDegree[target] == 0 {
+				queue = append(queue, target)
+				// Re-sort to maintain score-based tie-breaking
+				sort.Slice(queue, func(i, j int) bool {
+					return idToResult[queue[i]].Score > idToResult[queue[j]].Score
+				})
+			}
+		}
+	}
+
+	// If topological sort didn't cover all nodes (cycles), append remaining
+	if len(ordered) < len(results) {
+		covered := make(map[string]bool, len(ordered))
+		for _, r := range ordered {
+			covered[r.Insight.ID] = true
+		}
+		for _, r := range results {
+			if !covered[r.Insight.ID] {
+				ordered = append(ordered, r)
+			}
+		}
+	}
+
+	return ordered
 }
 
 // beamSearchFromAnchor performs beam search starting from a single anchor node.
@@ -179,6 +307,7 @@ func beamSearchFromAnchor(
 	startScore float64,
 	queryVec []float64,
 	weights IntentWeights,
+	params TraversalParams,
 	scoreMap map[string]float64,
 	viaMap map[string]string,
 	insightMap map[string]*model.Insight,
@@ -190,8 +319,8 @@ func beamSearchFromAnchor(
 	current := &beamHeap{{id: startID, score: startScore, depth: 0}}
 	heap.Init(current)
 
-	for depth := 0; depth < maxDepth; depth++ {
-		if current.Len() == 0 || totalVisited >= maxVisited {
+	for depth := 0; depth < params.MaxDepth; depth++ {
+		if current.Len() == 0 || totalVisited >= params.MaxVisited {
 			break
 		}
 
@@ -261,7 +390,7 @@ func beamSearchFromAnchor(
 		// Prune beam: keep only top beamWidth candidates for next level
 		pruned := &beamHeap{}
 		heap.Init(pruned)
-		for next.Len() > 0 && pruned.Len() < beamWidth {
+		for next.Len() > 0 && pruned.Len() < params.BeamWidth {
 			heap.Push(pruned, heap.Pop(next).(beamItem))
 		}
 		current = pruned
