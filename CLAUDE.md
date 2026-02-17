@@ -62,12 +62,14 @@ After `mnemon remember`, check `causal_candidates` in the output:
 mnemon link <src> <tgt> --type causal --weight 0.8 --meta '{"sub_type":"causes"}'
 ```
 
-### Retention review
-Periodically review memory health:
+### Retention lifecycle
+Insights have `effective_importance` that decays over time: `base * log(1+access) * 0.5^(days/half_life) * edge_factor`.
+Auto-pruning triggers when insights exceed 1000 (soft-deletes lowest non-immune insights).
+Immunity: importance >= 4 OR access_count >= 3.
 ```bash
-mnemon gc --threshold 0.4       # list low-retention candidates
-mnemon gc --keep <id>           # boost retention for a valuable insight
-mnemon forget <id>              # purge stale insights
+mnemon gc --threshold 0.5       # list non-immune insights below threshold
+mnemon gc --keep <id>           # boost retention (+3 access, becomes immune)
+mnemon forget <id>              # manual soft-delete
 ```
 
 ### Embedding (optional, requires Ollama)

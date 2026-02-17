@@ -114,6 +114,10 @@ CREATE INDEX IF NOT EXISTS idx_oplog_created ON oplog(created_at);
 	// Phase 3 migration: add embedding column (safe for existing DBs)
 	db.conn.Exec(`ALTER TABLE insights ADD COLUMN embedding BLOB`)
 
+	// Lifecycle migration: add effective_importance column (safe for existing DBs)
+	db.conn.Exec(`ALTER TABLE insights ADD COLUMN effective_importance REAL DEFAULT 0.5`)
+	db.conn.Exec(`CREATE INDEX IF NOT EXISTS idx_insights_effective_imp ON insights(effective_importance)`)
+
 	// Migration: remove narrative edge type from existing databases
 	// If the CHECK constraint still allows 'narrative', recreate the table without it
 	_, testErr := db.conn.Exec(`INSERT INTO edges VALUES ('__test','__test','narrative',0,'{}',datetime('now'))`)

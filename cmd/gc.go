@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Grivn/mnemon/internal/store"
 	"github.com/spf13/cobra"
 )
 
@@ -20,12 +21,13 @@ var gcCmd = &cobra.Command{
 	Long: `Garbage collection for memory insights. Two modes:
 
 Suggest mode (default):
-  mnemon gc [--threshold 0.4] [--limit 20]
-  Outputs low-retention insights for Claude to review.
+  mnemon gc [--threshold 0.5] [--limit 20]
+  Lists non-immune insights with effective_importance below threshold.
+  Immune insights (importance >= 4 or access_count >= 3) are never listed.
 
 Keep mode:
   mnemon gc --keep <id>
-  Boosts an insight's retention score (access_count +3, refreshes timestamp).`,
+  Boosts an insight's retention (access_count +3, refreshes timestamp).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		db, err := openDB()
 		if err != nil {
@@ -42,20 +44,23 @@ Keep mode:
 			if err := db.BoostRetention(gcKeepID); err != nil {
 				return fmt.Errorf("boost retention: %w", err)
 			}
+			ei, _ := db.RefreshEffectiveImportance(gcKeepID)
 			db.LogOp("gc_keep", gcKeepID, ins.Content)
 
 			output := map[string]interface{}{
-				"status":     "retained",
-				"id":         gcKeepID,
-				"content":    ins.Content,
-				"new_access": ins.AccessCount + 3,
+				"status":               "retained",
+				"id":                   gcKeepID,
+				"content":              ins.Content,
+				"new_access":           ins.AccessCount + 3,
+				"effective_importance": ei,
+				"immune":              store.IsImmune(ins.Importance, ins.AccessCount+3),
 			}
 			enc := json.NewEncoder(os.Stdout)
 			enc.SetIndent("", "  ")
 			return enc.Encode(output)
 		}
 
-		// Suggest mode: find low-retention candidates
+		// Suggest mode: find low effective_importance non-immune candidates
 		candidates, total, err := db.GetRetentionCandidates(gcThreshold, gcLimit)
 		if err != nil {
 			return fmt.Errorf("get retention candidates: %w", err)
@@ -68,6 +73,7 @@ Keep mode:
 			"threshold":        gcThreshold,
 			"candidates_found": len(candidates),
 			"candidates":       candidates,
+			"max_insights":     store.MaxInsights,
 			"actions": map[string]string{
 				"purge": "mnemon forget <id>",
 				"keep":  "mnemon gc --keep <id>",
@@ -80,7 +86,7 @@ Keep mode:
 }
 
 func init() {
-	gcCmd.Flags().Float64Var(&gcThreshold, "threshold", 0.4, "retention score threshold (0.0-1.0)")
+	gcCmd.Flags().Float64Var(&gcThreshold, "threshold", 0.5, "effective_importance threshold (insights below this are candidates)")
 	gcCmd.Flags().IntVar(&gcLimit, "limit", 20, "max candidates to return")
 	gcCmd.Flags().StringVar(&gcKeepID, "keep", "", "boost retention for this insight ID")
 	rootCmd.AddCommand(gcCmd)

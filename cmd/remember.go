@@ -10,6 +10,7 @@ import (
 	"github.com/Grivn/mnemon/internal/embed"
 	"github.com/Grivn/mnemon/internal/graph"
 	"github.com/Grivn/mnemon/internal/model"
+	"github.com/Grivn/mnemon/internal/store"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
@@ -120,6 +121,12 @@ var rememberCmd = &cobra.Command{
 			causalCandidates = []graph.CausalCandidate{}
 		}
 
+		// Compute and store effective_importance (after edges are created)
+		ei, _ := db.RefreshEffectiveImportance(insight.ID)
+
+		// Auto-prune if over capacity
+		pruned, _ := db.AutoPrune(store.MaxInsights)
+
 		db.LogOp("remember", insight.ID, insight.Content)
 
 		output := map[string]interface{}{
@@ -133,7 +140,9 @@ var rememberCmd = &cobra.Command{
 			"edges_created":       edgeStats,
 			"semantic_candidates": semanticCandidates,
 			"causal_candidates":   causalCandidates,
-			"embedded":            embedded,
+			"embedded":              embedded,
+			"effective_importance":  ei,
+			"auto_pruned":          pruned,
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

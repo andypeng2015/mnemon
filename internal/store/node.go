@@ -3,10 +3,24 @@ package store
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/Grivn/mnemon/internal/model"
+)
+
+// Lifecycle constants
+const (
+	// HalfLifeDays controls how fast effective_importance decays.
+	// After this many days without access, importance halves.
+	HalfLifeDays = 30.0
+
+	// MaxInsights is the default cap before auto-pruning kicks in.
+	MaxInsights = 1000
+
+	// PruneBatchSize is how many excess insights to prune at once.
+	PruneBatchSize = 10
 )
 
 // InsertInsight inserts a new insight into the database.
@@ -122,22 +136,87 @@ func (db *DB) IncrementAccessCount(id string) error {
 	return err
 }
 
-// RetentionCandidate holds an insight and its retention score breakdown.
-type RetentionCandidate struct {
-	Insight         *model.Insight `json:"insight"`
-	RetentionScore  float64        `json:"retention_score"`
-	DaysSinceAccess float64        `json:"days_since_access"`
-	EdgeCount       int            `json:"edge_count"`
-	Components      struct {
-		Importance float64 `json:"importance"`
-		Access     float64 `json:"access"`
-		Recency    float64 `json:"recency"`
-		Edge       float64 `json:"edge"`
-	} `json:"components"`
+// baseWeight maps importance (1-5) to a base weight for effective_importance.
+func baseWeight(importance int) float64 {
+	switch importance {
+	case 5:
+		return 1.0
+	case 4:
+		return 0.8
+	case 3:
+		return 0.5
+	case 2:
+		return 0.3
+	default:
+		return 0.15
+	}
 }
 
-// GetRetentionCandidates returns insights with retention scores below the threshold.
-// retention_score = 0.35*(importance/5) + 0.20*min(access_count/10,1) + 0.30*max(0,1-days/90) + 0.15*min(edges/5,1)
+// ComputeEffectiveImportance calculates the current effective importance.
+// Formula: base_weight(imp) * log(1 + access_count) * 0.5^(days_since_access / half_life) * (1 + 0.1*min(edges,5))
+// For newly created insights (0 days, 0 access), the access factor is log(1+0)=0,
+// so we use max(1.0, log(1+access)) to ensure a non-zero baseline.
+func ComputeEffectiveImportance(importance int, accessCount int, daysSinceAccess float64, edgeCount int) float64 {
+	base := baseWeight(importance)
+	accessFactor := math.Log(1.0 + float64(accessCount))
+	if accessFactor < 1.0 {
+		accessFactor = 1.0 // baseline for 0-1 accesses
+	}
+	decayFactor := math.Pow(0.5, daysSinceAccess/HalfLifeDays)
+	edges := edgeCount
+	if edges > 5 {
+		edges = 5
+	}
+	edgeFactor := 1.0 + 0.1*float64(edges)
+
+	return base * accessFactor * decayFactor * edgeFactor
+}
+
+// IsImmune returns true if an insight should never be auto-pruned.
+// Immune if: importance >= 4 OR access_count >= 3.
+func IsImmune(importance int, accessCount int) bool {
+	return importance >= 4 || accessCount >= 3
+}
+
+// RefreshEffectiveImportance recomputes and stores effective_importance for one insight.
+func (db *DB) RefreshEffectiveImportance(id string) (float64, error) {
+	var importance, accessCount int
+	var createdAt string
+	var lastAccessedAt sql.NullString
+	err := db.conn.QueryRow(
+		`SELECT importance, access_count, created_at, last_accessed_at FROM insights WHERE id = ? AND deleted_at IS NULL`, id,
+	).Scan(&importance, &accessCount, &createdAt, &lastAccessedAt)
+	if err != nil {
+		return 0, err
+	}
+
+	lastAccess, _ := time.Parse(time.RFC3339, createdAt)
+	if lastAccessedAt.Valid && lastAccessedAt.String != "" {
+		if t, err := time.Parse(time.RFC3339, lastAccessedAt.String); err == nil {
+			lastAccess = t
+		}
+	}
+	daysSince := time.Now().UTC().Sub(lastAccess).Hours() / 24.0
+
+	var edgeCount int
+	db.conn.QueryRow(`SELECT COUNT(*) FROM edges WHERE source_id = ? OR target_id = ?`, id, id).Scan(&edgeCount)
+
+	ei := ComputeEffectiveImportance(importance, accessCount, daysSince, edgeCount)
+
+	_, err = db.conn.Exec(`UPDATE insights SET effective_importance = ? WHERE id = ?`, ei, id)
+	return ei, err
+}
+
+// RetentionCandidate holds an insight and its effective importance breakdown.
+type RetentionCandidate struct {
+	Insight              *model.Insight `json:"insight"`
+	EffectiveImportance  float64        `json:"effective_importance"`
+	DaysSinceAccess      float64        `json:"days_since_access"`
+	EdgeCount            int            `json:"edge_count"`
+	Immune               bool           `json:"immune"`
+}
+
+// GetRetentionCandidates returns non-immune insights sorted by effective_importance ascending.
 func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionCandidate, int, error) {
 	all, err := db.GetAllActiveInsights()
 	if err != nil {
@@ -148,7 +227,6 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 	var candidates []RetentionCandidate
 
 	for _, ins := range all {
-		// Compute days since last access (fallback to created_at)
 		lastAccess := ins.CreatedAt
 		var lastAccessedAt sql.NullString
 		db.conn.QueryRow(`SELECT last_accessed_at FROM insights WHERE id = ?`, ins.ID).Scan(&lastAccessedAt)
@@ -159,46 +237,30 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 		}
 		daysSince := now.Sub(lastAccess).Hours() / 24.0
 
-		// Count edges
 		var edgeCount int
 		db.conn.QueryRow(`SELECT COUNT(*) FROM edges WHERE source_id = ? OR target_id = ?`, ins.ID, ins.ID).Scan(&edgeCount)
 
-		// Compute components
-		impComp := float64(ins.Importance) / 5.0
-		accessComp := float64(ins.AccessCount) / 10.0
-		if accessComp > 1.0 {
-			accessComp = 1.0
-		}
-		recencyComp := 1.0 - daysSince/90.0
-		if recencyComp < 0 {
-			recencyComp = 0
-		}
-		edgeComp := float64(edgeCount) / 5.0
-		if edgeComp > 1.0 {
-			edgeComp = 1.0
-		}
+		ei := ComputeEffectiveImportance(ins.Importance, ins.AccessCount, daysSince, edgeCount)
+		immune := IsImmune(ins.Importance, ins.AccessCount)
 
-		score := 0.35*impComp + 0.20*accessComp + 0.30*recencyComp + 0.15*edgeComp
+		// Update stored value
+		db.conn.Exec(`UPDATE insights SET effective_importance = ? WHERE id = ?`, ei, ins.ID)
 
-		if score < threshold {
-			c := RetentionCandidate{
-				Insight:         ins,
-				RetentionScore:  score,
-				DaysSinceAccess: daysSince,
-				EdgeCount:       edgeCount,
-			}
-			c.Components.Importance = impComp
-			c.Components.Access = accessComp
-			c.Components.Recency = recencyComp
-			c.Components.Edge = edgeComp
-			candidates = append(candidates, c)
+		if ei < threshold && !immune {
+			candidates = append(candidates, RetentionCandidate{
+				Insight:             ins,
+				EffectiveImportance: ei,
+				DaysSinceAccess:     daysSince,
+				EdgeCount:           edgeCount,
+				Immune:              immune,
+			})
 		}
 	}
 
-	// Sort by retention score ascending (weakest first)
+	// Sort by effective_importance ascending (weakest first)
 	for i := 0; i < len(candidates); i++ {
 		for j := i + 1; j < len(candidates); j++ {
-			if candidates[j].RetentionScore < candidates[i].RetentionScore {
+			if candidates[j].EffectiveImportance < candidates[i].EffectiveImportance {
 				candidates[i], candidates[j] = candidates[j], candidates[i]
 			}
 		}
@@ -209,6 +271,49 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 		candidates = candidates[:limit]
 	}
 	return candidates, total, nil
+}
+
+// AutoPrune soft-deletes the lowest effective_importance non-immune insights
+// when total active count exceeds maxInsights. Returns number pruned.
+func (db *DB) AutoPrune(maxInsights int) (int, error) {
+	var total int
+	db.conn.QueryRow(`SELECT COUNT(*) FROM insights WHERE deleted_at IS NULL`).Scan(&total)
+	if total <= maxInsights {
+		return 0, nil
+	}
+
+	excess := total - maxInsights
+	if excess > PruneBatchSize {
+		excess = PruneBatchSize
+	}
+
+	// Find lowest effective_importance non-immune insights
+	rows, err := db.conn.Query(
+		`SELECT id, importance, access_count, effective_importance FROM insights
+		 WHERE deleted_at IS NULL AND importance < 4 AND access_count < 3
+		 ORDER BY effective_importance ASC LIMIT ?`, excess)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	pruned := 0
+	for rows.Next() {
+		var id string
+		var imp, ac int
+		var ei float64
+		if err := rows.Scan(&id, &imp, &ac, &ei); err != nil {
+			continue
+		}
+		_, err := db.conn.Exec(
+			`UPDATE insights SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+			now, now, id)
+		if err == nil {
+			pruned++
+		}
+	}
+	return pruned, nil
 }
 
 // BoostRetention boosts an insight's retention: access_count +3, refreshes last_accessed_at.
