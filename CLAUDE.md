@@ -41,6 +41,20 @@ mnemon recall "<query>" --smart --limit 10
 - Do NOT store secrets, passwords, API keys, or tokens
 - Prefer specific categories over `general`
 
+### Semantic linking
+After `mnemon remember`, check `semantic_candidates` in the output. For truly related candidates:
+```bash
+mnemon link <source_id> <target_id> --type semantic --weight 0.85
+```
+
+### Retention review
+Periodically review memory health:
+```bash
+mnemon gc --threshold 0.4       # list low-retention candidates
+mnemon gc --keep <id>           # boost retention for a valuable insight
+mnemon forget <id>              # purge stale insights
+```
+
 ### Observability
 ```bash
 mnemon log            # see recent operations (what was stored/queried)

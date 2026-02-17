@@ -81,17 +81,24 @@ var rememberCmd = &cobra.Command{
 			_ = db.UpdateEntities(insight.ID, insight.Entities)
 		}
 
+		// Find semantic candidates for Claude to evaluate
+		semanticCandidates := graph.FindSemanticCandidates(db, insight)
+		if semanticCandidates == nil {
+			semanticCandidates = []graph.SemanticCandidate{}
+		}
+
 		db.LogOp("remember", insight.ID, insight.Content)
 
 		output := map[string]interface{}{
-			"id":            insight.ID,
-			"content":       insight.Content,
-			"category":      insight.Category,
-			"importance":    insight.Importance,
-			"tags":          insight.Tags,
-			"entities":      insight.Entities,
-			"created_at":    insight.CreatedAt.Format(time.RFC3339),
-			"edges_created": edgeStats,
+			"id":                  insight.ID,
+			"content":             insight.Content,
+			"category":            insight.Category,
+			"importance":          insight.Importance,
+			"tags":                insight.Tags,
+			"entities":            insight.Entities,
+			"created_at":          insight.CreatedAt.Format(time.RFC3339),
+			"edges_created":       edgeStats,
+			"semantic_candidates": semanticCandidates,
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

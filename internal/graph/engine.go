@@ -10,6 +10,7 @@ type EdgeStats struct {
 	Temporal int `json:"temporal"`
 	Entity   int `json:"entity"`
 	Causal   int `json:"causal"`
+	Semantic int `json:"semantic"`
 }
 
 // Engine orchestrates automatic edge creation when insights are stored.

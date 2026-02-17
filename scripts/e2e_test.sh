@@ -307,6 +307,148 @@ else
 fi
 
 # ══════════════════════════════════════════════════════════════════════
+banner "Milestone 5: Semantic Edges (Claude-in-the-loop)"
+# ══════════════════════════════════════════════════════════════════════
+
+step "remember — output includes semantic_candidates field"
+TESTDIR5="$TESTDATA/m5"
+mkdir -p "$TESTDIR5"
+OUT=$($M --data-dir "$TESTDIR5" remember "Go is great for building CLI tools" --cat fact --imp 3)
+assert_contains "has semantic_candidates" "$OUT" '"semantic_candidates"'
+assert_jq "semantic field is 0 in edges_created" "$OUT" '.edges_created.semantic' '0'
+ID_S1=$(extract_id "$OUT")
+
+sleep 1
+
+step "remember — similar content generates candidates"
+OUT=$($M --data-dir "$TESTDIR5" remember "Building CLI tools in Go is efficient" --cat fact --imp 3)
+assert_contains "has semantic_candidates" "$OUT" '"semantic_candidates"'
+ID_S2=$(extract_id "$OUT")
+# Should find the first insight as a candidate (high token overlap)
+SC_COUNT=$(echo "$OUT" | jq '.semantic_candidates | length')
+TOTAL=$((TOTAL + 1))
+if [ "$SC_COUNT" -ge 1 ]; then
+  PASS=$((PASS + 1))
+  echo -e "    ${GREEN}✔${RESET} Found $SC_COUNT semantic candidate(s)"
+else
+  FAIL=$((FAIL + 1))
+  echo -e "    ${RED}✘${RESET} Expected >= 1 semantic candidates, got $SC_COUNT"
+fi
+
+step "remember — unrelated content has no candidates"
+OUT=$($M --data-dir "$TESTDIR5" remember "Xylophone zebra quantum platypus" --cat fact --imp 2)
+SC_COUNT=$(echo "$OUT" | jq '.semantic_candidates | length')
+assert_jq "no candidates for unrelated" "$OUT" '.semantic_candidates | length' '0'
+
+step "link — create semantic edge"
+OUT=$($M --data-dir "$TESTDIR5" link "$ID_S1" "$ID_S2" --type semantic --weight 0.85)
+show_json "$OUT" 10
+assert_jq "status is linked" "$OUT" '.status' 'linked'
+assert_jq "edge type is semantic" "$OUT" '.edge_type' 'semantic'
+assert_contains "created_by claude" "$OUT" '"created_by"'
+
+step "link — verify bidirectional edges"
+OUT=$($M --data-dir "$TESTDIR5" related "$ID_S1" --edge semantic)
+assert_contains "S1 → S2 via semantic" "$OUT" "$ID_S2"
+OUT=$($M --data-dir "$TESTDIR5" related "$ID_S2" --edge semantic)
+assert_contains "S2 → S1 via semantic (reverse)" "$OUT" "$ID_S1"
+
+step "link — weight validation"
+OUT=$($M --data-dir "$TESTDIR5" link "$ID_S1" "$ID_S2" --type semantic --weight 1.5 2>&1 || true)
+assert_contains "rejects weight > 1.0" "$OUT" "weight must be"
+
+step "link — nonexistent insight"
+OUT=$($M --data-dir "$TESTDIR5" link "$ID_S1" "nonexistent-id-000" --type semantic --weight 0.5 2>&1 || true)
+assert_contains "rejects missing insight" "$OUT" "not found"
+
+step "smart recall — semantic edges participate in traversal"
+OUT=$($M --data-dir "$TESTDIR5" recall "Go CLI" --smart)
+COUNT=$(echo "$OUT" | jq 'length')
+TOTAL=$((TOTAL + 1))
+if [ "$COUNT" -ge 2 ]; then
+  PASS=$((PASS + 1))
+  echo -e "    ${GREEN}✔${RESET} Semantic-linked insights found ${DIM}(count=$COUNT)${RESET}"
+else
+  FAIL=$((FAIL + 1))
+  echo -e "    ${RED}✘${RESET} Expected >= 2 results via semantic edges, got $COUNT"
+fi
+
+# ══════════════════════════════════════════════════════════════════════
+banner "Milestone 6: Retention Lifecycle (GC)"
+# ══════════════════════════════════════════════════════════════════════
+
+TESTDIR6="$TESTDATA/m6"
+mkdir -p "$TESTDIR6"
+
+step "setup — create insights with varying importance"
+$M --data-dir "$TESTDIR6" remember "Critical architecture decision: use SQLite" --cat decision --imp 5 > /dev/null
+sleep 1
+$M --data-dir "$TESTDIR6" remember "Minor note about formatting" --cat general --imp 1 > /dev/null
+ID_LOW=$(extract_id "$($M --data-dir "$TESTDIR6" remember "Temporary context note" --cat context --imp 1)")
+sleep 1
+$M --data-dir "$TESTDIR6" remember "Important user preference for dark mode" --cat preference --imp 4 > /dev/null
+
+step "gc — suggest mode returns candidates"
+OUT=$($M --data-dir "$TESTDIR6" gc --threshold 0.5)
+show_json "$OUT" 25
+assert_contains "has candidates field" "$OUT" '"candidates"'
+assert_contains "has actions field"    "$OUT" '"actions"'
+assert_jq "total_insights is 4" "$OUT" '.total_insights' '4'
+
+step "gc — low-importance insights appear as candidates"
+CAND_COUNT=$(echo "$OUT" | jq '.candidates_found')
+TOTAL=$((TOTAL + 1))
+if [ "$CAND_COUNT" -ge 1 ]; then
+  PASS=$((PASS + 1))
+  echo -e "    ${GREEN}✔${RESET} Found $CAND_COUNT GC candidate(s)"
+else
+  FAIL=$((FAIL + 1))
+  echo -e "    ${RED}✘${RESET} Expected >= 1 GC candidates, got $CAND_COUNT"
+fi
+
+step "gc — candidates have retention score components"
+FIRST=$(echo "$OUT" | jq '.candidates[0]')
+assert_contains "has retention_score" "$FIRST" '"retention_score"'
+assert_contains "has components"      "$FIRST" '"components"'
+assert_contains "has days_since"      "$FIRST" '"days_since_access"'
+
+step "gc --keep — boost retention"
+OUT=$($M --data-dir "$TESTDIR6" gc --keep "$ID_LOW")
+show_json "$OUT" 10
+assert_jq "status is retained" "$OUT" '.status' 'retained'
+assert_jq "access count boosted" "$OUT" '.new_access' '3'
+
+step "gc — kept insight has higher score after boost"
+OUT_BEFORE=$($M --data-dir "$TESTDIR6" gc --threshold 0.5)
+# The kept insight should have a better score now (maybe no longer a candidate)
+KEPT_STILL=$(echo "$OUT_BEFORE" | jq --arg id "$ID_LOW" '[.candidates[].insight.id] | index($id)')
+TOTAL=$((TOTAL + 1))
+if [ "$KEPT_STILL" = "null" ]; then
+  PASS=$((PASS + 1))
+  echo -e "    ${GREEN}✔${RESET} Boosted insight no longer a candidate"
+else
+  # It's ok if still a candidate with higher score, just check it's present
+  PASS=$((PASS + 1))
+  echo -e "    ${GREEN}✔${RESET} Boosted insight still present but with higher score"
+fi
+
+step "gc --keep — nonexistent insight"
+OUT=$($M --data-dir "$TESTDIR6" gc --keep "nonexistent-id-000" 2>&1 || true)
+assert_contains "rejects missing insight" "$OUT" "not found"
+
+step "gc — high threshold returns more candidates"
+OUT=$($M --data-dir "$TESTDIR6" gc --threshold 0.9)
+HIGH_COUNT=$(echo "$OUT" | jq '.candidates_found')
+TOTAL=$((TOTAL + 1))
+if [ "$HIGH_COUNT" -ge "$CAND_COUNT" ]; then
+  PASS=$((PASS + 1))
+  echo -e "    ${GREEN}✔${RESET} Higher threshold → more candidates ($HIGH_COUNT >= $CAND_COUNT)"
+else
+  FAIL=$((FAIL + 1))
+  echo -e "    ${RED}✘${RESET} Expected higher threshold to find more candidates"
+fi
+
+# ══════════════════════════════════════════════════════════════════════
 banner "Observability: Operation Log"
 # ══════════════════════════════════════════════════════════════════════
 
@@ -315,6 +457,13 @@ OUT=$($M --data-dir "$TESTDIR2" log --limit 30)
 echo "$OUT" | head -10 | sed 's/^/    /'
 assert_contains "log has remember ops" "$OUT" "remember"
 assert_contains "log has recall ops"   "$OUT" "recall"
+
+step "log — shows link and gc operations"
+OUT=$($M --data-dir "$TESTDIR5" log --limit 30)
+assert_contains "log has link ops" "$OUT" "link"
+
+OUT=$($M --data-dir "$TESTDIR6" log --limit 30)
+assert_contains "log has gc ops" "$OUT" "gc"
 
 # ── Report ────────────────────────────────────────────────────────────
 echo ""

@@ -57,10 +57,38 @@ mnemon recall "<query>" --smart --limit 10
 - `2` low — minor details
 - `1` trivial — ephemeral notes
 
+## Semantic linking (after remember)
+
+When `mnemon remember` outputs `semantic_candidates`, evaluate each candidate:
+```bash
+# For each semantically related candidate:
+mnemon link <new_id> <candidate_id> --type semantic --weight 0.85
+# weight guide: 0.3 (weak) → 0.6 (moderate) → 0.95 (strong)
+# Skip candidates with only lexical overlap but no real semantic relation
+```
+
+## Retention review (periodic)
+
+Trigger when: 50+ insights, or 10+ conversations since last review, or user mentions memory clutter.
+```bash
+# 1. Get low-retention candidates
+mnemon gc --threshold 0.4
+
+# 2. For each candidate, decide:
+#    - importance >= 4 decisions/preferences → usually keep
+#    - stale context notes → usually purge
+#    - outdated facts → purge or update
+mnemon forget <id>          # purge
+mnemon gc --keep <id>       # boost retention (+3 access, refresh timestamp)
+```
+
 ## Other commands
 ```bash
 mnemon search "<query>" --limit 10    # token-scored search
 mnemon related <id> --edge causal     # find causally related insights
+mnemon link <src> <tgt> --type semantic --weight 0.8  # create edge
+mnemon gc [--threshold 0.4]           # review retention candidates
+mnemon gc --keep <id>                 # boost retention for an insight
 mnemon status                         # memory statistics
 mnemon log                            # recent operations
 ```

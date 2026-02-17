@@ -104,5 +104,12 @@ CREATE TABLE IF NOT EXISTS oplog (
 CREATE INDEX IF NOT EXISTS idx_oplog_created ON oplog(created_at);
 `
 	_, err := db.conn.Exec(schema)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Phase 2 migration: add last_accessed_at column (safe for existing DBs)
+	db.conn.Exec(`ALTER TABLE insights ADD COLUMN last_accessed_at TEXT`)
+
+	return nil
 }

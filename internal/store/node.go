@@ -114,11 +114,116 @@ func (db *DB) UpdateEntities(id string, entities []string) error {
 	return err
 }
 
-// IncrementAccessCount bumps the access count for an insight.
+// IncrementAccessCount bumps the access count and refreshes last_accessed_at.
 func (db *DB) IncrementAccessCount(id string) error {
 	_, err := db.conn.Exec(
-		`UPDATE insights SET access_count = access_count + 1 WHERE id = ?`, id)
+		`UPDATE insights SET access_count = access_count + 1, last_accessed_at = ? WHERE id = ?`,
+		time.Now().UTC().Format(time.RFC3339), id)
 	return err
+}
+
+// RetentionCandidate holds an insight and its retention score breakdown.
+type RetentionCandidate struct {
+	Insight         *model.Insight `json:"insight"`
+	RetentionScore  float64        `json:"retention_score"`
+	DaysSinceAccess float64        `json:"days_since_access"`
+	EdgeCount       int            `json:"edge_count"`
+	Components      struct {
+		Importance float64 `json:"importance"`
+		Access     float64 `json:"access"`
+		Recency    float64 `json:"recency"`
+		Edge       float64 `json:"edge"`
+	} `json:"components"`
+}
+
+// GetRetentionCandidates returns insights with retention scores below the threshold.
+// retention_score = 0.35*(importance/5) + 0.20*min(access_count/10,1) + 0.30*max(0,1-days/90) + 0.15*min(edges/5,1)
+func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionCandidate, int, error) {
+	all, err := db.GetAllActiveInsights()
+	if err != nil {
+		return nil, 0, err
+	}
+
+	now := time.Now().UTC()
+	var candidates []RetentionCandidate
+
+	for _, ins := range all {
+		// Compute days since last access (fallback to created_at)
+		lastAccess := ins.CreatedAt
+		var lastAccessedAt sql.NullString
+		db.conn.QueryRow(`SELECT last_accessed_at FROM insights WHERE id = ?`, ins.ID).Scan(&lastAccessedAt)
+		if lastAccessedAt.Valid && lastAccessedAt.String != "" {
+			if t, err := time.Parse(time.RFC3339, lastAccessedAt.String); err == nil {
+				lastAccess = t
+			}
+		}
+		daysSince := now.Sub(lastAccess).Hours() / 24.0
+
+		// Count edges
+		var edgeCount int
+		db.conn.QueryRow(`SELECT COUNT(*) FROM edges WHERE source_id = ? OR target_id = ?`, ins.ID, ins.ID).Scan(&edgeCount)
+
+		// Compute components
+		impComp := float64(ins.Importance) / 5.0
+		accessComp := float64(ins.AccessCount) / 10.0
+		if accessComp > 1.0 {
+			accessComp = 1.0
+		}
+		recencyComp := 1.0 - daysSince/90.0
+		if recencyComp < 0 {
+			recencyComp = 0
+		}
+		edgeComp := float64(edgeCount) / 5.0
+		if edgeComp > 1.0 {
+			edgeComp = 1.0
+		}
+
+		score := 0.35*impComp + 0.20*accessComp + 0.30*recencyComp + 0.15*edgeComp
+
+		if score < threshold {
+			c := RetentionCandidate{
+				Insight:         ins,
+				RetentionScore:  score,
+				DaysSinceAccess: daysSince,
+				EdgeCount:       edgeCount,
+			}
+			c.Components.Importance = impComp
+			c.Components.Access = accessComp
+			c.Components.Recency = recencyComp
+			c.Components.Edge = edgeComp
+			candidates = append(candidates, c)
+		}
+	}
+
+	// Sort by retention score ascending (weakest first)
+	for i := 0; i < len(candidates); i++ {
+		for j := i + 1; j < len(candidates); j++ {
+			if candidates[j].RetentionScore < candidates[i].RetentionScore {
+				candidates[i], candidates[j] = candidates[j], candidates[i]
+			}
+		}
+	}
+
+	total := len(all)
+	if limit > 0 && len(candidates) > limit {
+		candidates = candidates[:limit]
+	}
+	return candidates, total, nil
+}
+
+// BoostRetention boosts an insight's retention: access_count +3, refreshes last_accessed_at.
+func (db *DB) BoostRetention(id string) error {
+	res, err := db.conn.Exec(
+		`UPDATE insights SET access_count = access_count + 3, last_accessed_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
+		time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), id)
+	if err != nil {
+		return err
+	}
+	n, _ := res.RowsAffected()
+	if n == 0 {
+		return fmt.Errorf("insight %s not found or already deleted", id)
+	}
+	return nil
 }
 
 // GetLatestInsightBySource returns the most recent non-deleted insight for a given source, excluding the given ID.
