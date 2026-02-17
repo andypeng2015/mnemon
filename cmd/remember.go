@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Grivn/mnemon/internal/embed"
 	"github.com/Grivn/mnemon/internal/graph"
 	"github.com/Grivn/mnemon/internal/model"
 	"github.com/google/uuid"
@@ -87,6 +88,18 @@ var rememberCmd = &cobra.Command{
 			semanticCandidates = []graph.SemanticCandidate{}
 		}
 
+		// Generate embedding if Ollama is available
+		embedded := false
+		ec := embed.NewClient()
+		if ec.Available() {
+			if vec, err := ec.Embed(content); err == nil {
+				blob := embed.SerializeVector(vec)
+				if err := db.UpdateEmbedding(insight.ID, blob); err == nil {
+					embedded = true
+				}
+			}
+		}
+
 		db.LogOp("remember", insight.ID, insight.Content)
 
 		output := map[string]interface{}{
@@ -99,6 +112,7 @@ var rememberCmd = &cobra.Command{
 			"created_at":          insight.CreatedAt.Format(time.RFC3339),
 			"edges_created":       edgeStats,
 			"semantic_candidates": semanticCandidates,
+			"embedded":            embedded,
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")

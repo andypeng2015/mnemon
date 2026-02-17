@@ -55,6 +55,15 @@ mnemon gc --keep <id>           # boost retention for a valuable insight
 mnemon forget <id>              # purge stale insights
 ```
 
+### Embedding (optional, requires Ollama)
+When Ollama is running, `remember` auto-generates embeddings and `recall --smart` uses hybrid vector+keyword search.
+```bash
+mnemon embed --status          # check embedding coverage
+mnemon embed --all             # backfill embeddings for all insights
+mnemon embed <id>              # embed a specific insight
+```
+Install: `brew install ollama && ollama pull nomic-embed-text`
+
 ### Observability
 ```bash
 mnemon log            # see recent operations (what was stored/queried)
@@ -64,6 +73,7 @@ mnemon status         # see memory statistics
 ## Development
 
 - Go binary, dependencies: `modernc.org/sqlite`, `spf13/cobra`, `google/uuid`
+- Optional: Ollama for embedding support (`nomic-embed-text`)
 - Run tests: `./scripts/e2e_test.sh`
 - Build: `go build -o mnemon .`
 - Install: `go build -o $GOPATH/bin/mnemon .`

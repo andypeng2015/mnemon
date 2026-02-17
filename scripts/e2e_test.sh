@@ -465,6 +465,63 @@ assert_contains "log has link ops" "$OUT" "link"
 OUT=$($M --data-dir "$TESTDIR6" log --limit 30)
 assert_contains "log has gc ops" "$OUT" "gc"
 
+# ══════════════════════════════════════════════════════════════════════
+banner "Milestone 7: Embedding Support (Ollama)"
+# ══════════════════════════════════════════════════════════════════════
+
+step "embed --status — always works (even without Ollama)"
+TESTDIR7="$TESTDATA/m7"
+mkdir -p "$TESTDIR7"
+$M --data-dir "$TESTDIR7" remember "Embedding test insight one" --cat fact --imp 3 > /dev/null
+$M --data-dir "$TESTDIR7" remember "Embedding test insight two" --cat fact --imp 3 > /dev/null
+OUT=$($M --data-dir "$TESTDIR7" embed --status)
+show_json "$OUT"
+assert_jq "total_insights is 2" "$OUT" '.total_insights' '2'
+assert_contains "has ollama_available" "$OUT" '"ollama_available"'
+assert_contains "has coverage field" "$OUT" '"coverage"'
+
+# Check if Ollama is available for the remaining tests
+OLLAMA_OK=$(echo "$OUT" | jq -r '.ollama_available')
+if [ "$OLLAMA_OK" = "true" ]; then
+  step "remember — auto-embeds when Ollama available"
+  OUT=$($M --data-dir "$TESTDIR7" remember "This insight should be auto-embedded" --cat fact --imp 3)
+  assert_jq "embedded is true" "$OUT" '.embedded' 'true'
+  ID_E1=$(extract_id "$OUT")
+
+  step "embed --all — backfill un-embedded insights"
+  # Create an insight without auto-embedding by pointing Ollama to a dead endpoint
+  MNEMON_EMBED_ENDPOINT="http://127.0.0.1:1" $M --data-dir "$TESTDIR7" remember "Un-embedded test insight" --cat fact --imp 2 > /dev/null
+
+  # Backfill all — should find the un-embedded one
+  OUT=$($M --data-dir "$TESTDIR7" embed --all)
+  show_json "$OUT"
+  assert_jq "backfill status" "$OUT" '.status' 'backfill_complete'
+  assert_contains "has succeeded count" "$OUT" '"succeeded"'
+
+  step "embed --status — verify coverage after backfill"
+  OUT=$($M --data-dir "$TESTDIR7" embed --status)
+  assert_jq "all embedded" "$OUT" '.coverage' '100%'
+
+  step "recall --smart — uses hybrid search with embeddings"
+  OUT=$($M --data-dir "$TESTDIR7" recall "embedding test" --smart)
+  COUNT=$(echo "$OUT" | jq 'length')
+  TOTAL=$((TOTAL + 1))
+  if [ "$COUNT" -ge 1 ]; then
+    PASS=$((PASS + 1))
+    echo -e "    ${GREEN}✔${RESET} Smart recall with embeddings works ${DIM}(count=$COUNT)${RESET}"
+  else
+    FAIL=$((FAIL + 1))
+    echo -e "    ${RED}✘${RESET} Expected >= 1 results, got $COUNT"
+  fi
+else
+  echo -e "  ${DIM}  Ollama not available — skipping embedding integration tests${RESET}"
+  echo -e "  ${DIM}  Install: brew install ollama && ollama pull nomic-embed-text${RESET}"
+
+  step "remember — embedded=false when Ollama unavailable"
+  OUT=$($M --data-dir "$TESTDIR7" remember "This insight will not be embedded" --cat fact --imp 3)
+  assert_jq "embedded is false" "$OUT" '.embedded' 'false'
+fi
+
 # ── Report ────────────────────────────────────────────────────────────
 echo ""
 echo -e "${BOLD}${CYAN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${RESET}"

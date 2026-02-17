@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Grivn/mnemon/internal/embed"
 	"github.com/Grivn/mnemon/internal/search"
 	"github.com/Grivn/mnemon/internal/store"
 	"github.com/spf13/cobra"
@@ -36,8 +37,15 @@ var recallCmd = &cobra.Command{
 		enc.SetIndent("", "  ")
 
 		if recSmart {
-			// Intent-aware recall with graph traversal
-			results, err := search.IntentAwareRecall(db, keyword, recLimit)
+			// Try to get query embedding for hybrid search
+			var queryVec []float64
+			ec := embed.NewClient()
+			if ec.Available() {
+				queryVec, _ = ec.Embed(keyword)
+			}
+
+			// Intent-aware recall with graph traversal (+ optional vector search)
+			results, err := search.IntentAwareRecall(db, keyword, queryVec, recLimit)
 			if err != nil {
 				return fmt.Errorf("smart recall: %w", err)
 			}

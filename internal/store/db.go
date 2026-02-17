@@ -111,5 +111,8 @@ CREATE INDEX IF NOT EXISTS idx_oplog_created ON oplog(created_at);
 	// Phase 2 migration: add last_accessed_at column (safe for existing DBs)
 	db.conn.Exec(`ALTER TABLE insights ADD COLUMN last_accessed_at TEXT`)
 
+	// Phase 3 migration: add embedding column (safe for existing DBs)
+	db.conn.Exec(`ALTER TABLE insights ADD COLUMN embedding BLOB`)
+
 	return nil
 }

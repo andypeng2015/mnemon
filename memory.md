@@ -82,6 +82,14 @@ mnemon forget <id>          # purge
 mnemon gc --keep <id>       # boost retention (+3 access, refresh timestamp)
 ```
 
+## Embedding (optional enhancement)
+
+When Ollama is running locally, `remember` auto-embeds insights and `recall --smart` uses hybrid vector+keyword search (RRF fusion). No action needed — it's automatic.
+```bash
+mnemon embed --status          # check coverage
+mnemon embed --all             # backfill existing insights
+```
+
 ## Other commands
 ```bash
 mnemon search "<query>" --limit 10    # token-scored search
@@ -89,6 +97,8 @@ mnemon related <id> --edge causal     # find causally related insights
 mnemon link <src> <tgt> --type semantic --weight 0.8  # create edge
 mnemon gc [--threshold 0.4]           # review retention candidates
 mnemon gc --keep <id>                 # boost retention for an insight
+mnemon embed --status                 # embedding coverage
+mnemon embed --all                    # backfill embeddings
 mnemon status                         # memory statistics
 mnemon log                            # recent operations
 ```

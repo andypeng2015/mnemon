@@ -299,6 +299,76 @@ func (db *DB) GetStats() (*InsightStats, error) {
 	return stats, nil
 }
 
+// UpdateEmbedding stores an embedding vector for an insight.
+func (db *DB) UpdateEmbedding(id string, blob []byte) error {
+	_, err := db.conn.Exec(
+		`UPDATE insights SET embedding = ?, updated_at = ? WHERE id = ?`,
+		blob, time.Now().UTC().Format(time.RFC3339), id)
+	return err
+}
+
+// GetEmbedding returns the raw embedding blob for an insight.
+func (db *DB) GetEmbedding(id string) ([]byte, error) {
+	var blob []byte
+	err := db.conn.QueryRow(`SELECT embedding FROM insights WHERE id = ? AND deleted_at IS NULL`, id).Scan(&blob)
+	if err != nil {
+		return nil, err
+	}
+	return blob, nil
+}
+
+// EmbeddedInsight pairs an insight ID, content, and its embedding blob.
+type EmbeddedInsight struct {
+	ID        string
+	Content   string
+	Embedding []byte
+}
+
+// GetAllEmbeddings returns all active insights that have embeddings.
+func (db *DB) GetAllEmbeddings() ([]EmbeddedInsight, error) {
+	rows, err := db.conn.Query(
+		`SELECT id, content, embedding FROM insights WHERE deleted_at IS NULL AND embedding IS NOT NULL`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var results []EmbeddedInsight
+	for rows.Next() {
+		var e EmbeddedInsight
+		if err := rows.Scan(&e.ID, &e.Content, &e.Embedding); err != nil {
+			return nil, err
+		}
+		if len(e.Embedding) > 0 {
+			results = append(results, e)
+		}
+	}
+	return results, nil
+}
+
+// EmbeddingStats returns total insights and how many have embeddings.
+func (db *DB) EmbeddingStats() (total int, embedded int, err error) {
+	db.conn.QueryRow(`SELECT COUNT(*) FROM insights WHERE deleted_at IS NULL`).Scan(&total)
+	db.conn.QueryRow(`SELECT COUNT(*) FROM insights WHERE deleted_at IS NULL AND embedding IS NOT NULL`).Scan(&embedded)
+	return total, embedded, nil
+}
+
+// GetInsightsWithoutEmbedding returns active insights that lack embeddings.
+func (db *DB) GetInsightsWithoutEmbedding(limit int) ([]*model.Insight, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	rows, err := db.conn.Query(
+		`SELECT id, content, category, importance, tags, entities, source, access_count, created_at, updated_at, deleted_at
+		 FROM insights WHERE deleted_at IS NULL AND embedding IS NULL
+		 ORDER BY importance DESC, created_at DESC LIMIT ?`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanInsights(rows)
+}
+
 func scanInsight(row *sql.Row) (*model.Insight, error) {
 	var i model.Insight
 	var cat, tags, entities, source, createdAt, updatedAt string
