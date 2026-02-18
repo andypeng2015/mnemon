@@ -11,9 +11,9 @@ description: >
 # Memory Skill — mnemon
 
 You have access to a persistent memory system via the `mnemon` CLI.
-You MUST actively use it to store and retrieve knowledge across sessions.
+Use it to store and retrieve knowledge across sessions.
 
-## On every conversation start (MANDATORY)
+## On every conversation start
 
 ```bash
 mnemon recall "<topic or project name>" --smart --limit 5
@@ -21,20 +21,59 @@ mnemon recall "<topic or project name>" --smart --limit 5
 
 Load relevant context before responding.
 
-## When to remember (MANDATORY — do not skip)
+## What to remember
 
-You MUST run `mnemon diff` + `mnemon remember` when ANY of these occur:
+Memory bridges the gap between sessions. Store information that is **costly to
+re-obtain** — either the user would have to repeat themselves, or you would have
+to redo significant work.
 
-1. **User states a preference** — tool choice, coding style, workflow, naming convention
-2. **An architectural or design decision is made** — why X over Y, trade-offs discussed
-3. **A bug is diagnosed and fixed** — root cause, fix approach, lessons learned
-4. **A new project pattern is established** — file structure, API convention, testing approach
-5. **User corrects you** — the correction itself is a preference or fact worth saving
-6. **Key facts are discovered** — API specs, version constraints, environment details
-7. **A task is completed** — summarize what was built/changed for future context
-8. **User expresses ongoing interest in a topic** — save as preference
+Three types of information are worth persisting:
 
-### How to remember
+### 1. User directives
+
+Things the user explicitly expressed — you cannot derive these on your own.
+
+- **Preferences**: tool choices, coding style, communication style, risk tolerance
+- **Decisions**: choices the user made with their rationale ("use SQLite because single-binary")
+- **Corrections**: when the user corrects your behavior or output
+- **Constraints**: boundaries, requirements, goals ("never auto-commit", "budget under $10K")
+
+→ `--cat preference` or `--cat decision`, `--imp 4-5`
+
+### 2. Reasoning conclusions
+
+Insights you derived through analysis — re-deriving them costs significant effort.
+
+- **Root cause analysis**: "503 errors caused by connection pool exhaustion under concurrent load"
+- **Design rationale**: "chose event sourcing over CRUD because of audit trail requirements"
+- **Comparative analysis**: "Qdrant outperforms Milvus on filtered search by 3x in our benchmark"
+- **Pattern discovery**: "sector rotation signal preceded 5% corrections 3 times in Q1"
+
+→ `--cat insight` or `--cat decision`, `--imp 4-5`
+
+### 3. Observed state
+
+Facts about the environment that you discovered — not easily re-observable
+or not recorded elsewhere.
+
+- **System topology**: "Service A depends on B and C; B uses a Redis cluster"
+- **Environment specifics**: "production DB is PostgreSQL 15 on RDS us-east-1, read replicas in us-west-2"
+- **Domain context**: "portfolio is 60/30/10 equity/bonds/alternatives"
+- **Historical state**: "last P1 incident was Feb 3, caused by DNS resolution timeout"
+
+→ `--cat fact` or `--cat context`, `--imp 3`
+
+### What NOT to remember
+
+- **Easily re-derivable** — reading code, checking docs, or a quick search can recover it
+- **Transient state** — current task progress, intermediate results that will change
+- **Public knowledge** — common facts, well-documented APIs, widely-known patterns
+- **Every small task** — git log already tracks what changed; don't duplicate it
+
+**The test**: if you forget it, does the user have to repeat themselves or do you
+have to redo significant work? If no, don't store it.
+
+## How to remember
 
 ```bash
 # 1. ALWAYS check for duplicates first
@@ -48,15 +87,13 @@ mnemon diff "<new fact>"
 
 ### Entity extraction
 
-When calling `remember`, extract key entities from the content and pass them via `--entities`:
+Extract key entities from the content and pass them via `--entities`:
 
 ```bash
 mnemon remember "Chose Qdrant over Milvus for vector search" \
   --cat decision --imp 5 \
   --entities "Qdrant,Milvus,vector-search"
 ```
-
-The `--entities` flag accepts comma-separated entities that get merged with auto-extracted entities.
 
 ## When the user asks about past context
 
@@ -66,22 +103,13 @@ mnemon recall "<query>" --smart --limit 10
 
 ## Categories
 
-| Category | Use for | Default importance |
+| Category | Maps to | Typical importance |
 |----------|---------|-------------------|
-| `preference` | User likes/dislikes, tool choices, workflow | 4 |
-| `decision` | Architectural or design decisions with rationale | 5 |
-| `fact` | Objective information, specs, environment details | 3 |
-| `insight` | Patterns, lessons learned, debugging techniques | 4 |
-| `context` | Project state, current phase, WIP status | 3 |
-| `general` | Anything else | 3 |
-
-## Importance scale
-
-- `5` critical — core decisions, strong user preferences
-- `4` high — important facts, recurring patterns
-- `3` medium — general context (default)
-- `2` low — minor details
-- `1` trivial — ephemeral notes
+| `preference` | User directives (preferences, corrections) | 4 |
+| `decision` | User directives or reasoning conclusions (decisions with rationale) | 5 |
+| `insight` | Reasoning conclusions (analysis, root causes, patterns) | 4 |
+| `fact` | Observed state (environment facts, domain context) | 3 |
+| `context` | Observed state (system state, historical events) | 3 |
 
 ## Linking (after remember)
 
@@ -128,5 +156,4 @@ mnemon embed --all                    # backfill embeddings (requires Ollama)
 - ALWAYS `diff` before `remember` to avoid duplicates
 - Use `--smart` on recall for intent-aware retrieval
 - Prefer specific categories over `general`
-- Set importance >= 4 for decisions and strong preferences
 - Do NOT store secrets, passwords, or tokens
