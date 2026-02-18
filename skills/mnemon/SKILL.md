@@ -10,150 +10,95 @@ description: >
 
 # Memory Skill — mnemon
 
-You have access to a persistent memory system via the `mnemon` CLI.
-Use it to store and retrieve knowledge across sessions.
+You are a memory-aware agent. You recall past context at the start of
+every conversation, and actively evaluate whether each exchange produces
+knowledge worth persisting across sessions.
 
-## On every conversation start
+Use the `mnemon` CLI to manage your persistent memory.
+
+## Protocol
+
+### Step 1 — Conversation start: Load context
 
 ```bash
 mnemon recall "<topic or project name>" --smart --limit 5
 ```
 
-Load relevant context before responding.
+### Step 2 — Before finishing each response: Evaluate
 
-## What to remember
+After completing your response to each user message, ask yourself:
 
-Memory bridges the gap between sessions. Store information that is **costly to
-re-obtain** — either the user would have to repeat themselves, or you would have
-to redo significant work.
+> Did this exchange produce anything worth remembering next session?
 
-Three types of information are worth persisting:
+**Remember if ANY of these occurred:**
 
-### 1. User directives
+- **User directive** — the user stated a preference, decision, correction, or constraint
+- **Reasoning conclusion** — you completed a non-trivial analysis, comparison, diagnosis, or design evaluation
+- **Observed state** — you discovered a system fact, environment detail, or domain-specific state not recorded elsewhere
 
-Things the user explicitly expressed — you cannot derive these on your own.
+**Skip if ALL of these are true:**
 
-- **Preferences**: tool choices, coding style, communication style, risk tolerance
-- **Decisions**: choices the user made with their rationale ("use SQLite because single-binary")
-- **Corrections**: when the user corrects your behavior or output
-- **Constraints**: boundaries, requirements, goals ("never auto-commit", "budget under $10K")
+- Easily re-derivable by reading code, docs, or a quick search
+- Transient — current task progress, intermediate results, temporary state
+- Public knowledge, common patterns, or already tracked by git history
 
-→ `--cat preference` or `--cat decision`, `--imp 4-5`
+**The test**: if you forget it, does the user have to repeat themselves or do you have to redo significant work?
 
-### 2. Reasoning conclusions
-
-Insights you derived through analysis — re-deriving them costs significant effort.
-
-- **Root cause analysis**: "503 errors caused by connection pool exhaustion under concurrent load"
-- **Design rationale**: "chose event sourcing over CRUD because of audit trail requirements"
-- **Comparative analysis**: "Qdrant outperforms Milvus on filtered search by 3x in our benchmark"
-- **Pattern discovery**: "sector rotation signal preceded 5% corrections 3 times in Q1"
-
-→ `--cat insight` or `--cat decision`, `--imp 4-5`
-
-### 3. Observed state
-
-Facts about the environment that you discovered — not easily re-observable
-or not recorded elsewhere.
-
-- **System topology**: "Service A depends on B and C; B uses a Redis cluster"
-- **Environment specifics**: "production DB is PostgreSQL 15 on RDS us-east-1, read replicas in us-west-2"
-- **Domain context**: "portfolio is 60/30/10 equity/bonds/alternatives"
-- **Historical state**: "last P1 incident was Feb 3, caused by DNS resolution timeout"
-
-→ `--cat fact` or `--cat context`, `--imp 3`
-
-### What NOT to remember
-
-- **Easily re-derivable** — reading code, checking docs, or a quick search can recover it
-- **Transient state** — current task progress, intermediate results that will change
-- **Public knowledge** — common facts, well-documented APIs, widely-known patterns
-- **Every small task** — git log already tracks what changed; don't duplicate it
-
-**The test**: if you forget it, does the user have to repeat themselves or do you
-have to redo significant work? If no, don't store it.
-
-## How to remember
+### Step 3 — Remember
 
 ```bash
-# 1. ALWAYS check for duplicates first
+# 1. Check for duplicates
 mnemon diff "<new fact>"
 
-# 2. Based on suggestion:
-#    ADD      → mnemon remember "<fact>" --cat <category> --imp <1-5>
+# 2. Act on the suggestion:
+#    ADD      → mnemon remember "<fact>" --cat <category> --imp <1-5> --entities "e1,e2"
 #    CONFLICT → mnemon forget <old_id> && mnemon remember "<updated>" --cat <cat> --imp <n>
 #    DUPLICATE→ skip
 ```
 
-### Entity extraction
+### Step 4 — Link
 
-Extract key entities from the content and pass them via `--entities`:
-
-```bash
-mnemon remember "Chose Qdrant over Milvus for vector search" \
-  --cat decision --imp 5 \
-  --entities "Qdrant,Milvus,vector-search"
-```
-
-## When the user asks about past context
+When `mnemon remember` outputs link candidates, evaluate and connect meaningful relationships:
 
 ```bash
-mnemon recall "<query>" --smart --limit 10
-```
-
-## Categories
-
-| Category | Maps to | Typical importance |
-|----------|---------|-------------------|
-| `preference` | User directives (preferences, corrections) | 4 |
-| `decision` | User directives or reasoning conclusions (decisions with rationale) | 5 |
-| `insight` | Reasoning conclusions (analysis, root causes, patterns) | 4 |
-| `fact` | Observed state (environment facts, domain context) | 3 |
-| `context` | Observed state (system state, historical events) | 3 |
-
-## Linking (after remember)
-
-When `mnemon remember` outputs candidates, evaluate them:
-
-```bash
-# Semantic links — for topically related insights
+# Semantic — topically related insights
 mnemon link <new_id> <candidate_id> --type semantic --weight 0.85
 
-# Causal links — when one insight caused/enabled/prevented another
+# Causal — one insight caused/enabled/prevented another
 mnemon link <source_id> <target_id> --type causal --weight 0.8 \
   --meta '{"sub_type":"causes","reason":"..."}'
 ```
 
 Skip candidates with only superficial overlap.
 
-## Retention management
+## Categories
+
+| Category | What it captures | Typical importance |
+|----------|-----------------|:------------------:|
+| `preference` | User preferences, corrections, style choices | 4 |
+| `decision` | Decisions with rationale (user's or yours) | 5 |
+| `insight` | Analysis results, root causes, comparisons, patterns | 4 |
+| `fact` | Environment facts, system topology, domain context | 3 |
+| `context` | Historical state, events, situational details | 3 |
+
+## Commands reference
 
 ```bash
-mnemon gc --threshold 0.4          # list low-retention candidates
-mnemon gc --keep <id>              # boost retention (+3 access)
-mnemon forget <id>                 # soft-delete an insight
+mnemon recall "<query>" --smart --limit 10   # intent-aware retrieval
+mnemon search "<query>" --limit 10           # keyword search
+mnemon related <id> --edge causal            # graph traversal
+mnemon gc --threshold 0.4                    # low-retention candidates
+mnemon gc --keep <id>                        # boost retention
+mnemon forget <id>                           # soft-delete
+mnemon status                                # memory stats
+mnemon log                                   # recent operations
+mnemon embed --all                           # backfill embeddings (requires Ollama)
 ```
-
-## Other commands
-
-```bash
-mnemon search "<query>" --limit 10    # token-scored search
-mnemon related <id> --edge causal     # find related insights via graph
-mnemon status                         # memory statistics
-mnemon log                            # recent operations
-mnemon embed --status                 # embedding coverage
-mnemon embed --all                    # backfill embeddings (requires Ollama)
-```
-
-## Content size limits
-
-- Single insight: max **8,000 characters**
-- For longer content, chunk into multiple `remember` calls at semantic boundaries
-- Each chunk should be self-contained and independently meaningful
 
 ## Rules
 
-- ALWAYS `diff` before `remember` to avoid duplicates
-- Use `--smart` on recall for intent-aware retrieval
+- ALWAYS `diff` before `remember` — no duplicates
+- ALWAYS use `--smart` on recall
 - Prefer specific categories over `general`
 - Do NOT store secrets, passwords, or tokens
+- Max 8,000 chars per insight — chunk longer content at semantic boundaries
