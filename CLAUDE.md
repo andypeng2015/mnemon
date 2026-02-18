@@ -1,102 +1,17 @@
 # Mnemon — Project Guidelines
 
 ## What is this project
-Mnemon is a standalone memory daemon for LLM agents, built in Go with SQLite storage and a MAGMA-aligned four-graph architecture (temporal, entity, causal, semantic edges).
 
-## Persistent Memory (mnemon CLI)
+Mnemon is a persistent memory system for LLM agents, built in Go with SQLite storage and a MAGMA-aligned four-graph architecture (temporal, entity, causal, semantic edges).
 
-You have access to a persistent memory system. **Use it actively** — it is the core product of this project.
+## Memory Skill
 
-### On conversation start
-```bash
-mnemon recall "<current topic>" --smart --limit 5
-```
-Always load relevant context before starting work.
-
-### When you learn something worth remembering
-```bash
-# 1. Check for duplicates first
-mnemon diff "<new fact>"
-# 2. Based on suggestion:
-#    ADD      → mnemon remember "<fact>" --cat <category> --imp <1-5> --entities "entity1,entity2"
-#    CONFLICT → mnemon forget <old_id> && mnemon remember "<updated>" --cat <cat> --imp <n> --entities "..."
-#    DUPLICATE→ skip
-```
-
-### Entity extraction (LLM-in-the-loop)
-When calling `remember`, extract key entities from the content and pass them via `--entities`:
-```bash
-mnemon remember "Chose Qdrant over Milvus for vector search" \
-  --cat decision --imp 5 \
-  --entities "Qdrant,Milvus,vector-search"
-```
-The `--entities` flag accepts comma-separated entities that get **merged** with auto-extracted entities (regex + dictionary). This aligns with MAGMA's dual-tier extraction (LLM + regex) without adding LLM dependency to the binary.
-
-### When the user asks about past context
-```bash
-mnemon recall "<query>" --smart --limit 10
-```
-
-### What to remember
-- **User preferences**: tool choices, coding style, workflow preferences → `--cat preference --imp 4`
-- **Architectural decisions**: why we chose X over Y → `--cat decision --imp 5`
-- **Key facts**: project structure, API specs, benchmarks → `--cat fact --imp 3`
-- **Lessons learned**: debugging insights, patterns → `--cat insight --imp 4`
-- **Project state**: current phase, blockers, WIP → `--cat context --imp 3`
-
-### Content size limits
-- Single insight content: max **8,000 characters** (optimized for embedding quality)
-- For long content (articles, analysis, logs), **chunk into multiple `remember` calls** at semantic boundaries
-- Each chunk should be self-contained and independently meaningful
-- Use tags or entities to link related chunks for later retrieval
-
-### Rules
-- Always `diff` before `remember` to avoid duplicates
-- Use `--smart` on recall for intent-aware retrieval
-- Do NOT store secrets, passwords, API keys, or tokens
-- Prefer specific categories over `general`
-
-### Semantic linking
-After `mnemon remember`, check `semantic_candidates` in the output. For truly related candidates:
-```bash
-mnemon link <source_id> <target_id> --type semantic --weight 0.85
-```
-
-### Causal linking
-After `mnemon remember`, check `causal_candidates` in the output:
-```bash
-mnemon link <src> <tgt> --type causal --weight 0.8 --meta '{"sub_type":"causes"}'
-```
-
-### Retention lifecycle
-Insights have `effective_importance` that decays over time: `base * log(1+access) * 0.5^(days/half_life) * edge_factor`.
-Auto-pruning triggers when insights exceed 1000 (soft-deletes lowest non-immune insights).
-Immunity: importance >= 4 OR access_count >= 3.
-```bash
-mnemon gc --threshold 0.5       # list non-immune insights below threshold
-mnemon gc --keep <id>           # boost retention (+3 access, becomes immune)
-mnemon forget <id>              # manual soft-delete
-```
-
-### Embedding (optional, requires Ollama)
-When Ollama is running, `remember` auto-generates embeddings and `recall --smart` uses hybrid vector+keyword search.
-```bash
-mnemon embed --status          # check embedding coverage
-mnemon embed --all             # backfill embeddings for all insights
-mnemon embed <id>              # embed a specific insight
-```
-Install: `brew install ollama && ollama pull nomic-embed-text`
-
-### Observability
-```bash
-mnemon log            # see recent operations (what was stored/queried)
-mnemon status         # see memory statistics
-```
+The mnemon skill template is at `skills/mnemon/SKILL.md`. Run `make setup` to install it globally to `~/.claude/skills/mnemon/`.
 
 ## Development
 
-- Go binary, dependencies: `modernc.org/sqlite`, `spf13/cobra`, `google/uuid`
-- Optional: Ollama for embedding support (`nomic-embed-text`)
-- Run tests: `./scripts/e2e_test.sh`
-- Build: `go build -o mnemon .`
-- Install: `go build -o $GOPATH/bin/mnemon .`
+- **Build**: `go build -o mnemon .`
+- **Install**: `go build -o $GOPATH/bin/mnemon .`
+- **Test**: `./scripts/e2e_test.sh`
+- **Dependencies**: `modernc.org/sqlite`, `spf13/cobra`, `google/uuid`
+- **Optional**: Ollama with `nomic-embed-text` for embedding support

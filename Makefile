@@ -8,17 +8,10 @@ ifeq ($(GOBIN),)
   GOBIN     := $(shell go env GOPATH)/bin
 endif
 
-CLAUDE_DIR   := $(HOME)/.claude
-CLAUDE_MD    := $(CLAUDE_DIR)/CLAUDE.md
-CLAUDE_SETTINGS := $(CLAUDE_DIR)/settings.json
-SKILL_FILE   := memory.md
-HOOK_SCRIPT  := $(GOBIN)/mnemon-hook
+SKILL_SRC   := skills/mnemon
+SKILL_DST   := $(HOME)/.claude/skills/mnemon
 
-# Sentinel markers for injected skill block
-SENTINEL_BEGIN := \#\# BEGIN mnemon-skill
-SENTINEL_END   := \#\# END mnemon-skill
-
-.PHONY: build install uninstall inject eject inject-hooks eject-hooks test clean help
+.PHONY: build install uninstall inject eject test clean help
 
 .DEFAULT_GOAL := help
 
@@ -32,78 +25,34 @@ build: ## Build the mnemon binary
 install: build ## Build and install mnemon to $GOBIN
 	@mkdir -p $(GOBIN)
 	cp $(BINARY) $(GOBIN)/$(BINARY)
-	cp scripts/mnemon_hook.sh $(GOBIN)/mnemon-hook
 	@echo "Installed: $(GOBIN)/$(BINARY)"
-	@echo "Installed: $(GOBIN)/mnemon-hook"
 
-uninstall: eject ## Remove mnemon binary, hook script, and eject all
+uninstall: eject ## Remove binary and eject skill
 	rm -f $(GOBIN)/$(BINARY)
-	rm -f $(GOBIN)/mnemon-hook
 	@echo "Removed: $(GOBIN)/$(BINARY)"
-	@echo "Removed: $(GOBIN)/mnemon-hook"
 
-# ── Skill injection (CLAUDE.md) ─────────────────────────────────────
+# ── Skill ────────────────────────────────────────────────────────────
 
-inject-skill: ## Inject mnemon skill into global ~/.claude/CLAUDE.md
-	@mkdir -p $(CLAUDE_DIR)
-	@# Remove old block first (idempotent)
-	@if [ -f "$(CLAUDE_MD)" ] && grep -q "$(SENTINEL_BEGIN)" "$(CLAUDE_MD)"; then \
-		sed '/$(SENTINEL_BEGIN)/,/$(SENTINEL_END)/d' "$(CLAUDE_MD)" > "$(CLAUDE_MD).tmp" && \
-		mv "$(CLAUDE_MD).tmp" "$(CLAUDE_MD)"; \
-	fi
-	@# Append new block
-	@echo "" >> "$(CLAUDE_MD)"
-	@echo "## BEGIN mnemon-skill" >> "$(CLAUDE_MD)"
-	@cat $(SKILL_FILE) >> "$(CLAUDE_MD)"
-	@echo "" >> "$(CLAUDE_MD)"
-	@echo "## END mnemon-skill" >> "$(CLAUDE_MD)"
-	@echo "  Skill  → $(CLAUDE_MD)"
+inject: ## Install mnemon skill to ~/.claude/skills/mnemon/
+	@mkdir -p $(SKILL_DST)
+	cp $(SKILL_SRC)/SKILL.md $(SKILL_DST)/SKILL.md
+	@echo "  Skill → $(SKILL_DST)/SKILL.md"
 
-# ── Hook injection (settings.json) ──────────────────────────────────
-
-inject-hooks: ## Inject mnemon hooks into ~/.claude/settings.json
-	@mkdir -p $(CLAUDE_DIR)
-	@if [ ! -f "$(CLAUDE_SETTINGS)" ]; then echo '{}' > "$(CLAUDE_SETTINGS)"; fi
-	@# Merge hook config via jq (idempotent: replaces existing mnemon hooks)
-	@jq --arg hook "$(HOOK_SCRIPT)" \
-		'.hooks.UserPromptSubmit = (.hooks.UserPromptSubmit // [] | map(select(.matcher != "mnemon"))) + [{"matcher": "mnemon", "hooks": [{"type": "command", "command": $$hook}]}]' \
-		"$(CLAUDE_SETTINGS)" > "$(CLAUDE_SETTINGS).tmp" && \
-		mv "$(CLAUDE_SETTINGS).tmp" "$(CLAUDE_SETTINGS)"
-	@echo "  Hooks  → $(CLAUDE_SETTINGS)"
-
-eject-hooks: ## Remove mnemon hooks from ~/.claude/settings.json
-	@if [ -f "$(CLAUDE_SETTINGS)" ] && jq -e '.hooks.UserPromptSubmit' "$(CLAUDE_SETTINGS)" >/dev/null 2>&1; then \
-		jq '.hooks.UserPromptSubmit = [.hooks.UserPromptSubmit[] | select(.matcher != "mnemon")] | if .hooks.UserPromptSubmit == [] then del(.hooks.UserPromptSubmit) else . end | if .hooks == {} then del(.hooks) else . end' \
-			"$(CLAUDE_SETTINGS)" > "$(CLAUDE_SETTINGS).tmp" && \
-		mv "$(CLAUDE_SETTINGS).tmp" "$(CLAUDE_SETTINGS)"; \
-		echo "Ejected mnemon hooks from $(CLAUDE_SETTINGS)"; \
+eject: ## Remove mnemon skill from ~/.claude/skills/
+	@if [ -d "$(SKILL_DST)" ]; then \
+		rm -rf "$(SKILL_DST)"; \
+		echo "Removed: $(SKILL_DST)"; \
 	else \
-		echo "No mnemon hooks found in $(CLAUDE_SETTINGS)"; \
-	fi
-
-# ── Combined inject / eject ─────────────────────────────────────────
-
-inject: inject-skill inject-hooks ## Inject skill + hooks
-	@echo "Inject complete."
-
-eject: eject-hooks ## Eject skill + hooks
-	@if [ -f "$(CLAUDE_MD)" ] && grep -q "$(SENTINEL_BEGIN)" "$(CLAUDE_MD)"; then \
-		sed '/$(SENTINEL_BEGIN)/,/$(SENTINEL_END)/d' "$(CLAUDE_MD)" > "$(CLAUDE_MD).tmp" && \
-		mv "$(CLAUDE_MD).tmp" "$(CLAUDE_MD)"; \
-		echo "Ejected mnemon skill from $(CLAUDE_MD)"; \
-	else \
-		echo "No mnemon skill block found in $(CLAUDE_MD)"; \
+		echo "No mnemon skill found at $(SKILL_DST)"; \
 	fi
 
 # ── Setup (one-command) ─────────────────────────────────────────────
 
-setup: install inject ## Install binary + inject skill + hooks (full setup)
+setup: install inject ## Full setup: binary + skill
 	@echo ""
 	@echo "Setup complete:"
-	@echo "  Binary:  $(GOBIN)/$(BINARY)"
-	@echo "  Hook:    $(GOBIN)/mnemon-hook"
-	@echo "  Skill:   $(CLAUDE_MD)"
-	@echo "  Hooks:   $(CLAUDE_SETTINGS)"
+	@echo "  Binary → $(GOBIN)/$(BINARY)"
+	@echo "  Skill  → $(SKILL_DST)/SKILL.md"
 	@echo ""
 	@echo "Start a new Claude Code session to verify."
 
