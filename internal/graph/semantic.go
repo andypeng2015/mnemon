@@ -11,14 +11,14 @@ import (
 	"github.com/Grivn/mnemon/internal/store"
 )
 
-// Minimum similarity to be considered a semantic candidate.
+// Minimum similarity to be considered a semantic candidate (token overlap fallback).
 const minSemanticSimilarity = 0.10
 
-// Minimum cosine similarity when using embedding-based candidates.
-const minEmbeddingCosine = 0.30
+// Minimum cosine similarity to appear as a review candidate (grey zone lower bound).
+const reviewSemanticThreshold = 0.40
 
-// Minimum cosine similarity to auto-create a semantic edge (MAGMA: θ_sim).
-const autoSemanticThreshold = 0.50
+// Minimum cosine similarity to auto-create a semantic edge (high confidence).
+const autoSemanticThreshold = 0.80
 
 // Maximum number of semantic candidates to return.
 const maxSemanticCandidates = 5
@@ -27,11 +27,14 @@ const maxSemanticCandidates = 5
 const maxAutoSemanticEdges = 3
 
 // SemanticCandidate represents a potential semantic link for Claude to evaluate.
+// When AutoLinked is true, the edge was already created automatically (high confidence).
+// When false, the candidate is in the review zone and needs LLM judgment.
 type SemanticCandidate struct {
 	ID              string  `json:"id"`
 	Content         string  `json:"content"`
 	Category        string  `json:"category"`
 	TokenSimilarity float64 `json:"token_similarity"`
+	AutoLinked      bool    `json:"auto_linked"`
 }
 
 // CreateSemanticEdges auto-creates semantic edges for insights with high
@@ -125,6 +128,8 @@ func FindSemanticCandidates(db *store.DB, insight *model.Insight) []SemanticCand
 }
 
 // findCandidatesByEmbedding uses cosine similarity over stored embeddings.
+// Candidates with cosine >= autoSemanticThreshold are marked as auto-linked.
+// Candidates in [reviewSemanticThreshold, autoSemanticThreshold) need LLM review.
 func findCandidatesByEmbedding(db *store.DB, insight *model.Insight) []SemanticCandidate {
 	// Get the new insight's embedding
 	blob, err := db.GetEmbedding(insight.ID)
@@ -159,7 +164,7 @@ func findCandidatesByEmbedding(db *store.DB, insight *model.Insight) []SemanticC
 			continue
 		}
 		cosSim := embed.CosineSimilarity(insightVec, otherVec)
-		if cosSim >= minEmbeddingCosine {
+		if cosSim >= reviewSemanticThreshold {
 			// Look up category
 			ins, err := db.GetInsightByID(other.ID)
 			cat := ""
@@ -192,6 +197,7 @@ func findCandidatesByEmbedding(db *store.DB, insight *model.Insight) []SemanticC
 			Content:         c.content,
 			Category:        c.category,
 			TokenSimilarity: c.similarity, // actually cosine, but same JSON field
+			AutoLinked:      c.similarity >= autoSemanticThreshold,
 		}
 	}
 	return result
