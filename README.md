@@ -12,10 +12,13 @@ Mnemon gives your LLM persistent, cross-session memory — with a single Go bina
 
 ```bash
 git clone https://github.com/Grivn/mnemon.git && cd mnemon
-make setup    # build + install binary + install skill
+make setup          # build + install binary + skill + hook
+make claude-inject  # inject memory guidance into ./CLAUDE.md
 ```
 
 That's it. Start a new Claude Code session — the hook auto-recalls relevant memories, the skill teaches command syntax, and CLAUDE.md guides when to remember.
+
+To remove the memory guidance from CLAUDE.md: `make claude-eject`.
 
 ## How it works
 
