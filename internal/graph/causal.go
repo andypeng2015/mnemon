@@ -58,16 +58,20 @@ func CreateCausalEdges(db *store.DB, insight *model.Insight) int {
 			continue
 		}
 
-		// Infer direction: the side with the causal keyword is the "effect" side
-		// e.g. "chose X because of Y" → this insight explains WHY, so new→prev
-		// e.g. prev="chose X", new="latency improved" + no keyword → prev caused new, so prev→new
-		sourceID := insight.ID
-		targetID := prev.ID
+		// Infer direction: the side WITH the causal keyword is the EFFECT
+		// (it contains "because"/"due to" etc., explaining why something happened).
+		// The OTHER side is the CAUSE. Edge direction: cause → effect.
+		//
+		// e.g. new="chose X because of Y", prev="Y has low latency"
+		//   → new has keyword → new is effect → prev is cause → prev→new
+		// e.g. prev="chose X because of Y", new="Y has low latency"
+		//   → prev has keyword → prev is effect → new is cause → new→prev
+		sourceID := prev.ID  // default: new has signal → new is effect, prev is cause
+		targetID := insight.ID
 		if !newHasSignal && prevHasSignal {
-			// Only prev has signal — prev is the "effect" explaining the cause
-			// Direction: prev→new (prev caused/explains new)
-			sourceID = prev.ID
-			targetID = insight.ID
+			// Only prev has signal → prev is effect, new is cause
+			sourceID = insight.ID
+			targetID = prev.ID
 		}
 
 		subType := suggestSubType(insight.Content + " " + prev.Content)

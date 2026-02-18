@@ -2,6 +2,7 @@ package embed
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -52,8 +53,15 @@ func NewClient() *Client {
 }
 
 // Available returns true if the Ollama server is reachable and the model is loaded.
+// Uses a 2s timeout to avoid blocking the CLI on unresponsive servers.
 func (c *Client) Available() bool {
-	resp, err := c.http.Get(c.endpoint + "/api/tags")
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint+"/api/tags", nil)
+	if err != nil {
+		return false
+	}
+	resp, err := c.http.Do(req)
 	if err != nil {
 		return false
 	}

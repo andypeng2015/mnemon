@@ -44,6 +44,12 @@ mnemon recall "<query>" --smart --limit 10
 - **Lessons learned**: debugging insights, patterns → `--cat insight --imp 4`
 - **Project state**: current phase, blockers, WIP → `--cat context --imp 3`
 
+### Content size limits
+- Single insight content: max **8,000 characters** (optimized for embedding quality)
+- For long content (articles, analysis, logs), **chunk into multiple `remember` calls** at semantic boundaries
+- Each chunk should be self-contained and independently meaningful
+- Use tags or entities to link related chunks for later retrieval
+
 ### Rules
 - Always `diff` before `remember` to avoid duplicates
 - Use `--smart` on recall for intent-aware retrieval

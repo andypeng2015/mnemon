@@ -30,6 +30,9 @@ var rememberCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		content := strings.Join(args, " ")
+		if len(content) > 8000 {
+			return fmt.Errorf("content too long (%d chars, max 8000); consider chunking into multiple remember calls", len(content))
+		}
 
 		cat := model.Category(remCategory)
 		if !model.ValidCategories[cat] {
@@ -44,8 +47,14 @@ var rememberCmd = &cobra.Command{
 			for _, t := range strings.Split(remTags, ",") {
 				t = strings.TrimSpace(t)
 				if t != "" {
+					if len(t) > 100 {
+						return fmt.Errorf("tag too long (%d chars, max 100): %s", len(t), t[:50])
+					}
 					tags = append(tags, t)
 				}
+			}
+			if len(tags) > 20 {
+				return fmt.Errorf("too many tags (%d, max 20)", len(tags))
 			}
 		}
 		if tags == nil {
@@ -57,8 +66,14 @@ var rememberCmd = &cobra.Command{
 			for _, e := range strings.Split(remEntities, ",") {
 				e = strings.TrimSpace(e)
 				if e != "" {
+					if len(e) > 200 {
+						return fmt.Errorf("entity too long (%d chars, max 200): %s", len(e), e[:50])
+					}
 					entities = append(entities, e)
 				}
+			}
+			if len(entities) > 50 {
+				return fmt.Errorf("too many entities (%d, max 50)", len(entities))
 			}
 		}
 		if entities == nil {
