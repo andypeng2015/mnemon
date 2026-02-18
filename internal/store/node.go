@@ -222,33 +222,80 @@ type RetentionCandidate struct {
 }
 
 // GetRetentionCandidates returns non-immune insights sorted by effective_importance ascending.
+// Uses bulk queries for last_accessed_at and edge counts instead of per-insight queries.
 func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionCandidate, int, error) {
-	all, err := db.GetAllActiveInsights()
+	// Single query: all active insights including last_accessed_at
+	type insightRow struct {
+		insight    *model.Insight
+		lastAccess time.Time
+	}
+	rows, err := db.execer().Query(
+		`SELECT id, content, category, importance, tags, entities, source, access_count,
+		        created_at, updated_at, deleted_at, last_accessed_at
+		 FROM insights WHERE deleted_at IS NULL`)
 	if err != nil {
 		return nil, 0, err
 	}
-
-	now := time.Now().UTC()
-	var candidates []RetentionCandidate
-
-	for _, ins := range all {
-		lastAccess := ins.CreatedAt
-		var lastAccessedAt sql.NullString
-		db.execer().QueryRow(`SELECT last_accessed_at FROM insights WHERE id = ?`, ins.ID).Scan(&lastAccessedAt)
+	var insightRows []insightRow
+	for rows.Next() {
+		var i model.Insight
+		var cat, tags, entities, source, createdAt, updatedAt string
+		var deletedAt, lastAccessedAt sql.NullString
+		err := rows.Scan(&i.ID, &i.Content, &cat, &i.Importance, &tags, &entities,
+			&source, &i.AccessCount, &createdAt, &updatedAt, &deletedAt, &lastAccessedAt)
+		if err != nil {
+			rows.Close()
+			return nil, 0, err
+		}
+		i.Category = model.Category(cat)
+		i.Source = source
+		i.ParseTags(tags)
+		i.ParseEntities(entities)
+		i.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
+		i.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		if deletedAt.Valid {
+			t, _ := time.Parse(time.RFC3339, deletedAt.String)
+			i.DeletedAt = &t
+		}
+		la := i.CreatedAt
 		if lastAccessedAt.Valid && lastAccessedAt.String != "" {
 			if t, err := time.Parse(time.RFC3339, lastAccessedAt.String); err == nil {
-				lastAccess = t
+				la = t
 			}
 		}
-		daysSince := now.Sub(lastAccess).Hours() / 24.0
+		insightRows = append(insightRows, insightRow{insight: &i, lastAccess: la})
+	}
+	rows.Close()
 
-		var edgeCount int
-		db.execer().QueryRow(`SELECT COUNT(*) FROM edges WHERE source_id = ? OR target_id = ?`, ins.ID, ins.ID).Scan(&edgeCount)
+	// Single query: edge counts per insight (replaces N individual COUNT queries)
+	edgeCounts := make(map[string]int)
+	ecRows, err := db.execer().Query(
+		`SELECT id, SUM(cnt) FROM (
+			SELECT source_id AS id, COUNT(*) AS cnt FROM edges GROUP BY source_id
+			UNION ALL
+			SELECT target_id AS id, COUNT(*) AS cnt FROM edges GROUP BY target_id
+		) GROUP BY id`)
+	if err == nil {
+		for ecRows.Next() {
+			var id string
+			var cnt int
+			if ecRows.Scan(&id, &cnt) == nil {
+				edgeCounts[id] = cnt
+			}
+		}
+		ecRows.Close()
+	}
 
-		ei := ComputeEffectiveImportance(ins.Importance, ins.AccessCount, daysSince, edgeCount)
+	// Compute EI and collect candidates
+	now := time.Now().UTC()
+	var candidates []RetentionCandidate
+	for _, ir := range insightRows {
+		ins := ir.insight
+		daysSince := now.Sub(ir.lastAccess).Hours() / 24.0
+		ec := edgeCounts[ins.ID]
+		ei := ComputeEffectiveImportance(ins.Importance, ins.AccessCount, daysSince, ec)
 		immune := IsImmune(ins.Importance, ins.AccessCount)
 
-		// Update stored value
 		db.execer().Exec(`UPDATE insights SET effective_importance = ? WHERE id = ?`, ei, ins.ID)
 
 		if ei < threshold && !immune {
@@ -256,7 +303,7 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 				Insight:             ins,
 				EffectiveImportance: ei,
 				DaysSinceAccess:     daysSince,
-				EdgeCount:           edgeCount,
+				EdgeCount:           ec,
 				Immune:              immune,
 			})
 		}
@@ -271,7 +318,7 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 		}
 	}
 
-	total := len(all)
+	total := len(insightRows)
 	if limit > 0 && len(candidates) > limit {
 		candidates = candidates[:limit]
 	}
@@ -497,6 +544,30 @@ func (db *DB) GetAllEmbeddings() ([]EmbeddedInsight, error) {
 		}
 	}
 	return results, nil
+}
+
+// ScanEmbeddings streams embeddings one at a time via callback, avoiding full-slice allocation.
+// The callback returns true to continue scanning, false to stop early.
+func (db *DB) ScanEmbeddings(fn func(id string, blob []byte) bool) error {
+	rows, err := db.execer().Query(
+		`SELECT id, embedding FROM insights WHERE deleted_at IS NULL AND embedding IS NOT NULL`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id string
+		var blob []byte
+		if err := rows.Scan(&id, &blob); err != nil {
+			return err
+		}
+		if len(blob) > 0 {
+			if !fn(id, blob) {
+				break
+			}
+		}
+	}
+	return nil
 }
 
 // EmbeddingStats returns total insights and how many have embeddings.

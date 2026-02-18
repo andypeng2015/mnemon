@@ -508,7 +508,7 @@ func beamSearchFromAnchor(
 		heap.Init(next)
 
 		// Process all nodes at the current level
-		for current.Len() > 0 {
+		for current.Len() > 0 && totalVisited < params.MaxVisited {
 			cur := heap.Pop(current).(beamItem)
 			if cur.depth != depth {
 				// Put it back — it's for a future level
@@ -522,6 +522,9 @@ func beamSearchFromAnchor(
 			}
 
 			for _, e := range edges {
+				if totalVisited >= params.MaxVisited {
+					break
+				}
 				neighborID := e.TargetID
 				if neighborID == cur.id {
 					neighborID = e.SourceID
@@ -605,22 +608,22 @@ type vectorHit struct {
 }
 
 // vectorSearch performs brute-force cosine similarity search over all embedded insights.
+// Uses streaming cursor to avoid loading all embedding blobs into memory at once.
 func vectorSearch(db *store.DB, queryVec []float64, limit int) []vectorHit {
-	embedded, err := db.GetAllEmbeddings()
-	if err != nil || len(embedded) == 0 {
-		return nil
-	}
-
 	var hits []vectorHit
-	for _, e := range embedded {
-		vec := embed.DeserializeVector(e.Embedding)
+	err := db.ScanEmbeddings(func(id string, blob []byte) bool {
+		vec := embed.DeserializeVector(blob)
 		if vec == nil {
-			continue
+			return true
 		}
 		sim := embed.CosineSimilarity(queryVec, vec)
 		if sim > 0.1 {
-			hits = append(hits, vectorHit{id: e.ID, similarity: sim})
+			hits = append(hits, vectorHit{id: id, similarity: sim})
 		}
+		return true
+	})
+	if err != nil || len(hits) == 0 {
+		return nil
 	}
 
 	sort.Slice(hits, func(i, j int) bool {
