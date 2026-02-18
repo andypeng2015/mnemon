@@ -35,6 +35,8 @@ var statusCmd = &cobra.Command{
 			"deleted_insights": stats.DeletedCount,
 			"by_category":      stats.ByCategory,
 			"edge_count":       stats.EdgeCount,
+			"top_entities":     stats.TopEntities,
+			"oplog_count":      stats.OplogCount,
 			"db_path":          db.Path(),
 			"db_size_bytes":    fileSize,
 		}

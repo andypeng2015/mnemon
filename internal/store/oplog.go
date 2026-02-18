@@ -2,11 +2,19 @@ package store
 
 import "time"
 
-// LogOp records an operation to the oplog.
+// MaxOplogEntries is the maximum number of oplog entries to retain.
+const MaxOplogEntries = 5000
+
+// LogOp records an operation to the oplog and trims old entries beyond MaxOplogEntries.
 func (db *DB) LogOp(operation, insightID, detail string) {
 	db.execer().Exec(
 		`INSERT INTO oplog (operation, insight_id, detail, created_at) VALUES (?, ?, ?, ?)`,
 		operation, insightID, detail, time.Now().UTC().Format(time.RFC3339))
+
+	// Trim old entries to prevent unbounded growth
+	db.execer().Exec(
+		`DELETE FROM oplog WHERE id NOT IN (SELECT id FROM oplog ORDER BY id DESC LIMIT ?)`,
+		MaxOplogEntries)
 }
 
 // OplogEntry represents a single operation log entry.

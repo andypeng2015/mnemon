@@ -460,12 +460,20 @@ func (db *DB) GetAllActiveInsights() ([]*model.Insight, error) {
 	return scanInsights(rows)
 }
 
+// EntityStat holds entity link count info.
+type EntityStat struct {
+	Entity string `json:"entity"`
+	Count  int    `json:"count"`
+}
+
 // InsightStats holds aggregate statistics.
 type InsightStats struct {
 	Total         int            `json:"total"`
 	ByCategory    map[string]int `json:"by_category"`
 	EdgeCount     int            `json:"edge_count"`
 	DeletedCount  int            `json:"deleted_count"`
+	TopEntities   []EntityStat   `json:"top_entities"`
+	OplogCount    int            `json:"oplog_count"`
 }
 
 // GetStats returns aggregate statistics.
@@ -495,6 +503,31 @@ func (db *DB) GetStats() (*InsightStats, error) {
 
 	// Edge count
 	db.execer().QueryRow(`SELECT COUNT(*) FROM edges`).Scan(&stats.EdgeCount)
+
+	// Oplog count
+	db.execer().QueryRow(`SELECT COUNT(*) FROM oplog`).Scan(&stats.OplogCount)
+
+	// Top entities by link count (across active insights)
+	eRows, err := db.execer().Query(`
+		SELECT je.value, COUNT(DISTINCT i.id) as cnt
+		FROM insights i, json_each(i.entities) je
+		WHERE i.deleted_at IS NULL
+		GROUP BY je.value
+		ORDER BY cnt DESC
+		LIMIT 20`)
+	if err == nil {
+		defer eRows.Close()
+		for eRows.Next() {
+			var es EntityStat
+			if err := eRows.Scan(&es.Entity, &es.Count); err != nil {
+				break
+			}
+			stats.TopEntities = append(stats.TopEntities, es)
+		}
+	}
+	if stats.TopEntities == nil {
+		stats.TopEntities = []EntityStat{}
+	}
 
 	return stats, nil
 }
