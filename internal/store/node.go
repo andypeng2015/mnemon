@@ -326,23 +326,23 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 }
 
 // AutoPrune soft-deletes the lowest effective_importance non-immune insights
-// when total active count exceeds maxInsights. excludeID is protected from pruning
-// (typically the just-created insight). Returns number pruned.
+// when total active count exceeds maxInsights. excludeIDs are protected from pruning
+// (typically the just-created insights). Returns number pruned.
 // If already inside a transaction (db.tx != nil), executes inline; otherwise wraps in its own transaction.
-func (db *DB) AutoPrune(maxInsights int, excludeID string) (int, error) {
+func (db *DB) AutoPrune(maxInsights int, excludeIDs []string) (int, error) {
 	if db.tx != nil {
-		return db.autoPrune(maxInsights, excludeID)
+		return db.autoPrune(maxInsights, excludeIDs)
 	}
 	var pruned int
 	err := db.InTransaction(func() error {
 		var innerErr error
-		pruned, innerErr = db.autoPrune(maxInsights, excludeID)
+		pruned, innerErr = db.autoPrune(maxInsights, excludeIDs)
 		return innerErr
 	})
 	return pruned, err
 }
 
-func (db *DB) autoPrune(maxInsights int, excludeID string) (int, error) {
+func (db *DB) autoPrune(maxInsights int, excludeIDs []string) (int, error) {
 	ex := db.execer()
 
 	var total int
@@ -358,11 +358,24 @@ func (db *DB) autoPrune(maxInsights int, excludeID string) (int, error) {
 		excess = PruneBatchSize
 	}
 
+	// Build NOT IN clause for excluded IDs
+	var excludeClause string
+	var args []interface{}
+	if len(excludeIDs) > 0 {
+		placeholders := make([]string, len(excludeIDs))
+		for i, id := range excludeIDs {
+			placeholders[i] = "?"
+			args = append(args, id)
+		}
+		excludeClause = fmt.Sprintf("AND id NOT IN (%s)", strings.Join(placeholders, ","))
+	}
+	args = append(args, excess)
+
 	// Collect candidate IDs first (close cursor before writing to avoid single-conn deadlock)
 	rows, err := ex.Query(
-		`SELECT id FROM insights
-		 WHERE deleted_at IS NULL AND importance < 4 AND access_count < 3 AND id != ?
-		 ORDER BY effective_importance ASC LIMIT ?`, excludeID, excess)
+		fmt.Sprintf(`SELECT id FROM insights
+		 WHERE deleted_at IS NULL AND importance < 4 AND access_count < 3 %s
+		 ORDER BY effective_importance ASC LIMIT ?`, excludeClause), args...)
 	if err != nil {
 		return 0, fmt.Errorf("query prune candidates: %w", err)
 	}

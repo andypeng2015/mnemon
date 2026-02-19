@@ -58,17 +58,20 @@ define JQ_REMOVE_MNEMON
 def has_mnemon: ((.command? // "") | test("mnemon")) or ((.prompt? // "") | test("mnemon"));
 def no_mnemon: (has_mnemon | not) and ((.hooks? // []) | all(has_mnemon | not));
 .hooks //= {} |
-.hooks.UserPromptSubmit = [(.hooks.UserPromptSubmit // [])[] | select(no_mnemon)]
+.hooks.UserPromptSubmit = [(.hooks.UserPromptSubmit // [])[] | select(no_mnemon)] |
+.hooks.Stop = [(.hooks.Stop // [])[] | select(no_mnemon)]
 endef
 export JQ_REMOVE_MNEMON
 
 inject-hooks: ## Install Claude Code hooks for auto-recall/remember
 	@mkdir -p $(HOOKS_DST)
 	@cp $(HOOKS_SRC)/user_prompt.sh $(HOOKS_DST)/user_prompt.sh
+	@cp $(HOOKS_SRC)/stop.sh $(HOOKS_DST)/stop.sh
 	@chmod +x $(HOOKS_DST)/*.sh
 	@if [ ! -f "$(CLAUDE_SETTINGS)" ]; then echo '{}' > "$(CLAUDE_SETTINGS)"; fi
 	@jq "$$JQ_REMOVE_MNEMON" "$(CLAUDE_SETTINGS)" | \
-	jq '.hooks.UserPromptSubmit += [{"hooks": [{"type": "command", "command": "$(HOOKS_DST)/user_prompt.sh"}]}]' \
+	jq '.hooks.UserPromptSubmit += [{"hooks": [{"type": "command", "command": "$(HOOKS_DST)/user_prompt.sh"}]}]' | \
+	jq '.hooks.Stop += [{"hooks": [{"type": "command", "command": "$(HOOKS_DST)/stop.sh"}]}]' \
 		> "$(CLAUDE_SETTINGS).tmp" && mv "$(CLAUDE_SETTINGS).tmp" "$(CLAUDE_SETTINGS)"
 	@echo "  Hooks → $(HOOKS_DST)/"
 	@echo "  Config → $(CLAUDE_SETTINGS)"

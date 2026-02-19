@@ -1,61 +1,40 @@
 ---
 name: mnemon
-description: >
-  Persistent memory CLI for LLM agents. Provides commands to remember facts,
-  recall past knowledge, check duplicates, link related memories, and manage
-  memory lifecycle.
+description: Persistent memory CLI for LLM agents. Store facts, recall past knowledge, link related memories, manage lifecycle.
 ---
 
-# mnemon — Command Reference
+# mnemon
 
-## Core workflow
+## Workflow
 
-```bash
-# 1. Check for duplicates before remembering
-mnemon diff "<new fact>"
-
-# 2. Remember (based on diff suggestion)
-#    ADD      → mnemon remember "<fact>" --cat <category> --imp <1-5> --entities "e1,e2"
-#    CONFLICT → mnemon forget <old_id> && mnemon remember "<updated>" --cat <cat> --imp <n>
-#    DUPLICATE→ skip
-
-# 3. Link related memories (when remember outputs candidates)
-mnemon link <new_id> <candidate_id> --type semantic --weight 0.85
-mnemon link <source_id> <target_id> --type causal --weight 0.8 \
-  --meta '{"sub_type":"causes","reason":"..."}'
-```
+1. **Remember**: `mnemon remember "<fact>" --cat <cat> --imp <1-5> --entities "e1,e2" --source agent`
+   - Diff is built-in: duplicates skipped, conflicts auto-replaced.
+   - Output includes `action` (added/updated/skipped), `semantic_candidates`, `causal_candidates`.
+2. **Link** (evaluate candidates from step 1 — use judgment, not mechanical rules):
+   - Review `causal_candidates`: does a genuine cause-effect relationship exist? `causal_signal` is regex-based and prone to false positives — only link if the memories are truly causally related.
+   - Review `semantic_candidates`: are these memories meaningfully related? High `token_similarity` alone is not sufficient — skip candidates that share keywords but discuss unrelated topics.
+   - Syntax: `mnemon link <id> <candidate> --type <causal|semantic> --weight <0-1> [--meta '<json>']`
+3. **Recall**: `mnemon recall "<query>" --limit 10`
 
 ## Commands
 
 ```bash
-mnemon recall "<query>" --smart --limit 10   # intent-aware retrieval
-mnemon search "<query>" --limit 10           # keyword search
-mnemon diff "<new fact>"                     # duplicate/conflict check
-mnemon remember "<fact>" --cat <cat> --imp <1-5> --entities "e1,e2"
-mnemon forget <id>                           # soft-delete
-mnemon related <id> --edge causal            # graph traversal
-mnemon link <id1> <id2> --type <type> --weight <0-1>
-mnemon gc --threshold 0.4                    # low-retention candidates
-mnemon gc --keep <id>                        # boost retention
-mnemon status                                # memory stats
-mnemon log                                   # recent operations
-mnemon embed --all                           # backfill embeddings (requires Ollama)
+mnemon remember "<fact>" --cat <cat> --imp <1-5> --entities "e1,e2" --source agent
+mnemon link <id1> <id2> --type <type> --weight <0-1> [--meta '<json>']
+mnemon recall "<query>" --limit 10
+mnemon search "<query>" --limit 10
+mnemon forget <id>
+mnemon related <id> --edge causal
+mnemon gc --threshold 0.4
+mnemon gc --keep <id>
+mnemon status
+mnemon log
 ```
 
-## Categories
+## Guardrails
 
-| Category | What it captures | Typical importance |
-|----------|-----------------|:------------------:|
-| `preference` | User preferences, corrections, style choices | 4 |
-| `decision` | Decisions with rationale | 5 |
-| `insight` | Analysis results, root causes, comparisons | 4 |
-| `fact` | Environment facts, system topology, domain context | 3 |
-| `context` | Historical state, events, situational details | 3 |
-
-## Rules
-
-- ALWAYS `diff` before `remember` — no duplicates
-- ALWAYS use `--smart` on recall
-- Prefer specific categories over `general`
-- Do NOT store secrets, passwords, or tokens
-- Max 8,000 chars per insight — chunk longer content at semantic boundaries
+- Never run `remember` or `link` in the main conversation — always delegate to a sub-agent.
+- Do not store secrets, passwords, or tokens.
+- Categories: `preference` · `decision` · `insight` · `fact` · `context`
+- Edge types: `temporal` · `semantic` · `causal` · `entity`
+- Max 8,000 chars per insight.

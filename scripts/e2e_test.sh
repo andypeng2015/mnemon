@@ -128,7 +128,7 @@ banner "Milestone 1: Basic CRUD"
 # ══════════════════════════════════════════════════════════════════════
 
 step "remember — store insight with tags"
-OUT=$($M --data-dir "$TESTDIR" remember "User prefers Qdrant for vector DB" --cat preference --imp 4 --tags "tool,db")
+OUT=$($M --data-dir "$TESTDIR" remember --no-diff "User prefers Qdrant for vector DB" --cat preference --imp 4 --tags "tool,db")
 show_json "$OUT" 20
 ID1=$(extract_id "$OUT")
 assert_jq "category is preference" "$OUT" '.category' 'preference'
@@ -141,9 +141,9 @@ OUT=$($M --data-dir "$TESTDIR" recall "Qdrant")
 show_json "$OUT" 10
 assert_contains "found Qdrant insight" "$OUT" "User prefers Qdrant"
 
-step "recall — no match returns []"
+step "recall — no match returns sparse hint"
 OUT=$($M --data-dir "$TESTDIR" recall "nonexistent_xyz")
-assert_jq "empty array" "$OUT" 'length' '0'
+assert_contains "sparse hint" "$OUT" "sparse_results"
 
 step "status — statistics"
 OUT=$($M --data-dir "$TESTDIR" status)
@@ -170,20 +170,20 @@ TESTDIR2="$TESTDATA/m2"
 mkdir -p "$TESTDIR2"
 
 step "remember 3 insights — check temporal + causal edges"
-OUT1=$($M --data-dir "$TESTDIR2" remember "User prefers Qdrant for vector DB" --cat preference --imp 4)
+OUT1=$($M --data-dir "$TESTDIR2" remember --no-diff "User prefers Qdrant for vector DB" --cat preference --imp 4)
 ID_A=$(extract_id "$OUT1")
 assert_jq "first: no temporal" "$OUT1" '.edges_created.temporal' '0'
 
 sleep 1  # ensure distinct timestamps
 
-OUT2=$($M --data-dir "$TESTDIR2" remember "Chose Qdrant because of Rust performance" --cat decision --imp 5)
+OUT2=$($M --data-dir "$TESTDIR2" remember --no-diff "Chose Qdrant because of Rust performance" --cat decision --imp 5)
 ID_B=$(extract_id "$OUT2")
 assert_jq "second: 2 temporal" "$OUT2" '.edges_created.temporal' '2'
 assert_jq "second: 1 causal"   "$OUT2" '.edges_created.causal'   '1'
 
 sleep 1
 
-OUT3=$($M --data-dir "$TESTDIR2" remember "Qdrant benchmark shows 10ms p99 latency" --cat fact --imp 3)
+OUT3=$($M --data-dir "$TESTDIR2" remember --no-diff "Qdrant benchmark shows 10ms p99 latency" --cat fact --imp 3)
 ID_C=$(extract_id "$OUT3")
 assert_jq_gte "third: >= 2 temporal (backbone + proximity)" "$OUT3" '.edges_created.temporal' '2'
 
@@ -203,7 +203,7 @@ show_json "$OUT" 10
 assert_contains "finds A via causal" "$OUT" "$ID_A"
 
 step "Entity extraction — CamelCase"
-OUT=$($M --data-dir "$TESTDIR2" remember "We use HttpServer and DataStore in the project" --cat fact)
+OUT=$($M --data-dir "$TESTDIR2" remember --no-diff "We use HttpServer and DataStore in the project" --cat fact)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "HttpServer extracted" "$OUT" '"HttpServer"'
 assert_contains "DataStore extracted"  "$OUT" '"DataStore"'
@@ -212,7 +212,7 @@ ID_D=$(extract_id "$OUT")
 sleep 1
 
 step "Entity edge — shared entity creates link"
-OUT=$($M --data-dir "$TESTDIR2" remember "HttpServer handles all API requests" --cat fact)
+OUT=$($M --data-dir "$TESTDIR2" remember --no-diff "HttpServer handles all API requests" --cat fact)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')  edges: $(echo "$OUT" | jq -c '.edges_created')${RESET}"
 assert_jq_gte "entity edges created (bidirectional)" "$OUT" '.edges_created.entity' '2'
 ID_E=$(extract_id "$OUT")
@@ -224,12 +224,12 @@ OUT=$($M --data-dir "$TESTDIR2" related "$ID_D" --edge entity)
 assert_contains "D → E via entity (reverse)" "$OUT" "$ID_E"
 
 step "Entity extraction — file paths"
-OUT=$($M --data-dir "$TESTDIR2" remember "Config lives at ./cmd/root.go and internal/store/db.go" --cat fact)
+OUT=$($M --data-dir "$TESTDIR2" remember --no-diff "Config lives at ./cmd/root.go and internal/store/db.go" --cat fact)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "file path extracted" "$OUT" './cmd/root.go'
 
 step "Entity extraction — Chinese book titles"
-OUT=$($M --data-dir "$TESTDIR2" remember "推荐阅读《深入理解计算机系统》这本书" --cat fact)
+OUT=$($M --data-dir "$TESTDIR2" remember --no-diff "推荐阅读《深入理解计算机系统》这本书" --cat fact)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "Chinese title extracted" "$OUT" '深入理解计算机系统'
 
@@ -272,18 +272,18 @@ mkdir -p "$TESTDIR3"
 
 step "multi-level traversal — build A→B→C causal chain"
 # A: anchor (keyword-matched), B: 1-hop, C: 2-hop (only reachable with depth>=2)
-OUT_X=$($M --data-dir "$TESTDIR3" remember "Alpha service handles request routing" --cat fact --imp 3)
+OUT_X=$($M --data-dir "$TESTDIR3" remember --no-diff "Alpha service handles request routing" --cat fact --imp 3)
 ID_X=$(extract_id "$OUT_X")
 
 sleep 1
 
-OUT_Y=$($M --data-dir "$TESTDIR3" remember "Request routing uses Alpha service because of low latency" --cat decision --imp 4)
+OUT_Y=$($M --data-dir "$TESTDIR3" remember --no-diff "Request routing uses Alpha service because of low latency" --cat decision --imp 4)
 ID_Y=$(extract_id "$OUT_Y")
 assert_jq_gte "Y has causal edge to X" "$OUT_Y" '.edges_created.causal' '1'
 
 sleep 1
 
-OUT_Z=$($M --data-dir "$TESTDIR3" remember "Low latency achieved because of edge caching" --cat fact --imp 3)
+OUT_Z=$($M --data-dir "$TESTDIR3" remember --no-diff "Low latency achieved because of edge caching" --cat fact --imp 3)
 ID_Z=$(extract_id "$OUT_Z")
 assert_jq_gte "Z has causal edge to Y" "$OUT_Z" '.edges_created.causal' '1'
 
@@ -325,7 +325,7 @@ banner "Milestone 5: Semantic Edges (Claude-in-the-loop)"
 step "remember — output includes semantic_candidates field"
 TESTDIR5="$TESTDATA/m5"
 mkdir -p "$TESTDIR5"
-OUT=$($M --data-dir "$TESTDIR5" remember "Go is great for building CLI tools" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR5" remember --no-diff "Go is great for building CLI tools" --cat fact --imp 3)
 assert_contains "has semantic_candidates" "$OUT" '"semantic_candidates"'
 assert_jq "semantic field is 0 in edges_created" "$OUT" '.edges_created.semantic' '0'
 ID_S1=$(extract_id "$OUT")
@@ -333,7 +333,7 @@ ID_S1=$(extract_id "$OUT")
 sleep 1
 
 step "remember — similar content generates candidates"
-OUT=$($M --data-dir "$TESTDIR5" remember "Building CLI tools in Go is efficient" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR5" remember --no-diff "Building CLI tools in Go is efficient" --cat fact --imp 3)
 assert_contains "has semantic_candidates" "$OUT" '"semantic_candidates"'
 ID_S2=$(extract_id "$OUT")
 # Should find the first insight as a candidate (high token overlap)
@@ -348,7 +348,7 @@ else
 fi
 
 step "remember — unrelated content has fewer candidates"
-OUT=$($M --data-dir "$TESTDIR5" remember "Xylophone zebra quantum platypus" --cat fact --imp 2)
+OUT=$($M --data-dir "$TESTDIR5" remember --no-diff "Xylophone zebra quantum platypus" --cat fact --imp 2)
 SC_COUNT=$(echo "$OUT" | jq '.semantic_candidates | length')
 # With embeddings, generic similarity may still produce low-score candidates (cosine > 0.30).
 # Verify count is within bounds (≤ maxSemanticCandidates=5).
@@ -395,15 +395,15 @@ TESTDIR6="$TESTDATA/m6"
 mkdir -p "$TESTDIR6"
 
 step "setup — create insights with varying importance"
-$M --data-dir "$TESTDIR6" remember "Critical architecture decision: use SQLite" --cat decision --imp 5 > /dev/null
+$M --data-dir "$TESTDIR6" remember --no-diff "Critical architecture decision: use SQLite" --cat decision --imp 5 > /dev/null
 sleep 1
-$M --data-dir "$TESTDIR6" remember "Minor note about formatting" --cat general --imp 1 > /dev/null
-ID_LOW=$(extract_id "$($M --data-dir "$TESTDIR6" remember "Temporary context note" --cat context --imp 1)")
+$M --data-dir "$TESTDIR6" remember --no-diff "Minor note about formatting" --cat general --imp 1 > /dev/null
+ID_LOW=$(extract_id "$($M --data-dir "$TESTDIR6" remember --no-diff "Temporary context note" --cat context --imp 1)")
 sleep 1
-$M --data-dir "$TESTDIR6" remember "Important user preference for dark mode" --cat preference --imp 4 > /dev/null
+$M --data-dir "$TESTDIR6" remember --no-diff "Important user preference for dark mode" --cat preference --imp 4 > /dev/null
 
 step "remember — output includes effective_importance and auto_pruned"
-OUT=$($M --data-dir "$TESTDIR6" remember "Test insight for lifecycle" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR6" remember --no-diff "Test insight for lifecycle" --cat fact --imp 3)
 assert_contains "has effective_importance" "$OUT" '"effective_importance"'
 assert_contains "has auto_pruned" "$OUT" '"auto_pruned"'
 assert_jq "auto_pruned is 0 (under cap)" "$OUT" '.auto_pruned' '0'
@@ -498,8 +498,8 @@ banner "Milestone 7: Embedding Support (Ollama)"
 step "embed --status — always works (even without Ollama)"
 TESTDIR7="$TESTDATA/m7"
 mkdir -p "$TESTDIR7"
-$M --data-dir "$TESTDIR7" remember "Embedding test insight one" --cat fact --imp 3 > /dev/null
-$M --data-dir "$TESTDIR7" remember "Embedding test insight two" --cat fact --imp 3 > /dev/null
+$M --data-dir "$TESTDIR7" remember --no-diff "Embedding test insight one" --cat fact --imp 3 > /dev/null
+$M --data-dir "$TESTDIR7" remember --no-diff "Embedding test insight two" --cat fact --imp 3 > /dev/null
 OUT=$($M --data-dir "$TESTDIR7" embed --status)
 show_json "$OUT"
 assert_jq "total_insights is 2" "$OUT" '.total_insights' '2'
@@ -510,13 +510,13 @@ assert_contains "has coverage field" "$OUT" '"coverage"'
 OLLAMA_OK=$(echo "$OUT" | jq -r '.ollama_available')
 if [ "$OLLAMA_OK" = "true" ]; then
   step "remember — auto-embeds when Ollama available"
-  OUT=$($M --data-dir "$TESTDIR7" remember "This insight should be auto-embedded" --cat fact --imp 3)
+  OUT=$($M --data-dir "$TESTDIR7" remember --no-diff "This insight should be auto-embedded" --cat fact --imp 3)
   assert_jq "embedded is true" "$OUT" '.embedded' 'true'
   ID_E1=$(extract_id "$OUT")
 
   step "embed --all — backfill un-embedded insights"
   # Create an insight without auto-embedding by pointing Ollama to a dead endpoint
-  MNEMON_EMBED_ENDPOINT="http://127.0.0.1:1" $M --data-dir "$TESTDIR7" remember "Un-embedded test insight" --cat fact --imp 2 > /dev/null
+  MNEMON_EMBED_ENDPOINT="http://127.0.0.1:1" $M --data-dir "$TESTDIR7" remember --no-diff "Un-embedded test insight" --cat fact --imp 2 > /dev/null
 
   # Backfill all — should find the un-embedded one
   OUT=$($M --data-dir "$TESTDIR7" embed --all)
@@ -544,7 +544,7 @@ else
   echo -e "  ${DIM}  Install: brew install ollama && ollama pull nomic-embed-text${RESET}"
 
   step "remember — embedded=false when Ollama unavailable"
-  OUT=$($M --data-dir "$TESTDIR7" remember "This insight will not be embedded" --cat fact --imp 3)
+  OUT=$($M --data-dir "$TESTDIR7" remember --no-diff "This insight will not be embedded" --cat fact --imp 3)
   assert_jq "embedded is false" "$OUT" '.embedded' 'false'
 fi
 
@@ -556,13 +556,13 @@ TESTDIR8="$TESTDATA/m8"
 mkdir -p "$TESTDIR8"
 
 step "causal candidates — output includes causal_candidates field"
-OUT=$($M --data-dir "$TESTDIR8" remember "Causal test baseline insight about caching" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR8" remember --no-diff "Causal test baseline insight about caching" --cat fact --imp 3)
 assert_contains "has causal_candidates" "$OUT" '"causal_candidates"'
 ID_CC1=$(extract_id "$OUT")
 
 step "causal candidates — BFS finds neighbors via edges"
 sleep 1
-OUT=$($M --data-dir "$TESTDIR8" remember "Chose Redis because of latency requirements in caching" --cat decision --imp 4)
+OUT=$($M --data-dir "$TESTDIR8" remember --no-diff "Chose Redis because of latency requirements in caching" --cat decision --imp 4)
 assert_contains "has causal_candidates" "$OUT" '"causal_candidates"'
 ID_CC2=$(extract_id "$OUT")
 CC_COUNT=$(echo "$OUT" | jq '.causal_candidates | length')
@@ -586,7 +586,7 @@ fi
 
 step "causal candidates — hop-2 discovery via graph"
 sleep 1
-OUT=$($M --data-dir "$TESTDIR8" remember "Edge caching reduces Redis load significantly" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR8" remember --no-diff "Edge caching reduces Redis load significantly" --cat fact --imp 3)
 ID_CC3=$(extract_id "$OUT")
 CC_COUNT2=$(echo "$OUT" | jq '.causal_candidates | length')
 TOTAL=$((TOTAL + 1))
@@ -601,21 +601,21 @@ fi
 step "entity extraction — dictionary-based (tech terms)"
 TESTDIR_DICT="$TESTDATA/m_dict"
 mkdir -p "$TESTDIR_DICT"
-OUT=$($M --data-dir "$TESTDIR_DICT" remember "We use React and TypeScript with Redis for caching" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR_DICT" remember --no-diff "We use React and TypeScript with Redis for caching" --cat fact --imp 3)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "React extracted via dictionary" "$OUT" '"React"'
 assert_contains "TypeScript extracted via dictionary" "$OUT" '"TypeScript"'
 assert_contains "Redis extracted via dictionary" "$OUT" '"Redis"'
 
 step "entity extraction — acronyms (ALLCAPS)"
-OUT=$($M --data-dir "$TESTDIR_DICT" remember "The API uses gRPC and JWT for authentication over HTTP" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR_DICT" remember --no-diff "The API uses gRPC and JWT for authentication over HTTP" --cat fact --imp 3)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "API extracted" "$OUT" '"API"'
 assert_contains "JWT extracted" "$OUT" '"JWT"'
 assert_contains "HTTP extracted" "$OUT" '"HTTP"'
 
 step "entity extraction — stopwords not extracted"
-OUT=$($M --data-dir "$TESTDIR_DICT" remember "IF YOU CAN SEE THE WAY TO DO IT" --cat fact --imp 2)
+OUT=$($M --data-dir "$TESTDIR_DICT" remember --no-diff "IF YOU CAN SEE THE WAY TO DO IT" --cat fact --imp 2)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_not_contains "IF not extracted" "$OUT" '"IF"'
 assert_not_contains "YOU not extracted" "$OUT" '"YOU"'
@@ -628,13 +628,13 @@ TESTDIR9="$TESTDATA/m9"
 mkdir -p "$TESTDIR9"
 
 step "--entities — LLM-provided entities appear in output"
-OUT=$($M --data-dir "$TESTDIR9" remember "The new caching layer improves performance significantly" --cat fact --imp 3 --entities "caching-layer,performance-optimization")
+OUT=$($M --data-dir "$TESTDIR9" remember --no-diff "The new caching layer improves performance significantly" --cat fact --imp 3 --entities "caching-layer,performance-optimization")
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "LLM entity present" "$OUT" '"caching-layer"'
 assert_contains "LLM entity present" "$OUT" '"performance-optimization"'
 
 step "--entities — merges with regex-extracted entities"
-OUT=$($M --data-dir "$TESTDIR9" remember "We deploy HttpServer on Docker with Redis" --cat fact --imp 3 --entities "deployment-pipeline,high-availability")
+OUT=$($M --data-dir "$TESTDIR9" remember --no-diff "We deploy HttpServer on Docker with Redis" --cat fact --imp 3 --entities "deployment-pipeline,high-availability")
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 # LLM-provided
 assert_contains "LLM entity: deployment-pipeline" "$OUT" '"deployment-pipeline"'
@@ -645,13 +645,13 @@ assert_contains "dict entity: Docker" "$OUT" '"Docker"'
 assert_contains "dict entity: Redis" "$OUT" '"Redis"'
 
 step "--entities — creates entity edges with shared LLM entities"
-OUT=$($M --data-dir "$TESTDIR9" remember "Upgrading the caching layer for better throughput" --cat decision --imp 4 --entities "caching-layer,throughput")
+OUT=$($M --data-dir "$TESTDIR9" remember --no-diff "Upgrading the caching layer for better throughput" --cat decision --imp 4 --entities "caching-layer,throughput")
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')  edges: $(echo "$OUT" | jq -c '.edges_created')${RESET}"
 # "caching-layer" is shared with the first insight → should create entity edges
 assert_jq_gte "entity edges from shared LLM entity" "$OUT" '.edges_created.entity' '2'
 
 step "--entities — no flag still works (regex only)"
-OUT=$($M --data-dir "$TESTDIR9" remember "Python and FastAPI are great for prototyping" --cat fact --imp 3)
+OUT=$($M --data-dir "$TESTDIR9" remember --no-diff "Python and FastAPI are great for prototyping" --cat fact --imp 3)
 echo -e "    ${DIM}entities: $(echo "$OUT" | jq -c '.entities')${RESET}"
 assert_contains "dict entity: Python" "$OUT" '"Python"'
 assert_contains "dict entity: FastAPI" "$OUT" '"FastAPI"'
@@ -667,9 +667,9 @@ step "auto-prune — insert 5 low-imp + 2 high-imp insights (cap=4 for test)"
 # We'll use a small cap to test pruning. The cap is hardcoded at 1000 in production,
 # so here we test that the mechanism WORKS by checking auto_pruned=0 under cap.
 for i in 1 2 3; do
-  $M --data-dir "$TESTDIR10" remember "Low importance note $i" --cat general --imp 1 > /dev/null
+  $M --data-dir "$TESTDIR10" remember --no-diff "Low importance note $i" --cat general --imp 1 > /dev/null
 done
-OUT=$($M --data-dir "$TESTDIR10" remember "High importance decision" --cat decision --imp 5)
+OUT=$($M --data-dir "$TESTDIR10" remember --no-diff "High importance decision" --cat decision --imp 5)
 assert_jq "auto_pruned is 0 under cap" "$OUT" '.auto_pruned' '0'
 
 step "auto-prune — effective_importance varies by importance level"
@@ -688,7 +688,7 @@ fi
 
 step "effective_importance — high imp > low imp"
 EI_LOW=$(echo "$OUT_HIGH" | jq '.candidates[0].effective_importance')
-EI_CONTEXT=$($M --data-dir "$TESTDIR10" remember "Another high imp fact" --cat fact --imp 5 | jq '.effective_importance')
+EI_CONTEXT=$($M --data-dir "$TESTDIR10" remember --no-diff "Another high imp fact" --cat fact --imp 5 | jq '.effective_importance')
 TOTAL=$((TOTAL + 1))
 # EI for imp=5 should be > EI for imp=1
 LOW_INT=$(echo "$EI_LOW" | awk '{printf "%d", $1 * 1000}')

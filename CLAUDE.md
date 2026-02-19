@@ -9,6 +9,9 @@
 - **Optional**: Ollama with `nomic-embed-text` for embedding support
 
 
+
+
+
 <!-- mnemon:start -->
 ## Memory
 
@@ -16,21 +19,19 @@ You have persistent memory via the `mnemon` CLI (see skill for command reference
 
 ### Recall — before responding
 
-When you see `[Past memory]` in your context, **use it**. Reference relevant memories in your response rather than re-deriving from training data.
+When you see `[Past memory]` in your context, **use it**. Reference relevant memories rather than re-deriving.
 
-If no memories were injected but the topic could benefit from past context, run `mnemon recall "<topic>" --smart --limit 5` yourself.
+If no memories were injected but the topic could benefit from past context, run `mnemon recall "<topic>" --limit 5` yourself.
 
-Do NOT recall for: operational commands (commit, push, build, test), short confirmations, or follow-up within the same topic already in context.
+Do NOT recall for: operational commands, short confirmations, or follow-up within the same topic already in context.
 
 ### Remember — after responding
 
-After each response, ask: **if I forget this, does the user have to repeat themselves or do I have to redo significant work?**
+Ask: **if I forget this, will the user have to repeat themselves or will I redo significant work?**
 
-If yes, run `mnemon diff "<fact>"` then `mnemon remember` per the skill workflow. Three types qualify:
+Three types qualify: **user directive** (preference, decision, correction), **reasoning conclusion** (non-trivial analysis, design evaluation), **observed state** (system fact, environment detail).
 
-- **User directive** — preference, decision, correction, constraint
-- **Reasoning conclusion** — non-trivial analysis, comparison, diagnosis, design evaluation
-- **Observed state** — system fact, environment detail, domain context not recorded elsewhere
+If yes, **delegate to a Task sub-agent** (`subagent_type="Bash"`, `model="sonnet"`). Only provide what to store — content, category, importance, entities. The sub-agent will read the mnemon skill and execute the correct commands itself.
 
-Do NOT remember: operational tasks, public knowledge, information already in git, or transient state still changing.
+Do NOT: write CLI commands or workflow steps in the sub-agent prompt (the sub-agent has access to the skill docs and will use the correct flags). Do NOT run memory writes in the main conversation, or remember operational/public/git-tracked/transient info.
 <!-- mnemon:end -->

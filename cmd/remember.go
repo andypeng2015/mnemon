@@ -10,6 +10,7 @@ import (
 	"github.com/Grivn/mnemon/internal/embed"
 	"github.com/Grivn/mnemon/internal/graph"
 	"github.com/Grivn/mnemon/internal/model"
+	"github.com/Grivn/mnemon/internal/search"
 	"github.com/Grivn/mnemon/internal/store"
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
@@ -21,6 +22,7 @@ var (
 	remTags       string
 	remSource     string
 	remEntities   string
+	remNoDiff     bool
 )
 
 var rememberCmd = &cobra.Command{
@@ -101,14 +103,80 @@ var rememberCmd = &cobra.Command{
 
 		// 1. Compute embedding BEFORE the transaction (HTTP call should not hold a DB lock)
 		var embeddingBlob []byte
+		var embeddingVec []float64
 		ec := embed.NewClient()
 		if ec.Available() {
 			if vec, err := ec.Embed(content); err == nil {
+				embeddingVec = vec
 				embeddingBlob = embed.SerializeVector(vec)
 			}
 		}
 
-		// 2. All DB writes in a single atomic transaction
+		// 2. Built-in diff: check for duplicates/conflicts (read-only, before transaction)
+		var diffAction string // "added", "updated", "skipped"
+		var replacedID string
+		var diffSuggestion search.DiffSuggestion
+
+		if remNoDiff {
+			diffAction = "added"
+			diffSuggestion = search.DiffAdd
+		} else {
+			allInsights, err := db.GetAllActiveInsights()
+			if err != nil {
+				return fmt.Errorf("load insights for diff: %w", err)
+			}
+
+			opts := search.DiffOptions{Limit: 5, NewEmbedding: embeddingVec}
+			if ec.Available() {
+				dbEmbeds, err := db.GetAllEmbeddings()
+				if err == nil {
+					opts.ExistingEmbed = make([]search.EmbeddedItem, 0, len(dbEmbeds))
+					for _, e := range dbEmbeds {
+						if v := embed.DeserializeVector(e.Embedding); v != nil {
+							opts.ExistingEmbed = append(opts.ExistingEmbed, search.EmbeddedItem{
+								ID:        e.ID,
+								Embedding: v,
+							})
+						}
+					}
+				}
+			}
+
+			result := search.Diff(allInsights, content, opts)
+			diffSuggestion = result.Suggestion
+
+			switch result.Suggestion {
+			case search.DiffDuplicate:
+				diffAction = "skipped"
+				if len(result.Matches) > 0 {
+					replacedID = result.Matches[0].ID
+				}
+			case search.DiffConflict, search.DiffUpdate:
+				diffAction = "updated"
+				if len(result.Matches) > 0 {
+					replacedID = result.Matches[0].ID
+				}
+			default:
+				diffAction = "added"
+			}
+		}
+
+		// If duplicate, skip insert entirely
+		if diffAction == "skipped" {
+			db.LogOp("diff-skip", insight.ID, fmt.Sprintf("duplicate of %s", replacedID))
+			output := map[string]interface{}{
+				"id":              insight.ID,
+				"content":         content,
+				"action":          "skipped",
+				"diff_suggestion": string(diffSuggestion),
+				"replaced_id":    replacedID,
+			}
+			enc := json.NewEncoder(os.Stdout)
+			enc.SetIndent("", "  ")
+			return enc.Encode(output)
+		}
+
+		// 3. All DB writes in a single atomic transaction
 		var (
 			edgeStats graph.EdgeStats
 			ei        float64
@@ -116,6 +184,15 @@ var rememberCmd = &cobra.Command{
 			embedded  bool
 		)
 		err = db.InTransaction(func() error {
+			// Soft-delete old insight if updating
+			if diffAction == "updated" && replacedID != "" {
+				if err := db.SoftDeleteInsight(replacedID); err != nil {
+					fmt.Fprintf(os.Stderr, "warning: soft-delete %s: %v\n", replacedID, err)
+				} else {
+					db.LogOp("diff-replace", replacedID, fmt.Sprintf("replaced by %s", insight.ID))
+				}
+			}
+
 			if err := db.InsertInsight(insight); err != nil {
 				return fmt.Errorf("insert insight: %w", err)
 			}
@@ -145,7 +222,7 @@ var rememberCmd = &cobra.Command{
 
 			// Auto-prune if over capacity (excludeID protects the just-created insight)
 			var pruneErr error
-			pruned, pruneErr = db.AutoPrune(store.MaxInsights, insight.ID)
+			pruned, pruneErr = db.AutoPrune(store.MaxInsights, []string{insight.ID})
 			if pruneErr != nil {
 				fmt.Fprintf(os.Stderr, "warning: auto-prune: %v\n", pruneErr)
 			}
@@ -157,7 +234,7 @@ var rememberCmd = &cobra.Command{
 			return err
 		}
 
-		// 3. Read-only operations outside the transaction (data already committed)
+		// 4. Read-only operations outside the transaction (data already committed)
 		semanticCandidates := graph.FindSemanticCandidates(db, insight)
 		if semanticCandidates == nil {
 			semanticCandidates = []graph.SemanticCandidate{}
@@ -169,19 +246,24 @@ var rememberCmd = &cobra.Command{
 		}
 
 		output := map[string]interface{}{
-			"id":                  insight.ID,
-			"content":             insight.Content,
-			"category":            insight.Category,
-			"importance":          insight.Importance,
-			"tags":                insight.Tags,
-			"entities":            insight.Entities,
-			"created_at":          insight.CreatedAt.Format(time.RFC3339),
-			"edges_created":       edgeStats,
-			"semantic_candidates": semanticCandidates,
-			"causal_candidates":   causalCandidates,
-			"embedded":              embedded,
-			"effective_importance":  ei,
+			"id":                   insight.ID,
+			"content":              insight.Content,
+			"category":             insight.Category,
+			"importance":           insight.Importance,
+			"tags":                 insight.Tags,
+			"entities":             insight.Entities,
+			"action":               diffAction,
+			"diff_suggestion":      string(diffSuggestion),
+			"created_at":           insight.CreatedAt.Format(time.RFC3339),
+			"edges_created":        edgeStats,
+			"semantic_candidates":  semanticCandidates,
+			"causal_candidates":    causalCandidates,
+			"embedded":             embedded,
+			"effective_importance": ei,
 			"auto_pruned":          pruned,
+		}
+		if replacedID != "" {
+			output["replaced_id"] = replacedID
 		}
 		enc := json.NewEncoder(os.Stdout)
 		enc.SetIndent("", "  ")
@@ -195,5 +277,6 @@ func init() {
 	rememberCmd.Flags().StringVar(&remTags, "tags", "", "comma-separated tags")
 	rememberCmd.Flags().StringVar(&remSource, "source", "user", "source (user|agent|external)")
 	rememberCmd.Flags().StringVar(&remEntities, "entities", "", "comma-separated entities (LLM-extracted, merged with auto-extraction)")
+	rememberCmd.Flags().BoolVar(&remNoDiff, "no-diff", false, "skip duplicate/conflict detection")
 	rootCmd.AddCommand(rememberCmd)
 }
