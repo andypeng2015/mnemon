@@ -6,10 +6,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Grivn/mnemon/internal/embed"
-	"github.com/Grivn/mnemon/internal/graph"
-	"github.com/Grivn/mnemon/internal/search"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/embed"
+	"github.com/mnemon-dev/mnemon/internal/graph"
+	"github.com/mnemon-dev/mnemon/internal/search"
+	"github.com/mnemon-dev/mnemon/internal/store"
 	"github.com/spf13/cobra"
 )
 

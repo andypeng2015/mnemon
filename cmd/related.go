@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Grivn/mnemon/internal/model"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/store"
 	"github.com/spf13/cobra"
 )
 

@@ -4,8 +4,8 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/Grivn/mnemon/internal/model"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/store"
 )
 
 // Maximum number of existing nodes to link per entity (avoid hot-entity explosion).

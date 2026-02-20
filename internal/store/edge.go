@@ -3,7 +3,7 @@ package store
 import (
 	"time"
 
-	"github.com/Grivn/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/model"
 )
 
 // InsertEdge inserts or replaces an edge.

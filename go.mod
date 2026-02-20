@@ -1,4 +1,4 @@
-module github.com/Grivn/mnemon
+module github.com/mnemon-dev/mnemon
 
 go 1.24.6
 

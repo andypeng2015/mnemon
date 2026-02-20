@@ -5,7 +5,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/Grivn/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/model"
 )
 
 // ScoredInsight pairs an insight with a relevance score.

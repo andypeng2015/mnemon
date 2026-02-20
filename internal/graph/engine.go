@@ -1,8 +1,8 @@
 package graph
 
 import (
-	"github.com/Grivn/mnemon/internal/model"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/store"
 )
 
 // EdgeStats tracks how many edges of each type were created.

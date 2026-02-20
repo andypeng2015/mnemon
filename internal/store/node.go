@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Grivn/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/model"
 )
 
 // Lifecycle constants

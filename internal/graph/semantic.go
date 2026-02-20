@@ -5,10 +5,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/Grivn/mnemon/internal/embed"
-	"github.com/Grivn/mnemon/internal/model"
-	"github.com/Grivn/mnemon/internal/search"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/embed"
+	"github.com/mnemon-dev/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/search"
+	"github.com/mnemon-dev/mnemon/internal/store"
 )
 
 // Minimum similarity to be considered a semantic candidate (token overlap fallback).

@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/Grivn/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/model"
 )
 
 // Intent represents the detected query intent.

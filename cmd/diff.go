@@ -6,8 +6,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/Grivn/mnemon/internal/embed"
-	"github.com/Grivn/mnemon/internal/search"
+	"github.com/mnemon-dev/mnemon/internal/embed"
+	"github.com/mnemon-dev/mnemon/internal/search"
 	"github.com/spf13/cobra"
 )
 

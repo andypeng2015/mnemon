@@ -3,8 +3,8 @@ package search
 import (
 	"strings"
 
-	"github.com/Grivn/mnemon/internal/embed"
-	"github.com/Grivn/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/embed"
+	"github.com/mnemon-dev/mnemon/internal/model"
 )
 
 // DiffSuggestion classifies how a new fact relates to existing content.

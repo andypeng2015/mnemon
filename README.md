@@ -3,7 +3,7 @@
 **Persistent memory for LLM agents** — LLM-supervised, skill-integrated, four-graph architecture.
 
 [![Go 1.24+](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
-[![CI](https://github.com/Grivn/mnemon/actions/workflows/ci.yml/badge.svg)](https://github.com/Grivn/mnemon/actions/workflows/ci.yml)
+[![CI](https://github.com/mnemon-dev/mnemon/actions/workflows/ci.yml/badge.svg)](https://github.com/mnemon-dev/mnemon/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ---
@@ -31,7 +31,7 @@ See [Design & Architecture](docs/DESIGN.md) for the full philosophy.
 ## Quick Start
 
 ```bash
-git clone https://github.com/Grivn/mnemon.git && cd mnemon
+git clone https://github.com/mnemon-dev/mnemon.git && cd mnemon
 make setup          # build + install binary + skill + hook
 make claude-inject  # inject memory guidance into ./CLAUDE.md
 ```

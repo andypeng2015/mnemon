@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/Grivn/mnemon/internal/embed"
-	"github.com/Grivn/mnemon/internal/model"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/embed"
+	"github.com/mnemon-dev/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/store"
 )
 
 // Beam search parameters (MAGMA-aligned).

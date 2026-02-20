@@ -5,9 +5,9 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/Grivn/mnemon/internal/model"
-	"github.com/Grivn/mnemon/internal/search"
-	"github.com/Grivn/mnemon/internal/store"
+	"github.com/mnemon-dev/mnemon/internal/model"
+	"github.com/mnemon-dev/mnemon/internal/search"
+	"github.com/mnemon-dev/mnemon/internal/store"
 )
 
 // Minimum token overlap ratio to create a causal edge.

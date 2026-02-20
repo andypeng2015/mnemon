@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/Grivn/mnemon/internal/embed"
+	"github.com/mnemon-dev/mnemon/internal/embed"
 	"github.com/spf13/cobra"
 )
 
