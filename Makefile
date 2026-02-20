@@ -125,6 +125,8 @@ ASSETS_DIR := internal/setup/assets/claude
 sync-assets: ## Sync source-of-truth files into embedded assets
 	@cp scripts/hooks/user_prompt.sh $(ASSETS_DIR)/user_prompt.sh
 	@cp scripts/hooks/stop.sh $(ASSETS_DIR)/stop.sh
+	@cp scripts/hooks/prime.sh $(ASSETS_DIR)/prime.sh
+	@cp scripts/hooks/compact.sh $(ASSETS_DIR)/compact.sh
 	@cp skills/mnemon/SKILL.md $(ASSETS_DIR)/SKILL.md
 	@cp scripts/claude_memory.md $(ASSETS_DIR)/claude_memory.md
 	@echo "Assets synced to $(ASSETS_DIR)/"

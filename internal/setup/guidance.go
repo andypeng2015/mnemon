@@ -18,23 +18,27 @@ type RememberType struct {
 	Detail string // e.g., "preference, decision, correction"
 }
 
-var recallGuidance = "### Recall — before responding\n\n" +
+// RecallGuidance is the default recall section text.
+var RecallGuidance = "### Recall — before responding\n\n" +
 	"When you see `[Past memory]` in your context, **use it**. Reference relevant memories rather than re-deriving.\n\n" +
 	"If no memories were injected but the topic could benefit from past context, run `mnemon recall \"<topic>\" --limit 5` yourself.\n\n" +
 	"Do NOT recall for: operational commands, short confirmations, or follow-up within the same topic already in context.\n"
 
-var rememberGuidance = "### Remember — after responding\n\n" +
+// RememberGuidance is the default remember section text.
+var RememberGuidance = "### Remember — after responding\n\n" +
 	"Ask: **if I forget this, will the user have to repeat themselves or will I redo significant work?**\n\n" +
 	"Three types qualify: **user directive** (preference, decision, correction), **reasoning conclusion** (non-trivial analysis, design evaluation), **observed state** (system fact, environment detail).\n"
 
-var claudeDelegation = "If yes, **delegate to a Task sub-agent** (`subagent_type=\"Bash\"`, `model=\"sonnet\"`). " +
+// ClaudeDelegation is the default Claude Code delegation section text.
+var ClaudeDelegation = "If yes, **delegate to a Task sub-agent** (`subagent_type=\"Bash\"`, `model=\"sonnet\"`). " +
 	"Only provide what to store — content, category, importance, entities. " +
 	"The sub-agent will read the mnemon skill and execute the correct commands itself.\n\n" +
 	"Do NOT: write CLI commands or workflow steps in the sub-agent prompt " +
 	"(the sub-agent has access to the skill docs and will use the correct flags). " +
 	"Do NOT run memory writes in the main conversation, or remember operational/public/git-tracked/transient info.\n"
 
-var openclawDelegation = "If yes, store it: `mnemon remember \"<fact>\" --cat <cat> --imp <1-5> --entities \"e1,e2\" --source agent`\n\n" +
+// OpenClawDelegation is the default OpenClaw delegation section text.
+var OpenClawDelegation = "If yes, store it: `mnemon remember \"<fact>\" --cat <cat> --imp <1-5> --entities \"e1,e2\" --source agent`\n\n" +
 	"Do NOT remember operational/public/git-tracked/transient info.\n"
 
 // DefaultRememberTypes returns the 3 default memory categories.
@@ -91,17 +95,17 @@ func ClaudeGuidanceSections() []GuidanceSection {
 		{
 			Label:       "Recall",
 			Description: "auto-recall past memories",
-			Content:     recallGuidance,
+			Content:     RecallGuidance,
 		},
 		{
 			Label:       "Remember",
 			Description: "what/when to remember",
-			Content:     rememberGuidance,
+			Content:     RememberGuidance,
 		},
 		{
 			Label:       "Delegation",
 			Description: "sub-agent write pattern",
-			Content:     claudeDelegation,
+			Content:     ClaudeDelegation,
 		},
 	}
 }
@@ -112,29 +116,29 @@ func OpenClawGuidanceSections() []GuidanceSection {
 		{
 			Label:       "Recall",
 			Description: "auto-recall past memories",
-			Content:     recallGuidance,
+			Content:     RecallGuidance,
 		},
 		{
 			Label:       "Remember",
 			Description: "what/when to remember",
-			Content:     rememberGuidance,
+			Content:     RememberGuidance,
 		},
 		{
 			Label:       "Delegation",
 			Description: "direct CLI write command",
-			Content:     openclawDelegation,
+			Content:     OpenClawDelegation,
 		},
 	}
 }
 
 // RecallGuidanceDefault returns the default recall guidance text.
 func RecallGuidanceDefault() string {
-	return recallGuidance
+	return RecallGuidance
 }
 
 // OpenClawDelegationDefault returns the default OpenClaw delegation text.
 func OpenClawDelegationDefault() string {
-	return openclawDelegation
+	return OpenClawDelegation
 }
 
 // ComposeMemoryBlock builds a memory guidance block from selected sections and optional custom text.

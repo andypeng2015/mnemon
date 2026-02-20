@@ -104,7 +104,7 @@ func TestComposeCustomOnly(t *testing.T) {
 
 func TestComposeSkipsEmptyContent(t *testing.T) {
 	sections := []GuidanceSection{
-		{Label: "Recall", Content: recallGuidance},
+		{Label: "Recall", Content: RecallGuidance},
 		{Label: "Remember", Content: ""}, // empty — should be skipped
 	}
 	selected := []bool{true, true}
@@ -124,9 +124,9 @@ func TestComposeRememberSectionAllTypes(t *testing.T) {
 	selected := []bool{true, true, true}
 	composed := ComposeRememberSection(types, selected, "")
 
-	if composed != rememberGuidance {
+	if composed != RememberGuidance {
 		t.Errorf("all types should match default remember guidance\n=== GOT ===\n%s\n=== WANT ===\n%s",
-			composed, rememberGuidance)
+			composed, RememberGuidance)
 	}
 }
 
@@ -199,8 +199,8 @@ func TestClaudeDelegationWithModel(t *testing.T) {
 
 func TestClaudeDelegationSonnetMatchesDefault(t *testing.T) {
 	composed := ClaudeDelegationWithModel("sonnet")
-	if composed != claudeDelegation {
+	if composed != ClaudeDelegation {
 		t.Errorf("sonnet delegation should match default\n=== GOT ===\n%s\n=== WANT ===\n%s",
-			composed, claudeDelegation)
+			composed, ClaudeDelegation)
 	}
 }

@@ -8,11 +8,20 @@ var ClaudeUserPromptHook []byte
 //go:embed claude/stop.sh
 var ClaudeStopHook []byte
 
+//go:embed claude/prime.sh
+var ClaudePrimeHook []byte
+
+//go:embed claude/compact.sh
+var ClaudeCompactHook []byte
+
 //go:embed claude/SKILL.md
 var ClaudeSkill []byte
 
 //go:embed claude/claude_memory.md
 var ClaudeMemoryMD []byte
+
+//go:embed openclaw/SKILL.md
+var OpenClawSkill []byte
 
 //go:embed openclaw/index.ts
 var OpenClawPlugin []byte

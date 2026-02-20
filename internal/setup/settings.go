@@ -155,7 +155,7 @@ func RemoveClaudeHooks(data map[string]interface{}) {
 	if !ok {
 		return
 	}
-	for _, key := range []string{"UserPromptSubmit", "Stop"} {
+	for _, key := range []string{"UserPromptSubmit", "Stop", "SessionStart", "PreCompact"} {
 		arr, ok := hooks[key].([]interface{})
 		if !ok {
 			continue
@@ -195,35 +195,65 @@ func removeIfEmpty(dir string) {
 	}
 }
 
-// AddClaudeHooks idempotently sets mnemon hooks in Claude Code settings.
-// Removes existing mnemon hooks first, then adds fresh entries.
-func AddClaudeHooks(data map[string]interface{}, hooksDir string) {
+// addClaudeHooksSelective idempotently sets mnemon hooks in Claude Code settings.
+// Prime (SessionStart) is always registered; Recall and Nudge are conditional.
+func addClaudeHooksSelective(data map[string]interface{}, hooksDir string, sel HookSelection) {
 	RemoveClaudeHooks(data)
 	hooks := ensureHooksMap(data)
 
-	// UserPromptSubmit
-	recallEntry := map[string]interface{}{
+	// SessionStart (prime) — always
+	primeEntry := map[string]interface{}{
 		"hooks": []interface{}{
 			map[string]interface{}{
 				"type":    "command",
-				"command": filepath.Join(hooksDir, "user_prompt.sh"),
+				"command": filepath.Join(hooksDir, "prime.sh"),
 			},
 		},
 	}
-	arr, _ := hooks["UserPromptSubmit"].([]interface{})
-	hooks["UserPromptSubmit"] = append(arr, recallEntry)
+	sessionArr, _ := hooks["SessionStart"].([]interface{})
+	hooks["SessionStart"] = append(sessionArr, primeEntry)
 
-	// Stop
-	remindEntry := map[string]interface{}{
-		"hooks": []interface{}{
-			map[string]interface{}{
-				"type":    "command",
-				"command": filepath.Join(hooksDir, "stop.sh"),
+	// UserPromptSubmit (recall) — optional
+	if sel.Recall {
+		recallEntry := map[string]interface{}{
+			"hooks": []interface{}{
+				map[string]interface{}{
+					"type":    "command",
+					"command": filepath.Join(hooksDir, "user_prompt.sh"),
+				},
 			},
-		},
+		}
+		arr, _ := hooks["UserPromptSubmit"].([]interface{})
+		hooks["UserPromptSubmit"] = append(arr, recallEntry)
 	}
-	stopArr, _ := hooks["Stop"].([]interface{})
-	hooks["Stop"] = append(stopArr, remindEntry)
+
+	// Stop (nudge) — optional
+	if sel.Nudge {
+		nudgeEntry := map[string]interface{}{
+			"hooks": []interface{}{
+				map[string]interface{}{
+					"type":    "command",
+					"command": filepath.Join(hooksDir, "stop.sh"),
+				},
+			},
+		}
+		stopArr, _ := hooks["Stop"].([]interface{})
+		hooks["Stop"] = append(stopArr, nudgeEntry)
+	}
+
+	// PreCompact (compact) — optional
+	if sel.Compact {
+		compactEntry := map[string]interface{}{
+			"hooks": []interface{}{
+				map[string]interface{}{
+					"type":    "command",
+					"command": filepath.Join(hooksDir, "compact.sh"),
+				},
+			},
+		}
+		compactArr, _ := hooks["PreCompact"].([]interface{})
+		hooks["PreCompact"] = append(compactArr, compactEntry)
+	}
 }
 
 // ensurePluginsMap ensures data["plugins"] is a map and returns it.
@@ -236,22 +266,34 @@ func ensurePluginsMap(data map[string]interface{}) map[string]interface{} {
 	return plugins
 }
 
-// AddOpenClawPlugin registers mnemon in the OpenClaw config.
-func AddOpenClawPlugin(data map[string]interface{}, extensionDir string) {
+// AddOpenClawPlugin registers mnemon in the OpenClaw config under plugins.entries.
+func AddOpenClawPlugin(data map[string]interface{}) {
 	plugins := ensurePluginsMap(data)
-	plugins["mnemon"] = map[string]interface{}{
+	entries, ok := plugins["entries"].(map[string]interface{})
+	if !ok {
+		entries = make(map[string]interface{})
+		plugins["entries"] = entries
+	}
+	entries["mnemon"] = map[string]interface{}{
 		"enabled": true,
-		"path":    extensionDir,
 	}
 }
 
-// RemoveOpenClawPlugin removes mnemon from the OpenClaw config.
-// Cleans up empty plugins map when nothing remains.
+// RemoveOpenClawPlugin removes mnemon from the OpenClaw config plugins.entries.
+// Cleans up empty entries/plugins maps when nothing remains.
 func RemoveOpenClawPlugin(data map[string]interface{}) {
 	plugins, ok := data["plugins"].(map[string]interface{})
 	if !ok {
 		return
 	}
+	// Clean from plugins.entries (correct location)
+	if entries, ok := plugins["entries"].(map[string]interface{}); ok {
+		delete(entries, "mnemon")
+		if len(entries) == 0 {
+			delete(plugins, "entries")
+		}
+	}
+	// Also clean legacy plugins.mnemon (incorrect location from old versions)
 	delete(plugins, "mnemon")
 	if len(plugins) == 0 {
 		delete(data, "plugins")

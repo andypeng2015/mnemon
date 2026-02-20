@@ -8,70 +8,54 @@ import (
 	"github.com/mnemon-dev/mnemon/internal/setup/assets"
 )
 
-const claudeSteps = 4
+// HookSelection describes which optional hooks to install.
+// Prime is always installed (mandatory).
+type HookSelection struct {
+	Recall  bool // UserPromptSubmit — auto-recall memories
+	Nudge   bool // Stop — remind about memory on session end
+	Compact bool // PreCompact — save insights before context compaction
+}
 
-// ClaudeInstall deploys mnemon integration into the given Claude Code config dir.
-// configDir is typically ".claude" (project-local) or "~/.claude" (global).
-// Steps: skill, hook (recall), hook (remind), settings.
-func ClaudeInstall(configDir string) []error {
-	hooksDir := filepath.Join(configDir, "hooks", "mnemon")
-	var errs []error
-
-	fmt.Printf("\nSetting up Claude Code (%s)...\n", configDir)
-
-	// Step 1: Write skill
+// ClaudeWriteSkill writes the mnemon skill to the config dir.
+func ClaudeWriteSkill(configDir string) (string, error) {
 	skillDir := filepath.Join(configDir, "skills", "mnemon")
 	skillPath := filepath.Join(skillDir, "SKILL.md")
 	if err := os.MkdirAll(skillDir, 0755); err != nil {
-		StatusError(1, claudeSteps, "Skill", err)
-		errs = append(errs, err)
-	} else if err := os.WriteFile(skillPath, assets.ClaudeSkill, 0644); err != nil {
-		StatusError(1, claudeSteps, "Skill", err)
-		errs = append(errs, err)
-	} else {
-		StatusOK(1, claudeSteps, "Skill", skillPath)
+		return "", err
 	}
+	if err := os.WriteFile(skillPath, assets.ClaudeSkill, 0644); err != nil {
+		return "", err
+	}
+	return skillPath, nil
+}
 
-	// Step 2: Write recall hook
+// ClaudeWriteHook writes a hook script to the hooks dir.
+func ClaudeWriteHook(configDir, filename string, content []byte) (string, error) {
+	hooksDir := filepath.Join(configDir, "hooks", "mnemon")
 	if err := os.MkdirAll(hooksDir, 0755); err != nil {
-		StatusError(2, claudeSteps, "Hook: recall", err)
-		errs = append(errs, err)
-	} else {
-		recallPath := filepath.Join(hooksDir, "user_prompt.sh")
-		if err := os.WriteFile(recallPath, assets.ClaudeUserPromptHook, 0755); err != nil {
-			StatusError(2, claudeSteps, "Hook: recall", err)
-			errs = append(errs, err)
-		} else {
-			StatusOK(2, claudeSteps, "Hook: recall", recallPath)
-		}
+		return "", err
 	}
-
-	// Step 3: Write remind hook
-	remindPath := filepath.Join(hooksDir, "stop.sh")
-	if err := os.WriteFile(remindPath, assets.ClaudeStopHook, 0755); err != nil {
-		StatusError(3, claudeSteps, "Hook: remind", err)
-		errs = append(errs, err)
-	} else {
-		StatusOK(3, claudeSteps, "Hook: remind", remindPath)
+	hookPath := filepath.Join(hooksDir, filename)
+	if err := os.WriteFile(hookPath, content, 0755); err != nil {
+		return "", err
 	}
+	return hookPath, nil
+}
 
-	// Step 4: Register hooks in settings.json
+// ClaudeRegisterHooks registers selected hooks in settings.json.
+// Prime (SessionStart) is always registered.
+func ClaudeRegisterHooks(configDir string, sel HookSelection) (string, error) {
+	hooksDir := filepath.Join(configDir, "hooks", "mnemon")
 	settingsPath := filepath.Join(configDir, "settings.json")
 	data, err := ReadJSONFile(settingsPath)
 	if err != nil {
-		StatusError(4, claudeSteps, "Settings", err)
-		errs = append(errs, err)
-	} else {
-		AddClaudeHooks(data, hooksDir)
-		if err := WriteJSONFile(settingsPath, data); err != nil {
-			StatusError(4, claudeSteps, "Settings", err)
-			errs = append(errs, err)
-		} else {
-			StatusUpdated(4, claudeSteps, "Settings", settingsPath)
-		}
+		return "", err
 	}
-
-	return errs
+	addClaudeHooksSelective(data, hooksDir, sel)
+	if err := WriteJSONFile(settingsPath, data); err != nil {
+		return "", err
+	}
+	return settingsPath, nil
 }
 
 // ClaudeEject removes mnemon integration from the given Claude Code config dir.
