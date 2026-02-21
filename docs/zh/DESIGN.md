@@ -242,7 +242,6 @@ Mnemon 的架构分为五层：
 └─────────────────────────────────────────────────────────────┘
 ```
 
-<!-- TODO: 更新 01-system-architecture.jpg — 集成层标签应改为 "Hook / Skill / Guide" -->
 
 **项目代码结构：**
 
@@ -774,7 +773,6 @@ mnemon embed <id>               # 生成单条
 
 ## 11. LLM CLI 集成
 
-<!-- TODO: 更新 08-three-layer-integration.jpg — 应展示 4 个钩子事件 + guide.md + SKILL.md 架构 -->
 ![集成架构](../diagrams/08-three-layer-integration.jpg)
 
 Mnemon 通过生命周期钩子、技能文件和行为引导与 LLM CLI 集成。Claude Code 的[钩子系统](https://docs.anthropic.com/en/docs/claude-code/hooks)是参考实现 — 所有组件通过 `mnemon setup` 自动部署。

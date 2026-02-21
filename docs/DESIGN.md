@@ -242,7 +242,6 @@ Mnemon's architecture is divided into five layers:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-<!-- TODO: Update 01-system-architecture.jpg — Integration Layer label should read "Hook / Skill / Guide" -->
 
 **Project code structure:**
 
@@ -774,7 +773,6 @@ mnemon embed <id>               # Generate for a single insight
 
 ## 11. LLM CLI Integration
 
-<!-- TODO: Update 08-three-layer-integration.jpg — should show 4 hook events + guide.md + SKILL.md architecture -->
 ![Integration Architecture](diagrams/08-three-layer-integration.jpg)
 
 Mnemon integrates with LLM CLIs through lifecycle hooks, a skill file, and a behavioral guide. Claude Code's [hook system](https://docs.anthropic.com/en/docs/claude-code/hooks) is the reference implementation — all components are deployed automatically via `mnemon setup`.
