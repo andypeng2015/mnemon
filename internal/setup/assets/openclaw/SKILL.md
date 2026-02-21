@@ -6,9 +6,85 @@ metadata:
     emoji: "🧠"
     requires:
       bins: ["mnemon"]
+    install:
+      - id: "brew"
+        kind: "brew"
+        formula: "mnemon-dev/tap/mnemon"
+        bins: ["mnemon"]
+        label: "Install mnemon (Homebrew)"
+      - id: "go"
+        kind: "go"
+        package: "github.com/mnemon-dev/mnemon@latest"
+        bins: ["mnemon"]
+        label: "Install mnemon (go install)"
 ---
 
 # mnemon
+
+## Install & Configure
+
+### 1. Install the binary
+
+**Homebrew** (macOS / Linux):
+
+```bash
+brew install mnemon-dev/tap/mnemon
+```
+
+**Go install**:
+
+```bash
+go install github.com/mnemon-dev/mnemon@latest
+```
+
+### 2. Set up OpenClaw integration
+
+```bash
+mnemon setup --target openclaw --yes
+```
+
+This single command deploys all components:
+- **Skill** → `~/.openclaw/skills/mnemon/SKILL.md`
+- **Hook** → `~/.openclaw/hooks/mnemon-prime/` (agent:bootstrap — injects behavioral guide)
+- **Plugin** → `~/.openclaw/extensions/mnemon/` (remind, nudge, compact hooks)
+- **Prompts** → `~/.mnemon/prompt/` (guide.md, skill.md)
+
+Restart the OpenClaw gateway to activate.
+
+### 3. Customize (optional)
+
+Edit `~/.mnemon/prompt/guide.md` to tune recall/remember behavior.
+
+Plugin hooks are configured in `~/.openclaw/openclaw.json`:
+
+```json
+{
+  "plugins": {
+    "entries": {
+      "mnemon": {
+        "enabled": true,
+        "config": {
+          "remind": true,
+          "nudge": true,
+          "compact": false
+        }
+      }
+    }
+  }
+}
+```
+
+| Hook | Default | Description |
+|------|---------|-------------|
+| `remind` | on | Recall relevant memories + remind agent on each message |
+| `nudge` | on | Suggest remember sub-agent after each reply |
+| `compact` | off | Save key insights before context compaction |
+
+### 4. Uninstall
+
+```bash
+mnemon setup --eject --target openclaw --yes
+```
 
 ## Workflow
 

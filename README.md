@@ -83,12 +83,10 @@ mnemon setup
 ### [OpenClaw](https://github.com/openclaw/openclaw)
 
 ```bash
-mnemon setup --target openclaw
+mnemon setup --target openclaw --yes
 ```
 
-This installs the skill and deploys a behavioral guide to `~/.mnemon/prompt/guide.md`. Since hook integration is not yet automated for OpenClaw, provide the guide to your agent and let it self-configure:
-
-> Read `~/.mnemon/prompt/guide.md` and configure yourself to follow its recall/remember workflow.
+One command deploys skill, hook, plugin, and behavioral guide to `~/.openclaw/`. Restart the OpenClaw gateway to activate.
 
 ### Uninstall
 
