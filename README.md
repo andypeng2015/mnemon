@@ -16,6 +16,12 @@ LLM agents forget everything between sessions. Context compaction drops critical
 
 Mnemon gives your agent persistent, cross-session memory — with a single binary and one setup command.
 
+<p align="center">
+  <img src="docs/diagrams/10-knowledge-graph.png" width="720" alt="Knowledge Graph — 87 insights connected by temporal, entity, semantic, and causal edges" />
+  <br />
+  <sub>A real knowledge graph built by Mnemon — 87 insights, 2150 edges across four graph types.</sub>
+</p>
+
 ## Quick Start
 
 ### Claude Code
