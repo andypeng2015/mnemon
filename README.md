@@ -17,7 +17,7 @@ LLM agents forget everything between sessions. Context compaction drops critical
 Mnemon gives your agent persistent, cross-session memory — with a single binary and one setup command.
 
 <p align="center">
-  <img src="docs/diagrams/10-knowledge-graph.png" width="720" alt="Knowledge Graph — 87 insights connected by temporal, entity, semantic, and causal edges" />
+  <img src="docs/diagrams/10-knowledge-graph.jpg" width="720" alt="Knowledge Graph — 87 insights connected by temporal, entity, semantic, and causal edges" />
   <br />
   <sub>A real knowledge graph built by Mnemon — 87 insights, 2150 edges across four graph types.</sub>
 </p>
@@ -37,7 +37,7 @@ This means: **memory management logic moves from prompt to code — deterministi
 | **LLM-Supervised** | External supervisor of a standalone binary | Mnemon |
 
 <p align="center">
-  <img src="docs/diagrams/llm-supervised-concept.png" width="720" alt="LLM-Supervised Architecture — three patterns compared, with detailed Mnemon implementation showing hooks, brain/organ split, and sub-agent delegation" />
+  <img src="docs/diagrams/llm-supervised-concept.jpg" width="720" alt="LLM-Supervised Architecture — three patterns compared, with detailed Mnemon implementation showing hooks, brain/organ split, and sub-agent delegation" />
   <br />
   <sub>The LLM-Supervised pattern: hooks drive the lifecycle, the host LLM makes judgment calls, the binary handles deterministic computation.</sub>
 </p>

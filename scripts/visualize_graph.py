@@ -13,7 +13,7 @@ import networkx as nx
 import numpy as np
 
 DB_PATH = Path.home() / ".mnemon" / "mnemon.db"
-OUT_PATH = Path(__file__).resolve().parent.parent / "docs" / "diagrams" / "10-knowledge-graph.png"
+OUT_PATH = Path(__file__).resolve().parent.parent / "docs" / "diagrams" / "10-knowledge-graph.jpg"
 
 # ── colour palette ──────────────────────────────────────────────────
 CATEGORY_COLOURS = {
