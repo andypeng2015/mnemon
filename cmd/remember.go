@@ -117,6 +117,20 @@ var rememberCmd = &cobra.Command{
 		var replacedID string
 		var diffSuggestion search.DiffSuggestion
 
+		// Build embed cache once — reused by diff, engine, and semantic candidates.
+		var embedCache graph.EmbedCache
+		if ec.Available() {
+			dbEmbeds, err := db.GetAllEmbeddings()
+			if err == nil {
+				embedCache = make(graph.EmbedCache, len(dbEmbeds))
+				for _, e := range dbEmbeds {
+					if v := embed.DeserializeVector(e.Embedding); v != nil {
+						embedCache[e.ID] = v
+					}
+				}
+			}
+		}
+
 		if remNoDiff {
 			diffAction = "added"
 			diffSuggestion = search.DiffAdd
@@ -127,18 +141,13 @@ var rememberCmd = &cobra.Command{
 			}
 
 			opts := search.DiffOptions{Limit: 5, NewEmbedding: embeddingVec}
-			if ec.Available() {
-				dbEmbeds, err := db.GetAllEmbeddings()
-				if err == nil {
-					opts.ExistingEmbed = make([]search.EmbeddedItem, 0, len(dbEmbeds))
-					for _, e := range dbEmbeds {
-						if v := embed.DeserializeVector(e.Embedding); v != nil {
-							opts.ExistingEmbed = append(opts.ExistingEmbed, search.EmbeddedItem{
-								ID:        e.ID,
-								Embedding: v,
-							})
-						}
-					}
+			if embedCache != nil {
+				opts.ExistingEmbed = make([]search.EmbeddedItem, 0, len(embedCache))
+				for id, v := range embedCache {
+					opts.ExistingEmbed = append(opts.ExistingEmbed, search.EmbeddedItem{
+						ID:        id,
+						Embedding: v,
+					})
 				}
 			}
 
@@ -190,6 +199,9 @@ var rememberCmd = &cobra.Command{
 					fmt.Fprintf(os.Stderr, "warning: soft-delete %s: %v\n", replacedID, err)
 				} else {
 					db.LogOp("diff-replace", replacedID, fmt.Sprintf("replaced by %s", insight.ID))
+					// Remove deleted insight from embed cache to prevent
+					// creating edges to a soft-deleted node.
+					delete(embedCache, replacedID)
 				}
 			}
 
@@ -202,10 +214,14 @@ var rememberCmd = &cobra.Command{
 					return fmt.Errorf("update embedding: %w", err)
 				}
 				embedded = true
+				// Add the new insight's embedding to the cache so the engine sees it.
+				if embedCache != nil {
+					embedCache[insight.ID] = embeddingVec
+				}
 			}
 
 			// Run graph edge engine (includes auto semantic edges when embedded)
-			engine := graph.NewEngine(db)
+			engine := graph.NewEngine(db, embedCache)
 			edgeStats = engine.OnInsightCreated(insight)
 
 			// Update entities extracted by the engine
@@ -231,11 +247,17 @@ var rememberCmd = &cobra.Command{
 			return nil
 		})
 		if err != nil {
+			// Cache was mutated inside the transaction closure (delete/add entries).
+			// On rollback those mutations don't match DB state, so discard the cache
+			// to prevent any future code from accidentally using stale data.
+			embedCache = nil
 			return err
 		}
 
 		// 4. Read-only operations outside the transaction (data already committed)
-		semanticCandidates := graph.FindSemanticCandidates(db, insight)
+		// Note: embedCache may still contain entries for insights pruned by AutoPrune.
+		// findCandidatesByEmbedding safely filters them via GetInsightByID (deleted_at check).
+		semanticCandidates := graph.FindSemanticCandidates(db, insight, embedCache)
 		if semanticCandidates == nil {
 			semanticCandidates = []graph.SemanticCandidate{}
 		}

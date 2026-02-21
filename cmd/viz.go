@@ -1,8 +1,8 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
-	"html"
 	"os"
 	"strings"
 
@@ -148,6 +148,13 @@ func renderDOT(insights []*model.Insight, edges []*model.Edge) string {
 	return b.String()
 }
 
+// jsStr returns a JSON-encoded string literal safe for embedding in JavaScript.
+// json.Marshal produces properly escaped output for \n, \t, ", \, etc.
+func jsStr(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+
 func renderHTML(insights []*model.Insight, edges []*model.Edge) string {
 	// Build set of active IDs for edge filtering
 	active := make(map[string]bool, len(insights))
@@ -164,24 +171,25 @@ func renderHTML(insights []*model.Insight, edges []*model.Edge) string {
 		if len(shortID) > 8 {
 			shortID = shortID[:8]
 		}
-		label := html.EscapeString(nodeLabel(i))
+		label := nodeLabel(i)
 		label = strings.ReplaceAll(label, "\n", " ")
-		title := html.EscapeString(i.Content)
-		title = strings.ReplaceAll(title, "\n", "\\n")
+		title := strings.ReplaceAll(i.Content, "\n", "\\n")
 		color := categoryColor(i.Category)
 		nodes.WriteString(fmt.Sprintf(
-			`{id:"%s",label:"%s",title:"%s",color:"%s",font:{color:"white"}}`,
-			i.ID, shortID+": "+label, title, color))
+			`{id:%s,label:%s,title:%s,color:%s,font:{color:"white"}}`,
+			jsStr(i.ID), jsStr(shortID+": "+label), jsStr(title), jsStr(color)))
 	}
 
 	var edgesJS strings.Builder
-	for idx, e := range edges {
+	first := true
+	for _, e := range edges {
 		if !active[e.SourceID] || !active[e.TargetID] {
 			continue
 		}
-		if idx > 0 {
+		if !first {
 			edgesJS.WriteString(",\n")
 		}
+		first = false
 		color := edgeColor(e.EdgeType)
 		subType := e.Metadata["sub_type"]
 		edgeLabel := string(e.EdgeType)
@@ -189,8 +197,8 @@ func renderHTML(insights []*model.Insight, edges []*model.Edge) string {
 			edgeLabel = subType
 		}
 		edgesJS.WriteString(fmt.Sprintf(
-			`{from:"%s",to:"%s",label:"%s",color:{color:"%s"},arrows:"to",font:{color:"%s",size:10}}`,
-			e.SourceID, e.TargetID, html.EscapeString(edgeLabel), color, color))
+			`{from:%s,to:%s,label:%s,color:{color:%s},arrows:"to",font:{color:%s,size:10}}`,
+			jsStr(e.SourceID), jsStr(e.TargetID), jsStr(edgeLabel), jsStr(color), jsStr(color)))
 	}
 
 	return fmt.Sprintf(htmlTemplate, nodes.String(), edgesJS.String())

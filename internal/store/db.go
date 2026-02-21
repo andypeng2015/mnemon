@@ -244,6 +244,8 @@ CREATE INDEX IF NOT EXISTS idx_insights_deleted ON insights(deleted_at);
 CREATE INDEX IF NOT EXISTS idx_edges_source ON edges(source_id);
 CREATE INDEX IF NOT EXISTS idx_edges_target ON edges(target_id);
 CREATE INDEX IF NOT EXISTS idx_edges_type ON edges(edge_type);
+CREATE INDEX IF NOT EXISTS idx_edges_source_type ON edges(source_id, edge_type);
+CREATE INDEX IF NOT EXISTS idx_edges_target_type ON edges(target_id, edge_type);
 
 CREATE TABLE IF NOT EXISTS oplog (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,

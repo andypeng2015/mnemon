@@ -381,7 +381,7 @@ func TestFindSemanticCandidates_TokenOverlap(t *testing.T) {
 	ins := insertInsight(t, db, "sc-3", "Go uses SQLite for persistent memory storage engine", "user", 3, nil, now)
 
 	// No embeddings → falls back to token overlap
-	candidates := FindSemanticCandidates(db, ins)
+	candidates := FindSemanticCandidates(db, ins, nil)
 
 	if len(candidates) == 0 {
 		t.Fatal("want at least 1 semantic candidate via token overlap")
@@ -410,7 +410,7 @@ func TestCreateSemanticEdges_HighCosineSimilarity(t *testing.T) {
 	db.UpdateEmbedding("se-1", embed.SerializeVector(vec1))
 	db.UpdateEmbedding("se-2", embed.SerializeVector(vec2))
 
-	count := CreateSemanticEdges(db, ins2)
+	count := CreateSemanticEdges(db, ins2, nil)
 	if count == 0 {
 		t.Error("want semantic edges for high cosine similarity")
 	}
@@ -439,7 +439,7 @@ func TestCreateSemanticEdges_LowSimilarityNoEdge(t *testing.T) {
 	db.UpdateEmbedding("sl-1", embed.SerializeVector(vec1))
 	db.UpdateEmbedding("sl-2", embed.SerializeVector(vec2))
 
-	count := CreateSemanticEdges(db, ins2)
+	count := CreateSemanticEdges(db, ins2, nil)
 	if count != 0 {
 		t.Errorf("low similarity: want 0 semantic edges, got %d", count)
 	}
@@ -449,7 +449,7 @@ func TestCreateSemanticEdges_NoEmbedding(t *testing.T) {
 	db := testDB(t)
 	ins := insertInsight(t, db, "no-emb", "no embedding stored", "user", 3, nil, time.Now().UTC())
 
-	count := CreateSemanticEdges(db, ins)
+	count := CreateSemanticEdges(db, ins, nil)
 	if count != 0 {
 		t.Errorf("no embedding: want 0, got %d", count)
 	}
@@ -459,7 +459,7 @@ func TestCreateSemanticEdges_NoEmbedding(t *testing.T) {
 
 func TestEngine_OnInsightCreated(t *testing.T) {
 	db := testDB(t)
-	engine := NewEngine(db)
+	engine := NewEngine(db, nil)
 	now := time.Now().UTC()
 
 	// Insert a prior insight with shared entity
@@ -501,12 +501,291 @@ func TestFindSemanticCandidates_Embedding(t *testing.T) {
 	db.UpdateEmbedding("emb-2", embed.SerializeVector(vec2))
 	db.UpdateEmbedding("emb-3", embed.SerializeVector(vec3))
 
-	candidates := FindSemanticCandidates(db, ins)
+	candidates := FindSemanticCandidates(db, ins, nil)
 	if len(candidates) == 0 {
 		t.Fatal("want candidates via embedding similarity")
 	}
 	// emb-1 should be the closest
 	if candidates[0].ID != "emb-1" {
 		t.Errorf("top candidate: want emb-1, got %s", candidates[0].ID)
+	}
+}
+
+// --- EmbedCache correctness ---
+
+// TestCreateSemanticEdges_WithCache verifies that a pre-built cache is used
+// instead of querying the database. We store embeddings only in the cache
+// (NOT in the DB) so edges can only be created if the cache is used.
+func TestCreateSemanticEdges_WithCache(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	ins1 := insertInsight(t, db, "wc-1", "Go concurrency patterns", "user", 3, nil, now.Add(-1*time.Hour))
+	ins2 := insertInsight(t, db, "wc-2", "Go goroutine patterns", "user", 3, nil, now)
+	_ = ins1
+
+	// Very similar vectors (cosine > 0.80)
+	vec1 := []float64{1.0, 0.9, 0.8, 0.7}
+	vec2 := []float64{1.0, 0.85, 0.82, 0.71}
+
+	// Only put embeddings in cache, NOT in DB
+	cache := EmbedCache{
+		"wc-1": vec1,
+		"wc-2": vec2,
+	}
+
+	count := CreateSemanticEdges(db, ins2, cache)
+	if count == 0 {
+		t.Error("want semantic edges via cache, got 0")
+	}
+
+	// Verify edges exist
+	edges, _ := db.GetEdgesByNodeAndType("wc-2", model.EdgeSemantic)
+	if len(edges) == 0 {
+		t.Error("want semantic edges in DB")
+	}
+}
+
+// TestCreateSemanticEdges_CacheExcludesDeleted verifies that removing a
+// soft-deleted insight from the cache prevents edges to it.
+func TestCreateSemanticEdges_CacheExcludesDeleted(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "del-1", "deleted insight about Go", "user", 3, nil, now.Add(-1*time.Hour))
+	ins2 := insertInsight(t, db, "del-2", "Go patterns discussion", "user", 3, nil, now)
+
+	// Very similar vectors
+	vec1 := []float64{1.0, 0.9, 0.8, 0.7}
+	vec2 := []float64{1.0, 0.85, 0.82, 0.71}
+
+	// Soft-delete the first insight
+	if err := db.SoftDeleteInsight("del-1"); err != nil {
+		t.Fatalf("soft-delete: %v", err)
+	}
+
+	// Build cache WITHOUT the deleted insight (simulates remember.go fix)
+	cache := EmbedCache{
+		// "del-1" intentionally excluded
+		"del-2": vec2,
+	}
+
+	count := CreateSemanticEdges(db, ins2, cache)
+	if count != 0 {
+		t.Errorf("want 0 edges (deleted excluded from cache), got %d", count)
+	}
+
+	// Contrast: if deleted insight were still in cache, edges would be created
+	cacheWithDeleted := EmbedCache{
+		"del-1": vec1,
+		"del-2": vec2,
+	}
+	count2 := CreateSemanticEdges(db, ins2, cacheWithDeleted)
+	if count2 == 0 {
+		t.Error("control: want edges when deleted insight is in cache")
+	}
+}
+
+// TestFindSemanticCandidates_WithCache verifies the cache path returns candidates.
+func TestFindSemanticCandidates_WithCache(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "fc-1", "Go concurrency patterns and goroutines", "user", 3, nil, now.Add(-1*time.Hour))
+	insertInsight(t, db, "fc-2", "Python asyncio event loop", "user", 3, nil, now.Add(-30*time.Minute))
+	ins := insertInsight(t, db, "fc-3", "Go goroutine scheduling internals", "user", 3, nil, now)
+
+	// Similar: fc-1 ↔ fc-3, different: fc-2
+	cache := EmbedCache{
+		"fc-1": {0.9, 0.8, 0.7, 0.6},
+		"fc-2": {0.1, 0.2, 0.9, 0.1},
+		"fc-3": {0.85, 0.82, 0.72, 0.58},
+	}
+
+	candidates := FindSemanticCandidates(db, ins, cache)
+	if len(candidates) == 0 {
+		t.Fatal("want candidates via cache embedding similarity")
+	}
+	if candidates[0].ID != "fc-1" {
+		t.Errorf("top candidate: want fc-1, got %s", candidates[0].ID)
+	}
+	// Verify content and category were fetched from DB
+	if candidates[0].Content == "" {
+		t.Error("candidate content should be populated from DB")
+	}
+	if candidates[0].Category == "" {
+		t.Error("candidate category should be populated from DB")
+	}
+}
+
+// TestFindSemanticCandidates_CacheSkipsDeletedInsight verifies that
+// soft-deleted insights in the cache are filtered out by GetInsightByID.
+func TestFindSemanticCandidates_CacheSkipsDeletedInsight(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "fd-1", "Go concurrency patterns", "user", 3, nil, now.Add(-1*time.Hour))
+	ins := insertInsight(t, db, "fd-2", "Go goroutine patterns", "user", 3, nil, now)
+
+	// Soft-delete fd-1
+	if err := db.SoftDeleteInsight("fd-1"); err != nil {
+		t.Fatalf("soft-delete: %v", err)
+	}
+
+	// Cache still has deleted insight's embedding (stale)
+	cache := EmbedCache{
+		"fd-1": {0.9, 0.8, 0.7, 0.6},
+		"fd-2": {0.85, 0.82, 0.72, 0.58},
+	}
+
+	candidates := FindSemanticCandidates(db, ins, cache)
+	// fd-1 should not appear because GetInsightByID filters deleted_at
+	for _, c := range candidates {
+		if c.ID == "fd-1" {
+			t.Error("deleted insight fd-1 should not appear as candidate")
+		}
+	}
+}
+
+// TestFindSemanticCandidates_AllDeletedFallsBackToTokenOverlap verifies that
+// when ALL embedding candidates are soft-deleted (stale cache after AutoPrune),
+// the function falls back to token overlap instead of returning an empty list.
+func TestFindSemanticCandidates_AllDeletedFallsBackToTokenOverlap(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// fd-only has high token overlap with ins, but also will have an embedding in cache
+	insertInsight(t, db, "af-1", "Go uses SQLite for persistent graph storage engine", "user", 3, nil, now.Add(-2*time.Hour))
+	// af-2 has embeddings but will be deleted
+	insertInsight(t, db, "af-2", "Go goroutine concurrency patterns", "user", 3, nil, now.Add(-1*time.Hour))
+	ins := insertInsight(t, db, "af-3", "Go uses SQLite for persistent memory storage engine", "user", 3, nil, now)
+
+	// Soft-delete af-2 (simulates AutoPrune)
+	if err := db.SoftDeleteInsight("af-2"); err != nil {
+		t.Fatalf("soft-delete: %v", err)
+	}
+
+	// Stale cache: af-2 (deleted) has similar embedding to af-3,
+	// af-1 does NOT have an embedding in cache (no vector match).
+	cache := EmbedCache{
+		"af-2": {0.9, 0.85, 0.8, 0.7},
+		"af-3": {0.88, 0.84, 0.82, 0.71},
+	}
+
+	candidates := FindSemanticCandidates(db, ins, cache)
+	// af-2 is deleted → embedding path returns nil → should fall back to token overlap
+	// af-1 should appear via token overlap (high content similarity with af-3)
+	found := false
+	for _, c := range candidates {
+		if c.ID == "af-1" {
+			found = true
+		}
+		if c.ID == "af-2" {
+			t.Error("deleted insight af-2 should not appear")
+		}
+	}
+	if !found {
+		t.Error("want af-1 via token overlap fallback after all embedding candidates were deleted")
+	}
+}
+
+// TestFindSemanticCandidates_EmptyCacheFallsBackToTokenOverlap verifies that
+// an empty (non-nil) cache correctly falls back to token overlap.
+func TestFindSemanticCandidates_EmptyCacheFallsBackToTokenOverlap(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "fo-1", "Go uses SQLite for persistent graph storage engine", "user", 3, nil, now.Add(-1*time.Hour))
+	ins := insertInsight(t, db, "fo-2", "Go uses SQLite for persistent memory storage engine", "user", 3, nil, now)
+
+	// Empty cache (non-nil but no entries) — should fall back to token overlap
+	emptyCache := make(EmbedCache)
+
+	candidates := FindSemanticCandidates(db, ins, emptyCache)
+	if len(candidates) == 0 {
+		t.Fatal("want candidates via token overlap fallback")
+	}
+	if candidates[0].ID != "fo-1" {
+		t.Errorf("top candidate: want fo-1, got %s", candidates[0].ID)
+	}
+}
+
+// TestEngine_WithCache verifies the Engine passes its cache to CreateSemanticEdges.
+func TestEngine_WithCache(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "ec-1", "Go concurrency patterns", "user", 3, []string{"Go"}, now.Add(-1*time.Hour))
+	ins := insertInsight(t, db, "ec-2", "Go goroutine patterns", "user", 3, []string{"Go"}, now)
+
+	// Very similar vectors — only in cache, not DB
+	cache := EmbedCache{
+		"ec-1": {1.0, 0.9, 0.8, 0.7},
+		"ec-2": {1.0, 0.85, 0.82, 0.71},
+	}
+
+	engine := NewEngine(db, cache)
+	stats := engine.OnInsightCreated(ins)
+
+	// Semantic edges should be created via cache
+	if stats.Semantic == 0 {
+		t.Error("want semantic edges via engine cache")
+	}
+}
+
+// TestBuildEmbedCache verifies buildEmbedCache correctly loads from DB.
+func TestBuildEmbedCache(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "bc-1", "insight one", "user", 3, nil, now)
+	insertInsight(t, db, "bc-2", "insight two", "user", 3, nil, now)
+
+	vec1 := []float64{1.0, 0.0, 0.0}
+	vec2 := []float64{0.0, 1.0, 0.0}
+	db.UpdateEmbedding("bc-1", embed.SerializeVector(vec1))
+	db.UpdateEmbedding("bc-2", embed.SerializeVector(vec2))
+
+	cache := buildEmbedCache(db)
+	if cache == nil {
+		t.Fatal("want non-nil cache")
+	}
+	if len(cache) != 2 {
+		t.Errorf("want 2 entries, got %d", len(cache))
+	}
+	if cache["bc-1"] == nil || cache["bc-2"] == nil {
+		t.Error("want both entries in cache")
+	}
+}
+
+// TestBuildEmbedCache_Empty verifies buildEmbedCache returns nil when no embeddings exist.
+func TestBuildEmbedCache_Empty(t *testing.T) {
+	db := testDB(t)
+	insertInsight(t, db, "be-1", "no embedding", "user", 3, nil, time.Now().UTC())
+
+	cache := buildEmbedCache(db)
+	if cache != nil {
+		t.Errorf("want nil cache when no embeddings, got %v", cache)
+	}
+}
+
+// TestCreateSemanticEdges_NilCacheFallback verifies that passing nil cache
+// falls back to loading from DB (same behavior as before cache was introduced).
+func TestCreateSemanticEdges_NilCacheFallback(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "nf-1", "Go concurrency", "user", 3, nil, now.Add(-1*time.Hour))
+	ins2 := insertInsight(t, db, "nf-2", "Go goroutines", "user", 3, nil, now)
+
+	vec1 := []float64{1.0, 0.9, 0.8, 0.7}
+	vec2 := []float64{1.0, 0.85, 0.82, 0.71}
+	db.UpdateEmbedding("nf-1", embed.SerializeVector(vec1))
+	db.UpdateEmbedding("nf-2", embed.SerializeVector(vec2))
+
+	// nil cache — should load from DB
+	count := CreateSemanticEdges(db, ins2, nil)
+	if count == 0 {
+		t.Error("want semantic edges via DB fallback")
 	}
 }

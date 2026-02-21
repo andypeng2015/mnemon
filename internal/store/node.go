@@ -107,9 +107,10 @@ func (db *DB) QueryInsights(f QueryFilter) ([]*model.Insight, error) {
 
 // SoftDeleteInsight sets deleted_at on an insight and removes all associated edges.
 func (db *DB) SoftDeleteInsight(id string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := db.execer().Exec(
 		`UPDATE insights SET deleted_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), id)
+		now, now, id)
 	if err != nil {
 		return err
 	}
@@ -287,8 +288,13 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 		ecRows.Close()
 	}
 
-	// Compute EI and collect candidates
+	// Compute EI and collect candidates; batch-update EI in a transaction.
 	now := time.Now().UTC()
+	type eiUpdate struct {
+		id string
+		ei float64
+	}
+	var updates []eiUpdate
 	var candidates []RetentionCandidate
 	for _, ir := range insightRows {
 		ins := ir.insight
@@ -297,7 +303,7 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 		ei := ComputeEffectiveImportance(ins.Importance, ins.AccessCount, daysSince, ec)
 		immune := IsImmune(ins.Importance, ins.AccessCount)
 
-		db.execer().Exec(`UPDATE insights SET effective_importance = ? WHERE id = ?`, ei, ins.ID)
+		updates = append(updates, eiUpdate{id: ins.ID, ei: ei})
 
 		if ei < threshold && !immune {
 			candidates = append(candidates, RetentionCandidate{
@@ -307,6 +313,17 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 				EdgeCount:           ec,
 				Immune:              immune,
 			})
+		}
+	}
+
+	// Batch-update effective_importance in a single transaction.
+	if len(updates) > 0 {
+		tx, txErr := db.conn.Begin()
+		if txErr == nil {
+			for _, u := range updates {
+				tx.Exec(`UPDATE insights SET effective_importance = ? WHERE id = ?`, u.ei, u.id)
+			}
+			tx.Commit()
 		}
 	}
 
@@ -407,9 +424,10 @@ func (db *DB) autoPrune(maxInsights int, excludeIDs []string) (int, error) {
 
 // BoostRetention boosts an insight's retention: access_count +3, refreshes last_accessed_at.
 func (db *DB) BoostRetention(id string) error {
+	now := time.Now().UTC().Format(time.RFC3339)
 	res, err := db.execer().Exec(
 		`UPDATE insights SET access_count = access_count + 3, last_accessed_at = ?, updated_at = ? WHERE id = ? AND deleted_at IS NULL`,
-		time.Now().UTC().Format(time.RFC3339), time.Now().UTC().Format(time.RFC3339), id)
+		now, now, id)
 	if err != nil {
 		return err
 	}

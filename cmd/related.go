@@ -63,6 +63,28 @@ type relatedResult struct {
 }
 
 func bfsTraverse(db *store.DB, startID string, edgeFilter model.EdgeType, maxDepth int) []relatedResult {
+	// Pre-load all insights and edges for in-memory BFS (avoids N+1 queries).
+	allInsights, err := db.GetAllActiveInsights()
+	if err != nil {
+		return nil
+	}
+	insightMap := make(map[string]*model.Insight, len(allInsights))
+	for _, ins := range allInsights {
+		insightMap[ins.ID] = ins
+	}
+
+	allEdges, err := db.GetAllEdges()
+	if err != nil {
+		return nil
+	}
+	edgeAdj := make(map[string][]*model.Edge)
+	for _, e := range allEdges {
+		edgeAdj[e.SourceID] = append(edgeAdj[e.SourceID], e)
+		if e.SourceID != e.TargetID {
+			edgeAdj[e.TargetID] = append(edgeAdj[e.TargetID], e)
+		}
+	}
+
 	type queueItem struct {
 		id       string
 		depth    int
@@ -83,8 +105,8 @@ func bfsTraverse(db *store.DB, startID string, edgeFilter model.EdgeType, maxDep
 
 		// Add to results (skip the start node)
 		if item.id != startID {
-			insight, err := db.GetInsightByID(item.id)
-			if err != nil || insight == nil {
+			insight := insightMap[item.id]
+			if insight == nil {
 				continue
 			}
 			results = append(results, relatedResult{
@@ -101,19 +123,12 @@ func bfsTraverse(db *store.DB, startID string, edgeFilter model.EdgeType, maxDep
 			continue
 		}
 
-		// Get edges
-		var edges []*model.Edge
-		var err error
-		if edgeFilter != "" {
-			edges, err = db.GetEdgesByNodeAndType(item.id, edgeFilter)
-		} else {
-			edges, err = db.GetEdgesByNode(item.id)
-		}
-		if err != nil {
-			continue
-		}
-
+		// Get edges from pre-loaded adjacency
+		edges := edgeAdj[item.id]
 		for _, e := range edges {
+			if edgeFilter != "" && e.EdgeType != edgeFilter {
+				continue
+			}
 			neighborID := e.TargetID
 			if neighborID == item.id {
 				neighborID = e.SourceID

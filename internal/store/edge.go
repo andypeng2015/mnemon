@@ -18,10 +18,15 @@ func (db *DB) InsertEdge(e *model.Edge) error {
 }
 
 // GetEdgesByNode returns all edges where the given node is source or target.
+// Uses UNION ALL to allow SQLite to use separate indexes on source_id and target_id.
 func (db *DB) GetEdgesByNode(nodeID string) ([]*model.Edge, error) {
 	rows, err := db.execer().Query(
 		`SELECT source_id, target_id, edge_type, weight, metadata, created_at
-		 FROM edges WHERE source_id = ? OR target_id = ?`, nodeID, nodeID)
+		 FROM edges WHERE source_id = ?
+		 UNION ALL
+		 SELECT source_id, target_id, edge_type, weight, metadata, created_at
+		 FROM edges WHERE target_id = ? AND source_id != ?`,
+		nodeID, nodeID, nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -30,11 +35,15 @@ func (db *DB) GetEdgesByNode(nodeID string) ([]*model.Edge, error) {
 }
 
 // GetEdgesByNodeAndType returns edges for a node filtered by edge type.
+// Uses UNION ALL to allow SQLite to use composite indexes.
 func (db *DB) GetEdgesByNodeAndType(nodeID string, edgeType model.EdgeType) ([]*model.Edge, error) {
 	rows, err := db.execer().Query(
 		`SELECT source_id, target_id, edge_type, weight, metadata, created_at
-		 FROM edges WHERE (source_id = ? OR target_id = ?) AND edge_type = ?`,
-		nodeID, nodeID, string(edgeType))
+		 FROM edges WHERE source_id = ? AND edge_type = ?
+		 UNION ALL
+		 SELECT source_id, target_id, edge_type, weight, metadata, created_at
+		 FROM edges WHERE target_id = ? AND edge_type = ? AND source_id != ?`,
+		nodeID, string(edgeType), nodeID, string(edgeType), nodeID)
 	if err != nil {
 		return nil, err
 	}
@@ -57,10 +66,10 @@ func (db *DB) GetEdgesBySourceAndType(sourceID string, edgeType model.EdgeType) 
 // FindInsightsWithEntity returns insight IDs that have the given entity in their entities JSON array.
 func (db *DB) FindInsightsWithEntity(entity string, excludeID string, limit int) ([]string, error) {
 	rows, err := db.execer().Query(
-		`SELECT id FROM insights
-		 WHERE deleted_at IS NULL AND id != ? AND entities LIKE ?
-		 ORDER BY created_at DESC LIMIT ?`,
-		excludeID, `%"`+entity+`"%`, limit)
+		`SELECT DISTINCT i.id FROM insights i, json_each(i.entities) je
+		 WHERE i.deleted_at IS NULL AND i.id != ? AND je.value = ?
+		 ORDER BY i.created_at DESC LIMIT ?`,
+		excludeID, entity, limit)
 	if err != nil {
 		return nil, err
 	}

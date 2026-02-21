@@ -136,6 +136,20 @@ func IntentAwareRecall(db *store.DB, query string, queryVec []float64,
 		return RecallResponse{}, err
 	}
 
+	// Pre-load all embeddings once (avoids N+1 queries in beam search and reranking).
+	var embedCache map[string][]float64
+	if queryVec != nil {
+		if dbEmbeds, err := db.GetAllEmbeddings(); err == nil {
+			embedCache = make(map[string][]float64, len(dbEmbeds))
+			for _, e := range dbEmbeds {
+				if v := embed.DeserializeVector(e.Embedding); v != nil {
+					embedCache[e.ID] = v
+				}
+			}
+		}
+	}
+	hasEmbeddings := embedCache != nil && len(embedCache) > 0
+
 	// Step 2: Multi-signal anchor selection via RRF
 	type anchor struct {
 		insight *model.Insight
@@ -154,10 +168,9 @@ func IntentAwareRecall(db *store.DB, query string, queryVec []float64,
 		}
 	}
 
-	// Signal 2: Vector search (when available)
-	hasEmbeddings := queryVec != nil
+	// Signal 2: Vector search (when available, uses pre-loaded cache)
 	if hasEmbeddings {
-		vectorHits := vectorSearch(db, queryVec, anchorTopK)
+		vectorHits := vectorSearchFromCache(embedCache, queryVec, anchorTopK)
 		for rank, vh := range vectorHits {
 			rrfScore := 1.0 / float64(rrfK+rank+1)
 			if existing, ok := anchorMap[vh.id]; ok {
@@ -232,7 +245,7 @@ func IntentAwareRecall(db *store.DB, query string, queryVec []float64,
 
 	// Step 3: Beam search from each anchor
 	for id, a := range anchorMap {
-		beamSearchFromAnchor(db, id, a.score, queryVec, weights, params, scoreMap, viaMap, insightMap)
+		beamSearchFromAnchor(db, id, a.score, queryVec, weights, params, scoreMap, viaMap, insightMap, embedCache)
 	}
 
 	traversedCount := len(scoreMap)
@@ -323,10 +336,9 @@ func IntentAwareRecall(db *store.DB, query string, queryVec []float64,
 			c.entScore = float64(matched) / math.Max(1, float64(len(queryEntitySet)))
 		}
 
-		// similarity: cosine similarity with query vector
+		// similarity: cosine similarity with query vector (uses pre-loaded cache)
 		if hasEmbeddings {
-			if blob, err := db.GetEmbedding(c.id); err == nil && len(blob) > 0 {
-				nVec := embed.DeserializeVector(blob)
+			if nVec, ok := embedCache[c.id]; ok {
 				sim := embed.CosineSimilarity(queryVec, nVec)
 				if sim > 0 {
 					c.simScore = sim
@@ -480,6 +492,7 @@ func causalTopologicalSort(db *store.DB, results []RecallResult) []RecallResult 
 
 // beamSearchFromAnchor performs beam search starting from a single anchor node.
 // It uses a priority queue to keep the top beamWidth candidates at each depth level.
+// embedCache provides pre-loaded embedding vectors (nil = no embeddings).
 func beamSearchFromAnchor(
 	db *store.DB,
 	startID string,
@@ -490,6 +503,7 @@ func beamSearchFromAnchor(
 	scoreMap map[string]float64,
 	viaMap map[string]string,
 	insightMap map[string]*model.Insight,
+	embedCache map[string][]float64,
 ) {
 	visited := map[string]bool{startID: true}
 	totalVisited := 1
@@ -534,9 +548,8 @@ func beamSearchFromAnchor(
 				// score_v = score_u + λ₁·φ(edgeType, intent) + λ₂·sim(v_neighbor, v_query)
 				structural := weights[e.EdgeType] * e.Weight // φ(edgeType, intent) * edge_weight
 				semantic := 0.0
-				if queryVec != nil {
-					if blob, err := db.GetEmbedding(neighborID); err == nil && len(blob) > 0 {
-						nVec := embed.DeserializeVector(blob)
+				if queryVec != nil && embedCache != nil {
+					if nVec, ok := embedCache[neighborID]; ok {
 						cosSim := embed.CosineSimilarity(queryVec, nVec)
 						if cosSim > 0 {
 							semantic = cosSim
@@ -607,22 +620,32 @@ type vectorHit struct {
 	similarity float64
 }
 
-// vectorSearch performs brute-force cosine similarity search over all embedded insights.
-// Uses streaming cursor to avoid loading all embedding blobs into memory at once.
+// vectorSearch performs brute-force cosine similarity search, loading embeddings from DB.
+// Used by tests; the main recall path uses vectorSearchFromCache with a pre-loaded cache.
 func vectorSearch(db *store.DB, queryVec []float64, limit int) []vectorHit {
-	var hits []vectorHit
-	err := db.ScanEmbeddings(func(id string, blob []byte) bool {
-		vec := embed.DeserializeVector(blob)
-		if vec == nil {
-			return true
+	dbEmbeds, err := db.GetAllEmbeddings()
+	if err != nil || len(dbEmbeds) == 0 {
+		return nil
+	}
+	cache := make(map[string][]float64, len(dbEmbeds))
+	for _, e := range dbEmbeds {
+		if v := embed.DeserializeVector(e.Embedding); v != nil {
+			cache[e.ID] = v
 		}
+	}
+	return vectorSearchFromCache(cache, queryVec, limit)
+}
+
+// vectorSearchFromCache performs cosine similarity search over pre-loaded embeddings.
+func vectorSearchFromCache(embedCache map[string][]float64, queryVec []float64, limit int) []vectorHit {
+	var hits []vectorHit
+	for id, vec := range embedCache {
 		sim := embed.CosineSimilarity(queryVec, vec)
 		if sim > 0.1 {
 			hits = append(hits, vectorHit{id: id, similarity: sim})
 		}
-		return true
-	})
-	if err != nil || len(hits) == 0 {
+	}
+	if len(hits) == 0 {
 		return nil
 	}
 

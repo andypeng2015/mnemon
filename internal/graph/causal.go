@@ -168,7 +168,31 @@ type NeighborNode struct {
 // GetNeighborhood performs a BFS from nodeID up to maxHops, following all edge
 // types (temporal, semantic, causal, entity). Returns up to maxNodes neighbor
 // nodes, excluding the start node and soft-deleted nodes.
+//
+// Pre-loads all insights and edges to avoid N+1 queries during traversal.
 func GetNeighborhood(db *store.DB, nodeID string, maxHops int, maxNodes int) []NeighborNode {
+	// Pre-load all active insights and edges for in-memory BFS.
+	allInsights, err := db.GetAllActiveInsights()
+	if err != nil {
+		return nil
+	}
+	insightMap := make(map[string]*model.Insight, len(allInsights))
+	for _, ins := range allInsights {
+		insightMap[ins.ID] = ins
+	}
+
+	allEdges, err := db.GetAllEdges()
+	if err != nil {
+		return nil
+	}
+	edgeAdj := make(map[string][]*model.Edge)
+	for _, e := range allEdges {
+		edgeAdj[e.SourceID] = append(edgeAdj[e.SourceID], e)
+		if e.SourceID != e.TargetID {
+			edgeAdj[e.TargetID] = append(edgeAdj[e.TargetID], e)
+		}
+	}
+
 	type bfsEntry struct {
 		id      string
 		hop     int
@@ -187,12 +211,7 @@ func GetNeighborhood(db *store.DB, nodeID string, maxHops int, maxNodes int) []N
 			continue
 		}
 
-		edges, err := db.GetEdgesByNode(current.id)
-		if err != nil {
-			continue
-		}
-
-		for _, edge := range edges {
+		for _, edge := range edgeAdj[current.id] {
 			// Determine the neighbor ID (the other end of the edge)
 			neighborID := edge.TargetID
 			if neighborID == current.id {
@@ -204,9 +223,9 @@ func GetNeighborhood(db *store.DB, nodeID string, maxHops int, maxNodes int) []N
 			}
 			visited[neighborID] = true
 
-			// Skip soft-deleted nodes
-			insight, err := db.GetInsightByID(neighborID)
-			if err != nil || insight == nil {
+			// Skip soft-deleted nodes (not in active insight map)
+			insight := insightMap[neighborID]
+			if insight == nil {
 				continue
 			}
 

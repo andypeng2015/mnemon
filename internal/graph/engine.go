@@ -15,12 +15,14 @@ type EdgeStats struct {
 
 // Engine orchestrates automatic edge creation when insights are stored.
 type Engine struct {
-	db *store.DB
+	db         *store.DB
+	embedCache EmbedCache
 }
 
 // NewEngine creates a new graph edge engine.
-func NewEngine(db *store.DB) *Engine {
-	return &Engine{db: db}
+// If embedCache is non-nil, it is reused for semantic operations instead of querying the database.
+func NewEngine(db *store.DB, embedCache EmbedCache) *Engine {
+	return &Engine{db: db, embedCache: embedCache}
 }
 
 // OnInsightCreated runs all edge generators for a newly created insight.
@@ -42,7 +44,7 @@ func (e *Engine) OnInsightCreated(insight *model.Insight) EdgeStats {
 	stats.Causal = CreateCausalEdges(e.db, insight)
 
 	// 5. Auto semantic edges (when embeddings available)
-	stats.Semantic = CreateSemanticEdges(e.db, insight)
+	stats.Semantic = CreateSemanticEdges(e.db, insight, e.embedCache)
 
 	return stats
 }

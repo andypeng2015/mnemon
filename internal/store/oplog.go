@@ -11,9 +11,9 @@ func (db *DB) LogOp(operation, insightID, detail string) {
 		`INSERT INTO oplog (operation, insight_id, detail, created_at) VALUES (?, ?, ?, ?)`,
 		operation, insightID, detail, time.Now().UTC().Format(time.RFC3339))
 
-	// Trim old entries to prevent unbounded growth
+	// Trim old entries: only deletes when count exceeds limit (O(1) in the common case).
 	db.execer().Exec(
-		`DELETE FROM oplog WHERE id NOT IN (SELECT id FROM oplog ORDER BY id DESC LIMIT ?)`,
+		`DELETE FROM oplog WHERE id <= (SELECT MAX(id) FROM oplog) - ?`,
 		MaxOplogEntries)
 }
 

@@ -37,21 +37,36 @@ type SemanticCandidate struct {
 	AutoLinked bool    `json:"auto_linked"`
 }
 
-// CreateSemanticEdges auto-creates semantic edges for insights with high
-// embedding cosine similarity (MAGMA §3.2: cos(v_i, v_j) > θ_sim).
-// Returns the number of edges created.
-func CreateSemanticEdges(db *store.DB, insight *model.Insight) int {
-	blob, err := db.GetEmbedding(insight.ID)
-	if err != nil || len(blob) == 0 {
-		return 0
-	}
-	insightVec := embed.DeserializeVector(blob)
-	if insightVec == nil {
-		return 0
-	}
+// EmbedCache maps insight ID → deserialized embedding vector.
+// When passed as nil, functions fall back to loading from the database.
+type EmbedCache map[string][]float64
 
+// buildEmbedCache loads all embeddings from DB into a map.
+func buildEmbedCache(db *store.DB) EmbedCache {
 	allEmbedded, err := db.GetAllEmbeddings()
 	if err != nil || len(allEmbedded) == 0 {
+		return nil
+	}
+	cache := make(EmbedCache, len(allEmbedded))
+	for _, e := range allEmbedded {
+		if v := embed.DeserializeVector(e.Embedding); v != nil {
+			cache[e.ID] = v
+		}
+	}
+	return cache
+}
+
+// CreateSemanticEdges auto-creates semantic edges for insights with high
+// embedding cosine similarity (MAGMA §3.2: cos(v_i, v_j) > θ_sim).
+// If embedCache is non-nil, it is used instead of querying the database.
+// Returns the number of edges created.
+func CreateSemanticEdges(db *store.DB, insight *model.Insight, embedCache EmbedCache) int {
+	if embedCache == nil {
+		embedCache = buildEmbedCache(db)
+	}
+
+	insightVec := embedCache[insight.ID]
+	if insightVec == nil {
 		return 0
 	}
 
@@ -60,17 +75,13 @@ func CreateSemanticEdges(db *store.DB, insight *model.Insight) int {
 		similarity float64
 	}
 	var candidates []scored
-	for _, other := range allEmbedded {
-		if other.ID == insight.ID {
-			continue
-		}
-		otherVec := embed.DeserializeVector(other.Embedding)
-		if otherVec == nil {
+	for id, otherVec := range embedCache {
+		if id == insight.ID {
 			continue
 		}
 		cosSim := embed.CosineSimilarity(insightVec, otherVec)
 		if cosSim >= autoSemanticThreshold {
-			candidates = append(candidates, scored{id: other.ID, similarity: cosSim})
+			candidates = append(candidates, scored{id: id, similarity: cosSim})
 		}
 	}
 
@@ -116,65 +127,43 @@ func CreateSemanticEdges(db *store.DB, insight *model.Insight) int {
 // FindSemanticCandidates returns insights that are potential semantic matches
 // for the given insight. When embeddings are available, uses cosine similarity
 // (MAGMA-compliant); falls back to token overlap otherwise.
+// If embedCache is non-nil, it is used instead of querying the database.
 // These are candidates only — Claude evaluates and creates actual semantic
 // edges via `mnemon link`.
-func FindSemanticCandidates(db *store.DB, insight *model.Insight) []SemanticCandidate {
+func FindSemanticCandidates(db *store.DB, insight *model.Insight, embedCache EmbedCache) []SemanticCandidate {
+	if embedCache == nil {
+		embedCache = buildEmbedCache(db)
+	}
 	// Try embedding-based candidates first (P4: MAGMA compliance)
-	if candidates := findCandidatesByEmbedding(db, insight); candidates != nil {
+	if candidates := findCandidatesByEmbedding(db, insight, embedCache); candidates != nil {
 		return candidates
 	}
 	// Fallback: token overlap
 	return findCandidatesByTokenOverlap(db, insight)
 }
 
-// findCandidatesByEmbedding uses cosine similarity over stored embeddings.
+// findCandidatesByEmbedding uses cosine similarity over the embed cache.
 // Candidates with cosine >= autoSemanticThreshold are marked as auto-linked.
 // Candidates in [reviewSemanticThreshold, autoSemanticThreshold) need LLM review.
-func findCandidatesByEmbedding(db *store.DB, insight *model.Insight) []SemanticCandidate {
-	// Get the new insight's embedding
-	blob, err := db.GetEmbedding(insight.ID)
-	if err != nil || len(blob) == 0 {
-		return nil
-	}
-	insightVec := embed.DeserializeVector(blob)
+func findCandidatesByEmbedding(db *store.DB, insight *model.Insight, embedCache EmbedCache) []SemanticCandidate {
+	insightVec := embedCache[insight.ID]
 	if insightVec == nil {
-		return nil
-	}
-
-	// Get all embeddings for comparison
-	allEmbedded, err := db.GetAllEmbeddings()
-	if err != nil || len(allEmbedded) == 0 {
 		return nil
 	}
 
 	type scored struct {
 		id         string
-		content    string
-		category   string
 		similarity float64
 	}
 
 	var candidates []scored
-	for _, other := range allEmbedded {
-		if other.ID == insight.ID {
-			continue
-		}
-		otherVec := embed.DeserializeVector(other.Embedding)
-		if otherVec == nil {
+	for id, otherVec := range embedCache {
+		if id == insight.ID {
 			continue
 		}
 		cosSim := embed.CosineSimilarity(insightVec, otherVec)
 		if cosSim >= reviewSemanticThreshold {
-			// Look up category
-			ins, err := db.GetInsightByID(other.ID)
-			cat := ""
-			if err == nil && ins != nil {
-				cat = string(ins.Category)
-			}
-			candidates = append(candidates, scored{
-				id: other.ID, content: other.Content,
-				category: cat, similarity: cosSim,
-			})
+			candidates = append(candidates, scored{id: id, similarity: cosSim})
 		}
 	}
 
@@ -190,15 +179,22 @@ func findCandidatesByEmbedding(db *store.DB, insight *model.Insight) []SemanticC
 		candidates = candidates[:maxSemanticCandidates]
 	}
 
-	result := make([]SemanticCandidate, len(candidates))
-	for i, c := range candidates {
-		result[i] = SemanticCandidate{
-			ID:              c.id,
-			Content:         c.content,
-			Category:        c.category,
-			Similarity: c.similarity, // actually cosine, but same JSON field
-			AutoLinked:      c.similarity >= autoSemanticThreshold,
+	result := make([]SemanticCandidate, 0, len(candidates))
+	for _, c := range candidates {
+		ins, err := db.GetInsightByID(c.id)
+		if err != nil || ins == nil {
+			continue // soft-deleted or missing — skip
 		}
+		result = append(result, SemanticCandidate{
+			ID:         ins.ID,
+			Content:    ins.Content,
+			Category:   string(ins.Category),
+			Similarity: c.similarity,
+			AutoLinked: c.similarity >= autoSemanticThreshold,
+		})
+	}
+	if len(result) == 0 {
+		return nil // all candidates filtered out — allow token overlap fallback
 	}
 	return result
 }
