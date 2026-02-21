@@ -23,15 +23,6 @@ var ClaudeGuide []byte
 //go:embed openclaw/SKILL.md
 var OpenClawSkill []byte
 
-//go:embed openclaw/index.ts
-var OpenClawPlugin []byte
-
-//go:embed openclaw/openclaw.plugin.json
-var OpenClawManifest []byte
-
-//go:embed openclaw/package.json
-var OpenClawPackageJSON []byte
-
 // All returns the embedded filesystem for inspection.
 //
 //go:embed claude openclaw

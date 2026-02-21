@@ -260,28 +260,21 @@ func selectOptionalHooks() setup.HookSelection {
 // ─── OpenClaw ───────────────────────────────────────────────────────
 
 func installOpenClaw(env *setup.Environment) error {
-	// OpenClaw always uses global config (no per-project support)
 	configDir := setup.HomeDir() + "/.openclaw"
 
 	fmt.Printf("\nSetting up OpenClaw (%s)...\n", configDir)
 
-	// Phase 1: Skill + Plugin base
-	fmt.Println("\n[1/3] Skill + Plugin")
+	// Phase 1: Skill
+	fmt.Println("\n[1/2] Skill")
 	if path, err := setup.OpenClawWriteSkill(configDir); err != nil {
 		setup.StatusError(0, 0, "Skill", err)
 		return err
 	} else {
 		setup.StatusOK(0, 0, "Skill", path)
 	}
-	if path, err := setup.OpenClawWritePackage(configDir); err != nil {
-		setup.StatusError(0, 0, "Plugin", err)
-		return err
-	} else {
-		setup.StatusOK(0, 0, "Plugin", path)
-	}
 
 	// Phase 2: Prompt files (guide.md + skill.md → ~/.mnemon/prompt/)
-	fmt.Println("\n[2/3] Prompts")
+	fmt.Println("\n[2/2] Prompts")
 	if path, err := setup.WritePromptFiles(); err != nil {
 		setup.StatusError(0, 0, "Prompts", err)
 		return err
@@ -289,42 +282,23 @@ func installOpenClaw(env *setup.Environment) error {
 		setup.StatusOK(0, 0, "Prompts", path)
 	}
 
-	// Phase 3: Optional hooks
-	fmt.Println("\n[3/3] Optional hooks")
-	sel := selectOptionalHooks()
-
-	// Generate and deploy plugin (index.ts + manifest based on hook selection)
-	if path, err := setup.OpenClawWritePlugin(configDir, sel); err != nil {
-		setup.StatusError(0, 0, "Plugin", err)
-	} else {
-		setup.StatusOK(0, 0, "Plugin", path+" (index.ts + manifest)")
-	}
-
-	// Register in openclaw.json
-	if path, ok := setup.OpenClawRegister(configDir); ok {
-		setup.StatusUpdated(0, 0, "Config", path)
-	} else {
-		setup.StatusSkipped(0, 0, "Config", path+" (manual registration may be needed)")
-	}
-
-	// Summary
-	var hookNames []string
-	hookNames = append(hookNames, "prime")
-	if sel.Recall {
-		hookNames = append(hookNames, "recall")
-	}
-	if sel.Nudge {
-		hookNames = append(hookNames, "nudge")
-	}
-	if sel.Compact {
-		hookNames = append(hookNames, "compact")
-	}
+	// Summary + manual configuration guide
 	fmt.Println()
 	fmt.Println("Setup complete!")
-	fmt.Printf("  Hooks   %s\n", strings.Join(hookNames, ", "))
+	fmt.Printf("  Skill   %s/skills/mnemon/SKILL.md\n", configDir)
 	fmt.Printf("  Prompts ~/.mnemon/prompt/ (guide.md, skill.md)\n")
 	fmt.Println()
-	fmt.Println("Start a new OpenClaw session to activate.")
+	fmt.Println("To activate mnemon in OpenClaw, configure your environment manually:")
+	fmt.Println()
+	fmt.Println("  1. Create a plugin directory:")
+	fmt.Println("     mkdir -p ~/.openclaw/extensions/mnemon")
+	fmt.Println()
+	fmt.Println("  2. Write your plugin entry point (index.ts) using the OpenClaw SDK.")
+	fmt.Println("     Reference ~/.mnemon/prompt/guide.md for recall/remember behavior.")
+	fmt.Println()
+	fmt.Println("  3. Register the plugin in ~/.openclaw/openclaw.json:")
+	fmt.Println(`     { "plugins": { "entries": { "mnemon": { "enabled": true } } } }`)
+	fmt.Println()
 	fmt.Println("Edit ~/.mnemon/prompt/guide.md to customize behavior.")
 	fmt.Println("Run 'mnemon setup --eject' to remove.")
 

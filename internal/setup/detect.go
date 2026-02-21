@@ -101,8 +101,8 @@ func detectOpenClaw(global bool) Environment {
 	}
 
 	// Check if mnemon integration is already installed at the target location
-	pluginDir := filepath.Join(configDir, "extensions", "mnemon")
-	if _, err := os.Stat(pluginDir); err == nil {
+	skillPath := filepath.Join(configDir, "skills", "mnemon", "SKILL.md")
+	if _, err := os.Stat(skillPath); err == nil {
 		env.Installed = true
 	}
 
