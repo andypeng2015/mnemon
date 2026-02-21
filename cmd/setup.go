@@ -285,6 +285,24 @@ func selectOptionalHooks() setup.HookSelection {
 func installOpenClaw(env *setup.Environment) error {
 	configDir := env.ConfigDir
 
+	// Scope selection: OpenClaw defaults to global (~/.openclaw/) because
+	// plugin/hook discovery only reads ~/.openclaw/ by default.
+	if !setupGlobal && !setupYes && setup.IsInteractive() {
+		home := setup.HomeDir()
+		localDir := ".openclaw"
+		globalDir := home + "/.openclaw"
+		idx := setup.SelectOne("Install scope",
+			[]string{
+				fmt.Sprintf("Global — all projects (%s/)", globalDir),
+				fmt.Sprintf("Local  — this project only (%s/)", localDir),
+			}, 0) // default: Global
+		if idx == 1 {
+			configDir = localDir
+		} else {
+			configDir = globalDir
+		}
+	}
+
 	fmt.Printf("\nSetting up OpenClaw (%s)...\n", configDir)
 
 	// Phase 1: Skill
