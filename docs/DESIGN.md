@@ -779,17 +779,19 @@ Mnemon integrates with LLM CLIs through lifecycle hooks, a skill file, and a beh
 
 ### 11.1 Integration Architecture
 
+Four hooks drive the memory lifecycle:
+
 ```
 Session starts
     │
     ▼
-  SessionStart hook ─── prime.sh ──→ health check, load behavioral guide
+  Prime (SessionStart) ─── prime.sh ──→ load guide.md (memory execution manual)
     │
     ▼
   User sends message
     │
     ▼
-  UserPromptSubmit hook ─── user_prompt.sh ──→ auto-recall → [Past memory]
+  Remind (UserPromptSubmit) ─── user_prompt.sh ──→ remind agent to recall & remember
     │
     ▼
   Skill (SKILL.md) ── command syntax reference (auto-discovered)
@@ -798,53 +800,49 @@ Session starts
   LLM generates response (following guide.md behavioral rules)
     │
     ▼
-  Stop hook ─── stop.sh ──→ "Consider: remember sub-agent?"
+  Nudge (Stop) ─── stop.sh ──→ remind agent to remember
     │
     ▼
-  (optional) PreCompact hook ─── compact.sh ──→ save insights before compression
+  (when context compacts)
+  Compact (PreCompact) ─── compact.sh ──→ extract critical insights to remember
 ```
 
 Three layers work together:
 
 | Layer | What | Where | Role |
 |-------|------|-------|------|
-| **Hooks** | Shell scripts triggered by Claude Code lifecycle events | `.claude/hooks/mnemon/` | Plumbing — auto-recall, memory reminders, guide injection |
+| **Hooks** | Shell scripts triggered by Claude Code lifecycle events | `.claude/hooks/mnemon/` | Prime (guide), Remind (recall & remember), Nudge (remember), Compact (critical save) |
 | **Skill** | `SKILL.md` — command reference in Claude Code skill format | `.claude/skills/mnemon/` | Teaches the LLM *how* to use mnemon commands |
-| **Guide** | `guide.md` — behavioral instructions | `~/.mnemon/prompt/` | Teaches the LLM *when* to recall and *what* to remember |
+| **Guide** | `guide.md` — detailed execution manual for recall, remember, and delegation | `~/.mnemon/prompt/` | Teaches the LLM *when* to recall, *what* to remember, and *how* to delegate |
 
 ### 11.2 Hook Details
 
-Claude Code fires hooks at specific lifecycle events. Mnemon registers up to four:
+Claude Code fires hooks at specific lifecycle events. Mnemon registers up to four, each with a distinct role in the memory lifecycle:
 
-**SessionStart — `prime.sh`**
+**Prime (SessionStart) — `prime.sh`**
 
-Runs once when a Claude Code session starts. Checks memory system health and loads the behavioral guide:
+Runs once when a session starts. Loads the behavioral guide — a detailed execution manual that teaches the agent when to recall, what to remember, and how to delegate memory writes:
 
 ```bash
-mnemon prime --status
+echo "[mnemon] Memory active"
 [ -f ~/.mnemon/prompt/guide.md ] && cat ~/.mnemon/prompt/guide.md
 ```
 
-The guide content appears in the LLM's system context, establishing recall/remember behavior for the entire session.
+The guide content appears in the LLM's system context, establishing recall/remember/delegation behavior for the entire session.
 
-**UserPromptSubmit — `user_prompt.sh`**
+**Remind (UserPromptSubmit) — `user_prompt.sh`**
 
-Runs on every user message. Reads the prompt from Claude Code's JSON stdin, runs `mnemon recall`, and injects relevant memories:
+Runs on every user message. A lightweight prompt that reminds the agent to evaluate whether recall and remember are needed before starting work:
 
 ```bash
-INPUT=$(cat)
-PROMPT=$(echo "$INPUT" | jq -r '.prompt // empty' 2>/dev/null)
-RESULT=$(mnemon recall "$PROMPT" --limit 5 2>/dev/null)
-if [ -n "$RESULT" ]; then
-  echo "[Past memory] $RESULT"
-fi
+echo "[mnemon] Evaluate: recall needed? After responding, evaluate: remember needed?"
 ```
 
-The `[Past memory]` marker tells the LLM that recalled memories are available in context.
+The agent decides whether to act on this reminder based on the guide.md rules — it is a suggestion, not forced execution.
 
-**Stop — `stop.sh`**
+**Nudge (Stop) — `stop.sh`**
 
-Runs after each LLM response. Checks whether the LLM already mentioned memory operations; if not, emits a gentle reminder:
+Runs after each LLM response. Reminds the agent to consider whether the exchange warrants a remember operation. Stays silent if memory was already addressed:
 
 ```bash
 MSG=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
@@ -854,9 +852,9 @@ fi
 echo "[mnemon] Consider: does this exchange warrant a remember sub-agent?"
 ```
 
-**PreCompact — `compact.sh` (optional)**
+**Compact (PreCompact) — `compact.sh` (optional)**
 
-Fires before context window compression. Prompts the LLM to save key insights before context is lost:
+Fires before context window compression. Instructs the agent to extract the most critical insights and remember them before context is lost:
 
 ```bash
 echo "[mnemon] Context compaction starting. Review this session and remember
@@ -884,12 +882,12 @@ Install scope: Local — this project only (.claude/)
 
 [3/3] Optional hooks
   Select hooks to enable:
-    [x] Recall  — auto-recall on each message (recommended)
-    [x] Nudge   — remind about memory on session end
-    [ ] Compact — save insights before context compaction
+    [x] Remind  — remind agent to recall & remember (recommended)
+    [x] Nudge   — remind agent to remember after work
+    [ ] Compact — extract critical insights before compaction
 
 Setup complete!
-  Hooks   prime, recall, nudge
+  Hooks   prime, remind, nudge
   Prompts ~/.mnemon/prompt/ (guide.md, skill.md)
 
 Start a new Claude Code session to activate.
@@ -906,7 +904,7 @@ Key setup options:
 | `--eject` | Remove all mnemon integrations |
 | `--yes` | Auto-confirm all prompts (CI-friendly) |
 
-The `prime.sh` hook is always installed. Recall, nudge, and compact hooks are optional (recall and nudge enabled by default).
+The Prime hook is always installed. Remind, Nudge, and Compact hooks are optional (Remind and Nudge enabled by default).
 
 ### 11.4 Sub-Agent Delegation
 

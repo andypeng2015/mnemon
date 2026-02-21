@@ -59,22 +59,26 @@ Once set up, memory operates transparently — you use your LLM CLI as usual. Mn
 Session starts
     │
     ▼
-  SessionStart hook ─── prime.sh ──→ load behavioral guide, show memory status
+  Prime (SessionStart) ─── prime.sh ──→ load guide.md (memory execution manual)
     │
     ▼
   User sends message
     │
     ▼
-  UserPromptSubmit hook ─── user_prompt.sh ──→ auto-recall relevant memories
+  Remind (UserPromptSubmit) ─── user_prompt.sh ──→ remind agent to recall & remember
     │
     ▼
-  LLM generates response (guided by skill + behavioral rules)
+  LLM generates response (guided by skill + guide.md rules)
     │
     ▼
-  Stop hook ─── stop.sh ──→ "Consider: remember sub-agent?"
+  Nudge (Stop) ─── stop.sh ──→ remind agent to remember
+    │
+    ▼
+  (when context compacts)
+  Compact (PreCompact) ─── compact.sh ──→ extract critical insights to remember
 ```
 
-**Hooks** handle the plumbing — auto-recall on every message, memory reminders after each response, behavioral guide injection at session start. **The skill file** teaches the agent command syntax. **The behavioral guide** (`~/.mnemon/prompt/guide.md`) defines when to recall, what to remember, and how to delegate memory writes to a sub-agent.
+Four hooks drive the memory lifecycle. **Prime** loads the behavioral guide — a detailed execution manual for recall, remember, and sub-agent delegation. **Remind** prompts the agent to evaluate recall and remember before starting work. **Nudge** reminds the agent to consider remember after finishing work. **Compact** instructs the agent to extract and save critical insights before context compression. **The skill file** teaches command syntax. **The guide** (`~/.mnemon/prompt/guide.md`) defines the detailed rules for when to recall, what to remember, and how to delegate.
 
 You don't run mnemon commands yourself. The agent does — driven by hooks and guided by the skill and behavioral guide.
 
@@ -82,7 +86,7 @@ You don't run mnemon commands yourself. The agent does — driven by hooks and g
 
 - **Zero user-side operation** — install once, memory runs in the background via hooks
 - **LLM-supervised** — the host LLM decides what to remember, update, and forget; no embedded LLM, no API keys
-- **Hook-based integration** — `mnemon setup` deploys lifecycle hooks (SessionStart, UserPromptSubmit, Stop) plus an optional Compact hook for context compression
+- **Hook-based integration** — four lifecycle hooks: Prime (load guide), Remind (recall & remember), Nudge (remember), and Compact (save before compression)
 - **Four-graph architecture** — temporal, entity, causal, and semantic edges, not just vector similarity
 - **Built-in deduplication** — duplicates are skipped, conflicts auto-replaced
 - **Retention lifecycle** — importance decay, access-count boosting, and garbage collection

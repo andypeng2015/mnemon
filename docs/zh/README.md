@@ -71,22 +71,26 @@ mnemon setup --eject
 会话启动
     │
     ▼
-  SessionStart 钩子 ─── prime.sh ──→ 加载行为引导，显示记忆状态
+  Prime（SessionStart）─── prime.sh ──→ 加载 guide.md（记忆执行手册）
     │
     ▼
   用户发送消息
     │
     ▼
-  UserPromptSubmit 钩子 ─── user_prompt.sh ──→ 自动召回相关记忆
+  Remind（UserPromptSubmit）─── user_prompt.sh ──→ 提醒 agent 进行 recall 和 remember
     │
     ▼
-  LLM 生成回复（遵循技能文件 + 行为引导规则）
+  LLM 生成回复（遵循技能文件 + guide.md 规则）
     │
     ▼
-  Stop 钩子 ─── stop.sh ──→ "考虑：是否需要 remember sub-agent？"
+  Nudge（Stop）─── stop.sh ──→ 提醒 agent 进行 remember
+    │
+    ▼
+  （上下文压缩时）
+  Compact（PreCompact）─── compact.sh ──→ 提取关键洞察进行 remember
 ```
 
-**钩子**处理底层管道 — 每条消息自动召回、每次回复后提醒记忆、会话启动时注入行为引导。**技能文件**教会 agent 命令语法。**行为引导**（`~/.mnemon/prompt/guide.md`）定义何时召回、什么值得记住、如何委派记忆写入给 sub-agent。
+四个钩子驱动记忆生命周期。**Prime** 加载行为引导 — 详细的 recall、remember、sub-agent 委派执行手册。**Remind** 在工作开始前提醒 agent 评估是否需要 recall 和 remember。**Nudge** 在工作结束后提醒 agent 考虑 remember。**Compact** 在上下文压缩前指示 agent 提取并保存关键洞察。**技能文件**教会 agent 命令语法。**行为引导**（`~/.mnemon/prompt/guide.md`）定义 recall、remember、委派的详细规则。
 
 你不需要自己运行 mnemon 命令。agent 会自动执行 — 由钩子驱动，受技能文件和行为引导指引。
 
@@ -94,7 +98,7 @@ mnemon setup --eject
 
 - **零用户操作** — 安装一次，记忆通过钩子在后台运行
 - **LLM 监督式** — 宿主 LLM 主动决定记什么、更新什么、遗忘什么；无内嵌 LLM，无 API 密钥
-- **钩子集成** — `mnemon setup` 部署生命周期钩子（SessionStart、UserPromptSubmit、Stop），以及可选的 Compact 钩子（上下文压缩前保存洞察）
+- **钩子集成** — 四个生命周期钩子：Prime（加载引导）、Remind（recall 和 remember）、Nudge（remember）、Compact（压缩前保存）
 - **四图架构** — 时序、实体、因果、语义四种边，不仅仅是向量相似度
 - **意图感知召回** — 图遍历 + 可选向量搜索（RRF 融合），所有查询默认启用
 - **内置去重** — `remember` 自动检测重复和冲突；跳过或自动替换
