@@ -136,9 +136,6 @@ mnemon recall "vector database" --limit 10
 # Search — 基于 token 评分的关键词搜索
 mnemon search "authentication" --limit 10
 
-# Diff — 独立的重复/冲突检查（可选；remember 已内置此功能）
-mnemon diff "待检查的新事实"
-
 # Forget — 软删除洞察
 mnemon forget <id>
 ```

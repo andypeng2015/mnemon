@@ -247,20 +247,6 @@ step "search — no match returns []"
 OUT=$($M --data-dir "$TESTDIR2" search "zzz_no_match_zzz")
 assert_jq "empty array" "$OUT" 'length' '0'
 
-step "diff — DUPLICATE detection"
-OUT=$($M --data-dir "$TESTDIR2" diff "User prefers Qdrant for vector DB")
-echo -e "    ${DIM}suggestion: $(echo "$OUT" | jq -r '.suggestion')${RESET}"
-assert_jq "suggestion is DUPLICATE" "$OUT" '.suggestion' 'DUPLICATE'
-
-step "diff — CONFLICT detection (negation)"
-OUT=$($M --data-dir "$TESTDIR2" diff "User no longer prefers Qdrant for vector DB")
-echo -e "    ${DIM}suggestion: $(echo "$OUT" | jq -r '.suggestion')${RESET}"
-assert_jq "suggestion is CONFLICT" "$OUT" '.suggestion' 'CONFLICT'
-
-step "diff — ADD for unrelated"
-OUT=$($M --data-dir "$TESTDIR2" diff "Redis is great for caching")
-echo -e "    ${DIM}suggestion: $(echo "$OUT" | jq -r '.suggestion')${RESET}"
-assert_jq "suggestion is ADD" "$OUT" '.suggestion' 'ADD'
 
 # ══════════════════════════════════════════════════════════════════════
 banner "Milestone 4: Intent-Aware Smart Recall"

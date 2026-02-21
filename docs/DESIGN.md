@@ -259,13 +259,10 @@ mnemon/
 │   ├── forget.go              # Soft-delete insight
 │   ├── gc.go                  # Garbage collection
 │   ├── setup.go               # Deploy integrations (hooks, skill, guide)
-│   ├── prime.go               # Session health check
 │   ├── viz.go                 # Knowledge graph visualization
 │   ├── status.go              # Statistics
 │   └── log.go                 # Operation log
 ├── internal/
-│   ├── config/                # Configuration management
-│   │   └── config.go          # Environment variables, defaults
 │   ├── model/                 # Data structures
 │   │   ├── node.go            # Insight definition
 │   │   └── edge.go            # Edge definition
@@ -277,7 +274,7 @@ mnemon/
 │   │   └── semantic.go        # Semantic edges
 │   ├── search/                # Retrieval algorithms
 │   │   ├── recall.go          # Intent-aware multi-signal retrieval
-│   │   ├── diff.go            # Built-in dedup check (also used by standalone diff command)
+│   │   ├── diff.go            # Built-in dedup check
 │   │   ├── intent.go          # Intent detection
 │   │   └── keyword.go         # Token-level keyword scoring
 │   ├── store/                 # SQLite persistence
@@ -620,9 +617,7 @@ This is a unique innovation in Mnemon: **exposing the retrieval pipeline's inter
 
 ![Diff & Dedup Pipeline](diagrams/07-diff-dedup-pipeline.jpg)
 
-Diff is now **built into `remember`** — no separate call needed. When `mnemon remember` is invoked, it automatically runs a diff check before inserting. The standalone `mnemon diff` command still exists for pre-checking without writing.
-
-### 8.1 Built-in Diff (inside remember)
+Diff is **built into `remember`** — no separate call needed. When `mnemon remember` is invoked, it automatically runs a diff check before inserting.
 
 When `remember` is called, the built-in diff runs before the transaction:
 
@@ -637,22 +632,9 @@ When `remember` is called, the built-in diff runs before the transaction:
 
 The `--no-diff` flag disables this check for cases where the caller wants unconditional insertion.
 
-### 8.2 Standalone Diff Command
+### 8.1 Typical Workflow
 
-The standalone command is useful for pre-checking without actually writing:
-
-```
-mnemon diff "New fact content"
-```
-
-1. Run KeywordSearch across all insights, take top-5
-2. Compute ContentSimilarity (token overlap rate or embedding cosine) for each match
-3. Detect negation patterns: `not`, `no longer`, `don't`, `never`, `switched from`, `replaced`, `不`, `没有`, `放弃`, `改为`
-4. Return suggested action (ADD, UPDATE, CONFLICT, or DUPLICATE)
-
-### 8.3 Typical Workflow
-
-With the built-in diff, a single `remember` call handles everything:
+A single `remember` call handles everything:
 
 ```bash
 # Single command — diff is automatic
@@ -663,8 +645,6 @@ mnemon remember "Chose PostgreSQL to replace SQLite as the primary database" \
 # → If duplicate: returns action="skipped"
 # → If new: returns action="added"
 ```
-
-The previous workflow of calling `diff` then `remember` separately is no longer required but still supported via the standalone `mnemon diff` command.
 
 ---
 
@@ -818,7 +798,13 @@ Claude Code fires hooks at specific lifecycle events. Mnemon registers up to fou
 Runs once when a session starts. Loads the behavioral guide — a detailed execution manual that teaches the agent when to recall, what to remember, and how to delegate memory writes:
 
 ```bash
-echo "[mnemon] Memory active"
+STATS=$(mnemon status 2>/dev/null)
+if [ -n "$STATS" ]; then
+  # extract counts from JSON and show in status line
+  echo "[mnemon] Memory active (<insights> insights, <edges> edges)."
+else
+  echo "[mnemon] Memory active."
+fi
 [ -f ~/.mnemon/prompt/guide.md ] && cat ~/.mnemon/prompt/guide.md
 ```
 

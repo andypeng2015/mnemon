@@ -907,12 +907,12 @@
         <mxCell id="1" parent="0"/>
 
         <!-- Title -->
-        <mxCell id="d_title" value="&lt;b&gt;Built-in Diff (inside remember)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Auto dedup &amp; conflict resolution — standalone &lt;code&gt;mnemon diff&lt;/code&gt; uses same logic&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+        <mxCell id="d_title" value="&lt;b&gt;Built-in Diff (inside remember)&lt;/b&gt;&lt;br&gt;&lt;font style=&quot;font-size:10px&quot;&gt;Auto dedup &amp; conflict resolution&lt;/font&gt;" style="text;html=1;align=center;verticalAlign=middle;fontSize=16;strokeColor=none;fillColor=none;" vertex="1" parent="1">
           <mxGeometry x="200" y="10" width="500" height="40" as="geometry"/>
         </mxCell>
 
         <!-- Input -->
-        <mxCell id="d_input" value="&lt;b&gt;mnemon remember&lt;/b&gt; &amp;lt;content&amp;gt; (or standalone: mnemon diff)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
+        <mxCell id="d_input" value="&lt;b&gt;mnemon remember&lt;/b&gt; &amp;lt;content&amp;gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12;fontStyle=1;" vertex="1" parent="1">
           <mxGeometry x="230" y="60" width="440" height="40" as="geometry"/>
         </mxCell>
 
