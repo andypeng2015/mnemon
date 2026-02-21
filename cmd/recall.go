@@ -18,7 +18,7 @@ var (
 	recLimit    int
 	recSource   string
 	recBasic    bool
-	recSmart    bool // deprecated: smart is now the default; kept for backward compat
+	recSmart    bool //nolint:unused // deprecated: smart is now the default; kept for backward compat
 	recIntent   string
 )
 

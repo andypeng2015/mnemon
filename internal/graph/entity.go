@@ -117,13 +117,13 @@ func ExtractEntities(text string) []string {
 }
 
 // splitWords splits text into words preserving original casing.
+// Iterates over runes (not bytes) for correct multi-byte character handling.
 func splitWords(text string) []string {
 	var words []string
-	word := []byte{}
-	for i := 0; i < len(text); i++ {
-		c := text[i]
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
-			word = append(word, c)
+	var word []rune
+	for _, r := range text {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			word = append(word, r)
 		} else {
 			if len(word) > 0 {
 				words = append(words, string(word))

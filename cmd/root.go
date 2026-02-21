@@ -47,6 +47,14 @@ func resolveStoreName() string {
 	return store.ReadActive(dataDir)
 }
 
+// truncID safely truncates an ID to 8 characters for display.
+func truncID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
 // openDB is a helper used by subcommands.
 func openDB() (*store.DB, error) {
 	if err := store.MigrateIfNeeded(dataDir); err != nil {

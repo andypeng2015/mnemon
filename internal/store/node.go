@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -310,13 +311,9 @@ func (db *DB) GetRetentionCandidates(threshold float64, limit int) ([]RetentionC
 	}
 
 	// Sort by effective_importance ascending (weakest first)
-	for i := 0; i < len(candidates); i++ {
-		for j := i + 1; j < len(candidates); j++ {
-			if candidates[j].EffectiveImportance < candidates[i].EffectiveImportance {
-				candidates[i], candidates[j] = candidates[j], candidates[i]
-			}
-		}
-	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].EffectiveImportance < candidates[j].EffectiveImportance
+	})
 
 	total := len(insightRows)
 	if limit > 0 && len(candidates) > limit {

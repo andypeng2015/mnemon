@@ -88,7 +88,7 @@ var linkCmd = &cobra.Command{
 			return fmt.Errorf("create edge %s→%s: %w", targetID, sourceID, err)
 		}
 
-		db.LogOp("link", sourceID, fmt.Sprintf("%s→%s type=%s weight=%.2f", sourceID[:8], targetID[:8], linkType, linkWeight))
+		db.LogOp("link", sourceID, fmt.Sprintf("%s→%s type=%s weight=%.2f", truncID(sourceID), truncID(targetID), linkType, linkWeight))
 
 		output := map[string]interface{}{
 			"status":    "linked",

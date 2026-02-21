@@ -60,7 +60,13 @@ func (db *DB) InTransaction(fn func() error) error {
 
 // DefaultDataDir returns ~/.mnemon.
 func DefaultDataDir() string {
-	home, _ := os.UserHomeDir()
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		home = os.Getenv("HOME")
+	}
+	if home == "" {
+		home = "/tmp"
+	}
 	return filepath.Join(home, ".mnemon")
 }
 

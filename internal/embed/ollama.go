@@ -74,6 +74,11 @@ func (c *Client) Model() string {
 	return c.model
 }
 
+// Endpoint returns the configured Ollama endpoint URL.
+func (c *Client) Endpoint() string {
+	return c.endpoint
+}
+
 type embedRequest struct {
 	Model string `json:"model"`
 	Input string `json:"input"`

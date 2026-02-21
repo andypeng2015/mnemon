@@ -286,7 +286,6 @@ mnemon/
 │   ├── store.go               # Store management (list, create, set, remove)
 │   ├── remember.go            # Store insight + auto-create edges
 │   ├── recall.go              # Retrieval (smart graph-enhanced, default)
-│   ├── diff.go                # Standalone dedup/conflict check
 │   ├── link.go                # Manually create edges
 │   ├── related.go             # BFS traversal from an insight
 │   ├── search.go              # Keyword search

@@ -10,7 +10,7 @@ ifeq ($(GOBIN),)
   GOBIN     := $(shell go env GOPATH)/bin
 endif
 
-.PHONY: build install uninstall test clean help
+.PHONY: build install uninstall test unit vet clean help
 
 .DEFAULT_GOAL := help
 
@@ -35,6 +35,12 @@ uninstall: ## Remove mnemon binary from $GOBIN
 
 test: build ## Run E2E test suite
 	bash scripts/e2e_test.sh
+
+unit: ## Run Go unit tests
+	go test ./...
+
+vet: ## Run go vet static analysis
+	go vet ./...
 
 # ── Clean ────────────────────────────────────────────────────────────
 

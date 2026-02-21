@@ -1,6 +1,7 @@
 package search
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/mnemon-dev/mnemon/internal/embed"
@@ -118,13 +119,9 @@ func Diff(insights []*model.Insight, newContent string, opts DiffOptions) DiffRe
 		}
 
 		// Sort by cosine descending, take up to opts.Limit
-		for i := 0; i < len(topCosine); i++ {
-			for j := i + 1; j < len(topCosine); j++ {
-				if topCosine[j].sim > topCosine[i].sim {
-					topCosine[i], topCosine[j] = topCosine[j], topCosine[i]
-				}
-			}
-		}
+		sort.Slice(topCosine, func(i, j int) bool {
+			return topCosine[i].sim > topCosine[j].sim
+		})
 		if len(topCosine) > opts.Limit {
 			topCosine = topCosine[:opts.Limit]
 		}

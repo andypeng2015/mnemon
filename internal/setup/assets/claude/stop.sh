@@ -7,7 +7,7 @@ INPUT=$(cat)
 
 # If model already mentioned memory operations, stay silent
 MSG=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
-if echo "$MSG" | grep -qi "mnemon remember\|sub-agent.*remember\|Stored.*imp="; then
+if echo "$MSG" | grep -qiE "mnemon remember|sub-agent.*remember|Stored.*imp="; then
   exit 0
 fi
 

@@ -4,6 +4,50 @@
 
 ---
 
+## Global Flags
+
+These flags are available on every command:
+
+| Flag | Default | Description |
+|---|---|---|
+| `--store <name>` | (auto) | Named memory store (overrides `MNEMON_STORE` and active file) |
+| `--data-dir <path>` | `~/.mnemon` | Base data directory |
+| `--version` | | Print version and exit |
+
+---
+
+## Setup
+
+Deploy mnemon into LLM CLI environments. This is the first command to run after installation.
+
+```bash
+# Interactive: detect environments and install (project-local)
+mnemon setup
+
+# User-wide install (all projects)
+mnemon setup --global
+
+# Non-interactive: specific target only
+mnemon setup --target claude-code
+mnemon setup --target openclaw
+
+# Auto-confirm all prompts (CI-friendly)
+mnemon setup --yes
+
+# Remove mnemon integrations
+mnemon setup --eject
+mnemon setup --eject --target claude-code
+```
+
+| Flag | Default | Description |
+|---|---|---|
+| `--global` | `false` | Install to user-wide config (`~/.claude/`) instead of project-local (`.claude/`) |
+| `--target <name>` | (auto-detect) | Target environment: `claude-code` or `openclaw` |
+| `--eject` | `false` | Remove mnemon integrations |
+| `--yes` | `false` | Auto-confirm all prompts |
+
+---
+
 ## CLI Commands
 
 ### Core
@@ -11,10 +55,22 @@
 ```bash
 # Remember — store a new insight (built-in diff: duplicates skipped, conflicts auto-replaced)
 mnemon remember "Chose Qdrant over Milvus for vector search" \
-  --cat decision --imp 5 --entities "Qdrant,Milvus" --source agent
+  --cat decision --imp 5 --entities "Qdrant,Milvus" --tags "architecture,search" --source agent
+
+# Skip duplicate/conflict detection
+mnemon remember "Raw note" --no-diff
 
 # Recall — intent-aware graph-enhanced retrieval (default)
 mnemon recall "vector database" --limit 10
+
+# Recall with explicit intent override
+mnemon recall "why did we choose Qdrant" --intent WHY
+
+# Recall with category/source filter
+mnemon recall "auth" --cat decision --source agent
+
+# Simple SQL LIKE matching (faster, no graph traversal)
+mnemon recall "auth" --basic
 
 # Search — token-scored keyword search
 mnemon search "authentication" --limit 10
@@ -22,6 +78,27 @@ mnemon search "authentication" --limit 10
 # Forget — soft-delete an insight
 mnemon forget <id>
 ```
+
+**Remember flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--cat` | `general` | Category: `preference`, `decision`, `fact`, `insight`, `context`, `general` |
+| `--imp` | `3` | Importance: 1–5 |
+| `--tags` | | Comma-separated tags |
+| `--entities` | | Comma-separated entities (merged with auto-extraction) |
+| `--source` | `user` | Source: `user`, `agent`, `external` |
+| `--no-diff` | `false` | Skip duplicate/conflict detection |
+
+**Recall flags:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--limit` | `10` | Max results |
+| `--intent` | (auto-detect) | Override intent: `WHY`, `WHEN`, `ENTITY`, `GENERAL` |
+| `--cat` | | Filter by category |
+| `--source` | | Filter by source |
+| `--basic` | `false` | Use simple SQL LIKE matching instead of smart recall |
 
 ### Graph Operations
 
@@ -39,7 +116,7 @@ mnemon related <id> --edge causal --depth 2
 
 ```bash
 # GC — view low-retention candidates
-mnemon gc --threshold 0.5
+mnemon gc --threshold 0.5 --limit 20
 
 # GC keep — boost an insight's retention
 mnemon gc --keep <id>
@@ -75,8 +152,9 @@ Different agents or processes can use different stores via the `MNEMON_STORE` en
 ### Observability
 
 ```bash
-mnemon status    # memory statistics
-mnemon log       # operation log
+mnemon status           # memory statistics
+mnemon log              # operation log (default: last 20)
+mnemon log --limit 50   # show more entries
 ```
 
 ### Visualization
@@ -94,6 +172,17 @@ open graph.html
 ```
 
 Nodes are colored by category (decision, fact, insight, preference, context); edges are colored by type (temporal, semantic, causal, entity).
+
+---
+
+## Configuration
+
+| Variable | Default | Description |
+|---|---|---|
+| `MNEMON_DATA_DIR` | `~/.mnemon` | Base data directory |
+| `MNEMON_STORE` | `default` | Active named store |
+| `MNEMON_EMBED_ENDPOINT` | `http://localhost:11434` | Ollama API endpoint |
+| `MNEMON_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
 
 ---
 

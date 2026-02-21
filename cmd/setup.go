@@ -283,7 +283,7 @@ func selectOptionalHooks() setup.HookSelection {
 // ─── OpenClaw ───────────────────────────────────────────────────────
 
 func installOpenClaw(env *setup.Environment) error {
-	configDir := setup.HomeDir() + "/.openclaw"
+	configDir := env.ConfigDir
 
 	fmt.Printf("\nSetting up OpenClaw (%s)...\n", configDir)
 

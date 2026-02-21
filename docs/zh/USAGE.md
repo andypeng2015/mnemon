@@ -4,6 +4,50 @@
 
 ---
 
+## 全局标志
+
+以下标志适用于所有命令：
+
+| 标志 | 默认值 | 说明 |
+|---|---|---|
+| `--store <name>` | (自动) | 命名记忆体（覆盖 `MNEMON_STORE` 和 active 文件） |
+| `--data-dir <path>` | `~/.mnemon` | 基础数据目录 |
+| `--version` | | 打印版本并退出 |
+
+---
+
+## 安装部署
+
+将 mnemon 部署到 LLM CLI 环境中。安装后首先运行此命令。
+
+```bash
+# 交互式：检测环境并安装（项目本地）
+mnemon setup
+
+# 用户级安装（所有项目）
+mnemon setup --global
+
+# 非交互式：仅指定目标
+mnemon setup --target claude-code
+mnemon setup --target openclaw
+
+# 自动确认所有提示（CI 友好）
+mnemon setup --yes
+
+# 移除 mnemon 集成
+mnemon setup --eject
+mnemon setup --eject --target claude-code
+```
+
+| 标志 | 默认值 | 说明 |
+|---|---|---|
+| `--global` | `false` | 安装到用户级配置（`~/.claude/`）而非项目本地（`.claude/`） |
+| `--target <name>` | (自动检测) | 目标环境：`claude-code` 或 `openclaw` |
+| `--eject` | `false` | 移除 mnemon 集成 |
+| `--yes` | `false` | 自动确认所有提示 |
+
+---
+
 ## CLI 命令
 
 ### 核心命令
@@ -11,10 +55,22 @@
 ```bash
 # Remember — 存储新洞察（内置 diff：重复跳过，冲突自动替换）
 mnemon remember "选择 Qdrant 而非 Milvus 做向量搜索" \
-  --cat decision --imp 5 --entities "Qdrant,Milvus" --source agent
+  --cat decision --imp 5 --entities "Qdrant,Milvus" --tags "architecture,search" --source agent
+
+# 跳过重复/冲突检测
+mnemon remember "原始笔记" --no-diff
 
 # Recall — 意图感知的图增强检索（默认）
 mnemon recall "vector database" --limit 10
+
+# 显式指定意图覆盖
+mnemon recall "为什么选择 Qdrant" --intent WHY
+
+# 按分类/来源过滤
+mnemon recall "auth" --cat decision --source agent
+
+# 简单 SQL LIKE 匹配（更快，无图遍历）
+mnemon recall "auth" --basic
 
 # Search — 基于 token 评分的关键词搜索
 mnemon search "authentication" --limit 10
@@ -22,6 +78,27 @@ mnemon search "authentication" --limit 10
 # Forget — 软删除洞察
 mnemon forget <id>
 ```
+
+**Remember 标志：**
+
+| 标志 | 默认值 | 说明 |
+|---|---|---|
+| `--cat` | `general` | 分类：`preference`、`decision`、`fact`、`insight`、`context`、`general` |
+| `--imp` | `3` | 重要性：1–5 |
+| `--tags` | | 逗号分隔的标签 |
+| `--entities` | | 逗号分隔的实体（与自动提取合并） |
+| `--source` | `user` | 来源：`user`、`agent`、`external` |
+| `--no-diff` | `false` | 跳过重复/冲突检测 |
+
+**Recall 标志：**
+
+| 标志 | 默认值 | 说明 |
+|---|---|---|
+| `--limit` | `10` | 最大结果数 |
+| `--intent` | (自动检测) | 覆盖意图：`WHY`、`WHEN`、`ENTITY`、`GENERAL` |
+| `--cat` | | 按分类过滤 |
+| `--source` | | 按来源过滤 |
+| `--basic` | `false` | 使用简单 SQL LIKE 匹配代替智能召回 |
 
 ### 图操作
 
@@ -39,7 +116,7 @@ mnemon related <id> --edge causal --depth 2
 
 ```bash
 # GC — 查看低保留度候选
-mnemon gc --threshold 0.5
+mnemon gc --threshold 0.5 --limit 20
 
 # GC keep — 提升某个洞察的保留度
 mnemon gc --keep <id>
@@ -75,8 +152,9 @@ mnemon store remove old-project
 ### 可观测性
 
 ```bash
-mnemon status    # 记忆统计
-mnemon log       # 操作日志
+mnemon status             # 记忆统计
+mnemon log                # 操作日志（默认：最近 20 条）
+mnemon log --limit 50     # 显示更多条目
 ```
 
 ### 可视化
@@ -94,6 +172,17 @@ open graph.html
 ```
 
 节点按分类着色（decision、fact、insight、preference、context），边按类型着色（temporal、semantic、causal、entity）。
+
+---
+
+## 配置
+
+| 变量 | 默认值 | 说明 |
+|---|---|---|
+| `MNEMON_DATA_DIR` | `~/.mnemon` | 基础数据目录 |
+| `MNEMON_STORE` | `default` | 活跃命名记忆体 |
+| `MNEMON_EMBED_ENDPOINT` | `http://localhost:11434` | Ollama API 端点 |
+| `MNEMON_EMBED_MODEL` | `nomic-embed-text` | Ollama 嵌入模型 |
 
 ---
 

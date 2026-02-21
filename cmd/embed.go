@@ -49,7 +49,7 @@ Modes:
 
 		// Check Ollama availability
 		if !ec.Available() {
-			return fmt.Errorf("Ollama not available at %s — install with: brew install ollama && ollama pull %s", "localhost:11434", ec.Model())
+			return fmt.Errorf("Ollama not available at %s — install with: brew install ollama && ollama pull %s", ec.Endpoint(), ec.Model())
 		}
 
 		// Single insight mode
