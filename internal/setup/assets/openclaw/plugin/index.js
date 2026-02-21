@@ -1,38 +1,8 @@
-import { execSync } from "child_process";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "fs";
+import { existsSync, unlinkSync, writeFileSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
 const COMPACT_FLAG = join(homedir(), ".mnemon", ".compact-pending");
-
-/**
- * Extract a focused recall query from the user's prompt.
- * Strips filler, keeps keywords — mnemon recall works best with
- * keyword-rich queries rather than raw user prompts.
- */
-function extractQuery(prompt) {
-  if (!prompt || typeof prompt !== "string") return "";
-  return prompt.slice(0, 200).replace(/\s+/g, " ").trim();
-}
-
-/**
- * Run mnemon recall and return results, or null on failure.
- */
-function recall(query) {
-  if (!query) return null;
-  try {
-    const result = execSync(
-      `mnemon recall "${query.replace(/"/g, '\\"')}" --limit 5`,
-      { timeout: 5000, encoding: "utf-8" }
-    );
-    if (result && !result.includes("no insights found")) {
-      return result.trim();
-    }
-  } catch {
-    // mnemon not available or recall failed — silent
-  }
-  return null;
-}
 
 export default function register(api) {
   // api.pluginConfig holds plugins.entries.mnemon.config from openclaw.json
@@ -55,10 +25,10 @@ export default function register(api) {
   }
 
   // ── before_prompt_build ───────────────────────────────────────
-  // Handles: remind (recall + remember reminder) + nudge reminder
-  // + compact flag consumption.
+  // Injects reminders only — the LLM decides whether to recall/remember.
+  // No direct mnemon execution here (CLI-in-the-loop: LLM drives the CLI).
   if (remind || nudge || compact) {
-    api.on("before_prompt_build", async (event) => {
+    api.on("before_prompt_build", async () => {
       const parts = [];
 
       // Compact flag: was compaction triggered since last turn?
@@ -70,11 +40,6 @@ export default function register(api) {
       }
 
       if (remind) {
-        const query = extractQuery(event.prompt);
-        const memories = recall(query);
-        if (memories) {
-          parts.push(`[mnemon] Relevant memories:\n${memories}`);
-        }
         parts.push(
           "[mnemon] Evaluate: recall needed? After responding, evaluate: remember needed?"
         );
@@ -90,11 +55,4 @@ export default function register(api) {
       return { prependContext: parts.join("\n\n") };
     });
   }
-
-  // ── agent_end (void — no return value supported) ──────────────
-  // Placeholder for future diagnostics; memory evaluation is handled
-  // by the LLM itself via the before_prompt_build nudge above.
-  api.on("agent_end", async () => {
-    // no-op
-  });
 }
