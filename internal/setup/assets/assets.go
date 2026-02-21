@@ -17,8 +17,8 @@ var ClaudeCompactHook []byte
 //go:embed claude/SKILL.md
 var ClaudeSkill []byte
 
-//go:embed claude/claude_memory.md
-var ClaudeMemoryMD []byte
+//go:embed claude/guide.md
+var ClaudeGuide []byte
 
 //go:embed openclaw/SKILL.md
 var OpenClawSkill []byte
@@ -31,9 +31,6 @@ var OpenClawManifest []byte
 
 //go:embed openclaw/package.json
 var OpenClawPackageJSON []byte
-
-//go:embed openclaw/openclaw_memory.md
-var OpenClawMemoryMD []byte
 
 // All returns the embedded filesystem for inspection.
 //

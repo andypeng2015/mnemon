@@ -14,10 +14,7 @@ SKILL_DST   := $(HOME)/.claude/skills/mnemon
 HOOKS_SRC   := scripts/hooks
 HOOKS_DST   := $(HOME)/.claude/hooks/mnemon
 CLAUDE_SETTINGS := $(HOME)/.claude/settings.json
-CLAUDE_MEMORY   := scripts/claude_memory.md
-CLAUDE_MD       := CLAUDE.md
-
-.PHONY: build install uninstall inject eject inject-hooks eject-hooks claude-inject claude-eject setup sync-assets check-assets test clean help
+.PHONY: build install uninstall inject eject inject-hooks eject-hooks setup sync-assets check-assets test clean help
 
 .DEFAULT_GOAL := help
 
@@ -84,28 +81,6 @@ eject-hooks: ## Remove Claude Code hooks
 		echo "Cleaned: $(CLAUDE_SETTINGS)"; \
 	fi
 
-# ── CLAUDE.md memory injection ─────────────────────────────────────
-
-claude-inject: ## Inject memory guidance into ./CLAUDE.md
-	@if grep -q 'mnemon:start' "$(CLAUDE_MD)" 2>/dev/null; then \
-		echo "Already injected in $(CLAUDE_MD)"; \
-	else \
-		if [ -f "$(CLAUDE_MD)" ]; then \
-			printf '\n' >> "$(CLAUDE_MD)"; \
-		fi; \
-		cat "$(CLAUDE_MEMORY)" >> "$(CLAUDE_MD)"; \
-		echo "  Memory → $(CLAUDE_MD)"; \
-	fi
-
-claude-eject: ## Remove memory guidance from ./CLAUDE.md
-	@if [ -f "$(CLAUDE_MD)" ] && grep -q 'mnemon:start' "$(CLAUDE_MD)"; then \
-		sed '/<!-- mnemon:start -->/,/<!-- mnemon:end -->/d' "$(CLAUDE_MD)" > "$(CLAUDE_MD).tmp" && \
-		mv "$(CLAUDE_MD).tmp" "$(CLAUDE_MD)"; \
-		echo "Cleaned: $(CLAUDE_MD)"; \
-	else \
-		echo "No mnemon section in $(CLAUDE_MD)"; \
-	fi
-
 # ── Setup (one-command) ─────────────────────────────────────────────
 
 setup: install inject inject-hooks ## Full setup: binary + skill + hooks (deprecated: use 'mnemon setup')
@@ -128,7 +103,6 @@ sync-assets: ## Sync source-of-truth files into embedded assets
 	@cp scripts/hooks/prime.sh $(ASSETS_DIR)/prime.sh
 	@cp scripts/hooks/compact.sh $(ASSETS_DIR)/compact.sh
 	@cp skills/mnemon/SKILL.md $(ASSETS_DIR)/SKILL.md
-	@cp scripts/claude_memory.md $(ASSETS_DIR)/claude_memory.md
 	@echo "Assets synced to $(ASSETS_DIR)/"
 
 check-assets: sync-assets ## Verify embedded assets match source (CI)

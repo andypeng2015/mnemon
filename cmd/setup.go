@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mnemon-dev/mnemon/internal/config"
 	"github.com/mnemon-dev/mnemon/internal/setup"
 	"github.com/mnemon-dev/mnemon/internal/setup/assets"
 	"github.com/spf13/cobra"
@@ -163,20 +162,14 @@ func installClaudeCode(env *setup.Environment) error {
 		setup.StatusOK(0, 0, "Skill", path)
 	}
 
-	// Phase 2: Prime (mandatory)
-	fmt.Println("\n[2/3] Prime — session start guidance (required)")
-	cfg := configurePrimeConfig("claude-code")
-	if err := config.Save(dataDir, cfg); err != nil {
-		setup.StatusError(0, 0, "Config", err)
+	// Phase 2: Prompt files (guide.md + skill.md → ~/.mnemon/prompt/)
+	fmt.Println("\n[2/3] Prompts")
+	if path, err := setup.WritePromptFiles(); err != nil {
+		setup.StatusError(0, 0, "Prompts", err)
 		return err
+	} else {
+		setup.StatusOK(0, 0, "Prompts", path)
 	}
-
-	// Summary line for config
-	secNames := strings.Join(cfg.Prime.Sections, ", ")
-	if secNames == "" {
-		secNames = "none"
-	}
-	setup.StatusOK(0, 0, "Config", fmt.Sprintf("%s sections, model=%s", secNames, cfg.Prime.DelegationModel))
 
 	if path, err := setup.ClaudeWriteHook(configDir, "prime.sh", assets.ClaudePrimeHook); err != nil {
 		setup.StatusError(0, 0, "Hook: prime", err)
@@ -232,112 +225,14 @@ func installClaudeCode(env *setup.Environment) error {
 	}
 	fmt.Println()
 	fmt.Println("Setup complete!")
-	fmt.Printf("  Hooks  %s\n", strings.Join(hookNames, ", "))
-	fmt.Printf("  Config %s sections, model=%s\n", secNames, cfg.Prime.DelegationModel)
+	fmt.Printf("  Hooks   %s\n", strings.Join(hookNames, ", "))
+	fmt.Printf("  Prompts ~/.mnemon/prompt/ (guide.md, skill.md)\n")
 	fmt.Println()
 	fmt.Println("Start a new Claude Code session to activate.")
+	fmt.Println("Edit ~/.mnemon/prompt/guide.md to customize behavior.")
 	fmt.Println("Run 'mnemon setup --eject' to remove.")
 
 	return nil
-}
-
-// configurePrimeConfig returns a Config based on user choices (default or manual).
-// target controls which delegation options are shown (claude-code uses sub-agents, openclaw uses direct CLI).
-func configurePrimeConfig(target string) *config.Config {
-	cfg := config.DefaultConfig()
-
-	if setupYes || !setup.IsInteractive() {
-		return cfg
-	}
-
-	mode := setup.SelectOne("Guidance mode",
-		[]string{"Default (recommended)", "Manual — configure each section"}, 0)
-	if mode == 0 {
-		return cfg
-	}
-
-	// Manual mode: select sections
-	sectionOpts := []string{
-		"Recall — auto-recall past memories",
-		"Remember — what/when to remember",
-		"Delegation — sub-agent memory writes",
-	}
-	sectionDefs := []bool{true, true, true}
-	choices := setup.SelectMulti("Select guidance sections", sectionOpts, sectionDefs)
-
-	var sections []string
-	if choices[0] {
-		sections = append(sections, "recall")
-	}
-	if choices[1] {
-		sections = append(sections, "remember")
-	}
-	if choices[2] {
-		sections = append(sections, "delegation")
-	}
-	cfg.Prime.Sections = sections
-
-	// Remember types
-	if choices[1] {
-		cfg.Prime.RememberText = configureRememberTypes()
-	}
-
-	// Delegation model (Claude Code only — OpenClaw uses direct CLI)
-	if choices[2] && target == "claude-code" {
-		models := []string{"sonnet", "haiku", "opus"}
-		idx := setup.SelectOne("Delegation model",
-			[]string{"sonnet (recommended)", "haiku (fastest, cheapest)", "opus (most capable)"}, 0)
-		cfg.Prime.DelegationModel = models[idx]
-	}
-
-	// Custom guidance
-	if setup.Confirm("Add custom guidance text?", false) {
-		cfg.Prime.Custom = setup.ReadMultiLine("Enter custom guidance (blank line to finish):")
-	}
-
-	return cfg
-}
-
-// configureRememberTypes lets user select which memory types to include.
-// Returns the composed remember section text, or "" to use the default.
-func configureRememberTypes() string {
-	types := setup.DefaultRememberTypes()
-
-	options := make([]string, len(types)+1)
-	defaults := make([]bool, len(types)+1)
-	for i, t := range types {
-		options[i] = t.Name + " (" + t.Detail + ")"
-		defaults[i] = true
-	}
-	options[len(types)] = "Custom — add your own type"
-	defaults[len(types)] = false
-
-	choices := setup.SelectMulti("Select memory types", options, defaults)
-
-	var customType string
-	if choices[len(types)] {
-		name := setup.ReadLine("Type name: ")
-		if name != "" {
-			detail := setup.ReadLine("Examples: ")
-			if detail != "" {
-				customType = fmt.Sprintf("**%s** (%s)", name, detail)
-			} else {
-				customType = fmt.Sprintf("**%s**", name)
-			}
-		}
-	}
-
-	composed := setup.ComposeRememberSection(types, choices[:len(types)], customType)
-	if composed == "" {
-		return ""
-	}
-
-	// If all defaults selected and no custom type, return "" to use the default
-	allDefault := choices[0] && choices[1] && choices[2] && customType == ""
-	if allDefault {
-		return ""
-	}
-	return composed
 }
 
 // selectOptionalHooks prompts user for which optional hooks to enable.
@@ -349,7 +244,7 @@ func selectOptionalHooks() setup.HookSelection {
 	}
 
 	opts := []string{
-		"Recall  — auto-recall memories on each message (recommended)",
+		"Recall  — prompt AI to evaluate recall/remember on each message (recommended)",
 		"Nudge   — remind about memory on session end",
 		"Compact — save key insights before context compaction",
 	}
@@ -385,19 +280,14 @@ func installOpenClaw(env *setup.Environment) error {
 		setup.StatusOK(0, 0, "Plugin", path)
 	}
 
-	// Phase 2: Prime (mandatory)
-	fmt.Println("\n[2/3] Prime — session start guidance (required)")
-	cfg := configurePrimeConfig("openclaw")
-	if err := config.Save(dataDir, cfg); err != nil {
-		setup.StatusError(0, 0, "Config", err)
+	// Phase 2: Prompt files (guide.md + skill.md → ~/.mnemon/prompt/)
+	fmt.Println("\n[2/3] Prompts")
+	if path, err := setup.WritePromptFiles(); err != nil {
+		setup.StatusError(0, 0, "Prompts", err)
 		return err
+	} else {
+		setup.StatusOK(0, 0, "Prompts", path)
 	}
-
-	secNames := strings.Join(cfg.Prime.Sections, ", ")
-	if secNames == "" {
-		secNames = "none"
-	}
-	setup.StatusOK(0, 0, "Config", fmt.Sprintf("%s sections", secNames))
 
 	// Phase 3: Optional hooks
 	fmt.Println("\n[3/3] Optional hooks")
@@ -431,10 +321,11 @@ func installOpenClaw(env *setup.Environment) error {
 	}
 	fmt.Println()
 	fmt.Println("Setup complete!")
-	fmt.Printf("  Hooks  %s\n", strings.Join(hookNames, ", "))
-	fmt.Printf("  Config %s sections\n", secNames)
+	fmt.Printf("  Hooks   %s\n", strings.Join(hookNames, ", "))
+	fmt.Printf("  Prompts ~/.mnemon/prompt/ (guide.md, skill.md)\n")
 	fmt.Println()
 	fmt.Println("Start a new OpenClaw session to activate.")
+	fmt.Println("Edit ~/.mnemon/prompt/guide.md to customize behavior.")
 	fmt.Println("Run 'mnemon setup --eject' to remove.")
 
 	return nil

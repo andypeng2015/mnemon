@@ -179,13 +179,26 @@ func GenerateOpenClawPlugin(sel HookSelection) []byte {
 	// Imports
 	b.WriteString("import type { OpenClawPluginDefinition } from \"openclaw/plugin-sdk\";\n")
 	b.WriteString("import { emptyPluginConfigSchema } from \"openclaw/plugin-sdk\";\n")
-	b.WriteString("import { execSync } from \"child_process\";\n\n")
+	b.WriteString("import { execSync } from \"child_process\";\n")
+	b.WriteString("import { readFileSync } from \"fs\";\n")
+	b.WriteString("import { join } from \"path\";\n")
+	b.WriteString("import { homedir } from \"os\";\n\n")
 
 	// Helpers
-	b.WriteString("const TIMEOUT = 5000;\n\n")
+	b.WriteString("const TIMEOUT = 5000;\n")
+	b.WriteString("const GUIDE_PATH = join(homedir(), \".mnemon\", \"prompt\", \"guide.md\");\n\n")
+
 	b.WriteString("function run(cmd: string): string {\n")
 	b.WriteString("  try {\n")
 	b.WriteString("    return execSync(cmd, { timeout: TIMEOUT, encoding: \"utf-8\" }).trim();\n")
+	b.WriteString("  } catch {\n")
+	b.WriteString("    return \"\";\n")
+	b.WriteString("  }\n")
+	b.WriteString("}\n")
+
+	b.WriteString("\nfunction readGuide(): string {\n")
+	b.WriteString("  try {\n")
+	b.WriteString("    return readFileSync(GUIDE_PATH, \"utf-8\").trim();\n")
 	b.WriteString("  } catch {\n")
 	b.WriteString("    return \"\";\n")
 	b.WriteString("  }\n")
@@ -205,12 +218,12 @@ func GenerateOpenClawPlugin(sel HookSelection) []byte {
 	b.WriteString("  configSchema: emptyPluginConfigSchema(),\n")
 	b.WriteString("  register(api) {\n")
 
-	// before_agent_start — prime guidance + optional recall
-	b.WriteString("    // Prime guidance + auto-recall before each agent run\n")
+	// before_agent_start — guide + optional recall
+	b.WriteString("    // Memory guidance + auto-recall before each agent run\n")
 	b.WriteString("    api.on(\"before_agent_start\", (event) => {\n")
-	b.WriteString("      const parts: string[] = [];\n")
-	b.WriteString("      const prime = run(\"mnemon prime --target openclaw --status\");\n")
-	b.WriteString("      if (prime) parts.push(prime);\n")
+	b.WriteString("      const parts: string[] = [\"[mnemon] Memory active\"];\n")
+	b.WriteString("      const guide = readGuide();\n")
+	b.WriteString("      if (guide) parts.push(guide);\n")
 
 	if sel.Recall {
 		b.WriteString("      if (event.prompt && event.prompt.length >= 5) {\n")
@@ -222,7 +235,7 @@ func GenerateOpenClawPlugin(sel HookSelection) []byte {
 	}
 
 	b.WriteString("      if (parts.length > 0) {\n")
-	b.WriteString("        return { prependContext: parts.join(\"\\n\\n\") };\n")
+	b.WriteString("        return { systemPrompt: parts.join(\"\\n\\n\") };\n")
 	b.WriteString("      }\n")
 	b.WriteString("    });\n")
 
@@ -239,9 +252,9 @@ func GenerateOpenClawPlugin(sel HookSelection) []byte {
 
 	// before_compaction — compact
 	if sel.Compact {
-		b.WriteString("\n    // Save key insights before context compaction\n")
+		b.WriteString("\n    // Remind to save key insights before context compaction\n")
 		b.WriteString("    api.on(\"before_compaction\", () => {\n")
-		b.WriteString("      run(\"mnemon prime --target openclaw --status\");\n")
+		b.WriteString("      return { systemPrompt: \"[mnemon] Context compaction starting. Save valuable insights before context is compressed.\" };\n")
 		b.WriteString("    });\n")
 	}
 

@@ -11,9 +11,33 @@ import (
 // HookSelection describes which optional hooks to install.
 // Prime is always installed (mandatory).
 type HookSelection struct {
-	Recall  bool // UserPromptSubmit — auto-recall memories
+	Recall  bool // UserPromptSubmit — prompt AI to evaluate recall/remember
 	Nudge   bool // Stop — remind about memory on session end
 	Compact bool // PreCompact — save insights before context compaction
+}
+
+// WritePromptFiles writes guide.md and skill.md to ~/.mnemon/prompt/.
+func WritePromptFiles() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	promptDir := filepath.Join(home, ".mnemon", "prompt")
+	if err := os.MkdirAll(promptDir, 0755); err != nil {
+		return "", err
+	}
+
+	guidePath := filepath.Join(promptDir, "guide.md")
+	if err := os.WriteFile(guidePath, assets.ClaudeGuide, 0644); err != nil {
+		return "", err
+	}
+
+	skillPath := filepath.Join(promptDir, "skill.md")
+	if err := os.WriteFile(skillPath, assets.ClaudeSkill, 0644); err != nil {
+		return "", err
+	}
+
+	return promptDir, nil
 }
 
 // ClaudeWriteSkill writes the mnemon skill to the config dir.

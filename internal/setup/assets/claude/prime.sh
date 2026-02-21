@@ -1,2 +1,5 @@
 #!/bin/bash
-mnemon prime --status 2>/dev/null
+PROMPT_DIR="${HOME}/.mnemon/prompt"
+
+echo "[mnemon] Memory active"
+[ -f "${PROMPT_DIR}/guide.md" ] && cat "${PROMPT_DIR}/guide.md"
