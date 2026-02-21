@@ -11,7 +11,7 @@ import (
 // HookSelection describes which optional hooks to install.
 // Prime is always installed (mandatory).
 type HookSelection struct {
-	Recall  bool // UserPromptSubmit — prompt AI to evaluate recall/remember
+	Remind  bool // UserPromptSubmit — remind agent to evaluate recall/remember
 	Nudge   bool // Stop — remind about memory on session end
 	Compact bool // PreCompact — save insights before context compaction
 }

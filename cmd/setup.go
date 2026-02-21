@@ -182,11 +182,11 @@ func installClaudeCode(env *setup.Environment) error {
 	fmt.Println("\n[3/3] Optional hooks")
 	sel := selectOptionalHooks()
 
-	if sel.Recall {
+	if sel.Remind {
 		if path, err := setup.ClaudeWriteHook(configDir, "user_prompt.sh", assets.ClaudeUserPromptHook); err != nil {
-			setup.StatusError(0, 0, "Hook: recall", err)
+			setup.StatusError(0, 0, "Hook: remind", err)
 		} else {
-			setup.StatusOK(0, 0, "Hook: recall", path)
+			setup.StatusOK(0, 0, "Hook: remind", path)
 		}
 	}
 	if sel.Nudge {
@@ -214,8 +214,8 @@ func installClaudeCode(env *setup.Environment) error {
 	// Summary
 	var hookNames []string
 	hookNames = append(hookNames, "prime")
-	if sel.Recall {
-		hookNames = append(hookNames, "recall")
+	if sel.Remind {
+		hookNames = append(hookNames, "remind")
 	}
 	if sel.Nudge {
 		hookNames = append(hookNames, "nudge")
@@ -237,21 +237,21 @@ func installClaudeCode(env *setup.Environment) error {
 
 // selectOptionalHooks prompts user for which optional hooks to enable.
 func selectOptionalHooks() setup.HookSelection {
-	sel := setup.HookSelection{Recall: true, Nudge: true, Compact: false}
+	sel := setup.HookSelection{Remind: true, Nudge: true, Compact: false}
 
 	if setupYes || !setup.IsInteractive() {
 		return sel
 	}
 
 	opts := []string{
-		"Recall  — prompt AI to evaluate recall/remember on each message (recommended)",
+		"Remind  — remind agent to recall & remember on each message (recommended)",
 		"Nudge   — remind about memory on session end",
 		"Compact — save key insights before context compaction",
 	}
 	defs := []bool{true, true, false}
 	choices := setup.SelectMulti("Select hooks to enable", opts, defs)
 
-	sel.Recall = choices[0]
+	sel.Remind = choices[0]
 	sel.Nudge = choices[1]
 	sel.Compact = choices[2]
 	return sel

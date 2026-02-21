@@ -258,7 +258,6 @@ make install        # 构建 + 安装到 $GOBIN
 make test           # 运行 E2E 测试套件
 mnemon setup        # 交互式设置（检测环境 + 部署钩子/技能/引导）
 mnemon setup --eject  # 移除所有集成
-make sync-assets    # 同步源文件到嵌入资产（开发用）
 make help           # 显示所有目标
 ```
 

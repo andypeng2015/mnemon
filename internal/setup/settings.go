@@ -196,7 +196,7 @@ func removeIfEmpty(dir string) {
 }
 
 // addClaudeHooksSelective idempotently sets mnemon hooks in Claude Code settings.
-// Prime (SessionStart) is always registered; Recall and Nudge are conditional.
+// Prime (SessionStart) is always registered; Remind and Nudge are conditional.
 func addClaudeHooksSelective(data map[string]interface{}, hooksDir string, sel HookSelection) {
 	RemoveClaudeHooks(data)
 	hooks := ensureHooksMap(data)
@@ -213,9 +213,9 @@ func addClaudeHooksSelective(data map[string]interface{}, hooksDir string, sel H
 	sessionArr, _ := hooks["SessionStart"].([]interface{})
 	hooks["SessionStart"] = append(sessionArr, primeEntry)
 
-	// UserPromptSubmit (recall) — optional
-	if sel.Recall {
-		recallEntry := map[string]interface{}{
+	// UserPromptSubmit (remind) — optional
+	if sel.Remind {
+		remindEntry := map[string]interface{}{
 			"hooks": []interface{}{
 				map[string]interface{}{
 					"type":    "command",
@@ -224,7 +224,7 @@ func addClaudeHooksSelective(data map[string]interface{}, hooksDir string, sel H
 			},
 		}
 		arr, _ := hooks["UserPromptSubmit"].([]interface{})
-		hooks["UserPromptSubmit"] = append(arr, recallEntry)
+		hooks["UserPromptSubmit"] = append(arr, remindEntry)
 	}
 
 	// Stop (nudge) — optional

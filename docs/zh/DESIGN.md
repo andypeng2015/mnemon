@@ -110,7 +110,7 @@ Mnemon 采用 **LLM-Supervised** 模式：
 | 游戏引擎（Unity/Unreal） | LLM CLI（Claude Code/Cursor） | 宿主环境 |
 | 原生插件（C++ Plugin） | Binary 工具 | `mnemon` 二进制 |
 | 脚本/蓝图（C#/Blueprint） | Skill（.md 定义） | `SKILL.md` 命令参考 |
-| Gameplay 逻辑 | Agent 行为配置 | `CLAUDE.md` 行为引导 |
+| Gameplay 逻辑 | Agent 行为配置 | `guide.md` 执行手册 |
 
 - **Binary = Organ（器官）**——能不能做。封装存储、图遍历、生命周期管理等确定性能力
 - **Skill（.md）= Textbook（教材）**——怎么做。教 LLM 何时检索记忆、如何判断去重、怎样调用命令
@@ -303,16 +303,10 @@ mnemon/
 │           └── openclaw/      # OpenClaw 资产
 │               └── SKILL.md
 ├── scripts/
-│   ├── hooks/                 # 钩子脚本源文件
-│   │   ├── prime.sh           # SessionStart：健康检查 + 加载引导
-│   │   ├── user_prompt.sh     # UserPromptSubmit：自动召回记忆
-│   │   ├── stop.sh            # Stop：记忆提醒
-│   │   └── compact.sh         # PreCompact：压缩前保存洞察
 │   └── e2e_test.sh            # 端到端测试套件
-├── skills/mnemon/SKILL.md     # 命令参考（Skill 格式）
 ├── main.go                    # 入口
 ├── CLAUDE.md                  # 项目级开发指南
-└── Makefile                   # 构建、安装、资产同步
+└── Makefile                   # 构建、安装、测试
 ```
 
 ---
@@ -464,7 +458,7 @@ BEGIN TRANSACTION
   ① INSERT insight（UUID, content, category, importance, tags, entities, source）
   ② UPDATE embedding（如果有向量）
   ③ Graph Engine: OnInsightCreated
-     ├── CreateTemporalEdges   → backbone + 24h proximity
+     ├── CreateTemporalEdge    → backbone + 24h proximity
      ├── CreateEntityEdges     → regex + 词典提取 → 共现链接
      ├── CreateCausalEdges     → 关键词 + token 重叠 → 自动因果边
      └── CreateSemanticEdges   → cos ≥ 0.80 自动链接
@@ -857,8 +851,7 @@ echo "[mnemon] Consider: does this exchange warrant a remember sub-agent?"
 上下文窗口压缩前触发。指示 agent 提取最关键的洞察并 remember，防止上下文丢失：
 
 ```bash
-echo "[mnemon] Context compaction starting. Review this session and remember
-the most valuable insights (up to 5) before context is compressed."
+echo "[mnemon] Context compaction starting. Review this session and remember the most valuable insights (up to 5) before context is compressed. Delegate to Task sub-agents now."
 ```
 
 ### 11.3 自动化 Setup

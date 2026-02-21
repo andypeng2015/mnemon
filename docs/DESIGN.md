@@ -110,7 +110,7 @@ This philosophy can be understood through a game development analogy:
 | Game engine (Unity/Unreal) | LLM CLI (Claude Code/Cursor) | Host environment |
 | Native plugin (C++ Plugin) | Binary tool | `mnemon` binary |
 | Script/Blueprint (C#/Blueprint) | Skill (.md definition) | `SKILL.md` command reference |
-| Gameplay logic | Agent behavior config | `CLAUDE.md` behavior guidance |
+| Gameplay logic | Agent behavior config | `guide.md` execution manual |
 
 - **Binary = Organ** — defines what *can* be done. Encapsulates storage, graph traversal, lifecycle management, and other deterministic capabilities
 - **Skill (.md) = Textbook** — defines *how* to do it. Teaches the LLM when to retrieve memories, how to judge deduplication, and which commands to invoke
@@ -303,16 +303,10 @@ mnemon/
 │           └── openclaw/      # OpenClaw assets
 │               └── SKILL.md
 ├── scripts/
-│   ├── hooks/                 # Source-of-truth hook scripts
-│   │   ├── prime.sh           # SessionStart: health check + load guide
-│   │   ├── user_prompt.sh     # UserPromptSubmit: auto-recall memories
-│   │   ├── stop.sh            # Stop: memory reminder
-│   │   └── compact.sh         # PreCompact: save insights before compression
 │   └── e2e_test.sh            # End-to-end test suite
-├── skills/mnemon/SKILL.md     # Command reference (Skill format)
 ├── main.go                    # Entry point
 ├── CLAUDE.md                  # Project-level development guidelines
-└── Makefile                   # Build, install, asset sync
+└── Makefile                   # Build, install, test
 ```
 
 ---
@@ -464,7 +458,7 @@ BEGIN TRANSACTION
   ① INSERT insight (UUID, content, category, importance, tags, entities, source)
   ② UPDATE embedding (if vector is available)
   ③ Graph Engine: OnInsightCreated
-     ├── CreateTemporalEdges   → backbone + 24h proximity
+     ├── CreateTemporalEdge    → backbone + 24h proximity
      ├── CreateEntityEdges     → regex + dictionary extraction → co-occurrence links
      ├── CreateCausalEdges     → keywords + token overlap → auto causal edges
      └── CreateSemanticEdges   → cos >= 0.80 auto-link
@@ -857,8 +851,7 @@ echo "[mnemon] Consider: does this exchange warrant a remember sub-agent?"
 Fires before context window compression. Instructs the agent to extract the most critical insights and remember them before context is lost:
 
 ```bash
-echo "[mnemon] Context compaction starting. Review this session and remember
-the most valuable insights (up to 5) before context is compressed."
+echo "[mnemon] Context compaction starting. Review this session and remember the most valuable insights (up to 5) before context is compressed. Delegate to Task sub-agents now."
 ```
 
 ### 11.3 Automated Setup
