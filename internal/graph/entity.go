@@ -2,6 +2,7 @@ package graph
 
 import (
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mnemon-dev/mnemon/internal/model"
@@ -116,25 +117,11 @@ func ExtractEntities(text string) []string {
 	return entities
 }
 
-// splitWords splits text into words preserving original casing.
-// Iterates over runes (not bytes) for correct multi-byte character handling.
+// splitWords splits text into ASCII-alphanumeric words preserving original casing.
 func splitWords(text string) []string {
-	var words []string
-	var word []rune
-	for _, r := range text {
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			word = append(word, r)
-		} else {
-			if len(word) > 0 {
-				words = append(words, string(word))
-				word = word[:0]
-			}
-		}
-	}
-	if len(word) > 0 {
-		words = append(words, string(word))
-	}
-	return words
+	return strings.FieldsFunc(text, func(r rune) bool {
+		return !(r >= 'a' && r <= 'z') && !(r >= 'A' && r <= 'Z') && !(r >= '0' && r <= '9')
+	})
 }
 
 // mergeEntities deduplicates and merges pre-provided entities (e.g. LLM-extracted)
