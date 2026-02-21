@@ -90,7 +90,7 @@ You don't run mnemon commands yourself. The agent does — driven by hooks and g
 - **Four-graph architecture** — temporal, entity, causal, and semantic edges, not just vector similarity
 - **Built-in deduplication** — duplicates are skipped, conflicts auto-replaced
 - **Retention lifecycle** — importance decay, access-count boosting, and garbage collection
-- **Optional embeddings** — local [Ollama](https://ollama.ai) with `nomic-embed-text` for hybrid vector+keyword search
+- **Optional embeddings** — works fully without Ollama; add local [Ollama](https://ollama.ai) for enhanced vector+keyword hybrid search
 
 ## Vision
 
@@ -122,11 +122,64 @@ Edit `~/.mnemon/prompt/guide.md`. This file controls when the agent recalls memo
 **What is sub-agent delegation?**
 Memory writes don't happen in the main conversation. The host LLM (e.g., Opus) decides *what* to remember, then delegates the actual `mnemon remember` execution to a lightweight sub-agent (e.g., Sonnet). This saves tokens and keeps memory operations out of the main context.
 
+## Embedding Support (Optional)
+
+Mnemon works fully without Ollama — all core features (remember, recall, link, graph traversal) function out of the box. Adding Ollama enhances recall precision through vector similarity, but is never required.
+
+### What changes with and without embeddings
+
+| Capability | Without Ollama | With Ollama |
+|---|---|---|
+| **Recall anchors** | Keyword + recency | Keyword + vector + recency (RRF hybrid) |
+| **Semantic edges** | Token overlap (coarser) | Cosine similarity ≥ 0.50 (precise) |
+| **Traversal scoring** | Pure structural | Structural + semantic |
+| **Rerank weights** | Keyword 45%, Entity 25%, Graph 30% | Keyword 30%, Entity 15%, Similarity 35%, Graph 20% |
+
+When Ollama is unavailable, the reranking system automatically redistributes similarity weight to keyword and graph signals — no configuration needed, no degraded mode flag. The system detects Ollama availability at runtime with a 2-second timeout.
+
+### Setup
+
+```bash
+brew install ollama              # or see https://ollama.ai
+ollama pull nomic-embed-text     # download the embedding model
+```
+
+Verify with:
+
+```bash
+mnemon embed --status
+```
+
+```json
+{
+  "total_insights": 87,
+  "embedded": 87,
+  "coverage": "100%",
+  "ollama_available": true,
+  "model": "nomic-embed-text"
+}
+```
+
+### Backfilling existing insights
+
+If you install Ollama after already using mnemon, existing insights won't have embeddings. Backfill them in one command:
+
+```bash
+mnemon embed --all
+```
+
+This generates embeddings for all un-embedded insights and automatically creates semantic edges. You can check coverage before and after with `mnemon embed --status`.
+
 ## Configuration
 
 | Environment Variable | Default | Description |
-|---------------------|---------|-------------|
+|---|---|---|
 | `MNEMON_DATA_DIR` | `~/.mnemon` | Database directory |
+
+**Ollama-specific** (only relevant if using embeddings):
+
+| Environment Variable | Default | Description |
+|---|---|---|
 | `MNEMON_EMBED_ENDPOINT` | `http://localhost:11434` | Ollama API endpoint |
 | `MNEMON_EMBED_MODEL` | `nomic-embed-text` | Embedding model name |
 
