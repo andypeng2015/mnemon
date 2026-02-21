@@ -1,6 +1,7 @@
 package search
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -419,5 +420,113 @@ func TestDiff_EmbeddingOnlyMatches(t *testing.T) {
 	}
 	if !found {
 		t.Error("embedding-only match with high cosine should be detected")
+	}
+}
+
+// --- beamSearchFromAnchor ---
+
+func TestBeamSearchFromAnchor_ScorePropagation(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// Graph: anchor --semantic(w=0.9)--> neighbor
+	insertInsight(t, db, "bs-1", "anchor node", "user", 3, nil, now)
+	insertInsight(t, db, "bs-2", "neighbor node", "user", 3, nil, now)
+	db.InsertEdge(&model.Edge{SourceID: "bs-1", TargetID: "bs-2", EdgeType: model.EdgeSemantic, Weight: 0.9, Metadata: map[string]string{}, CreatedAt: now})
+
+	scoreMap := make(map[string]float64)
+	viaMap := make(map[string]string)
+	insightMap := make(map[string]*model.Insight)
+
+	weights := GetWeights(IntentGeneral)
+	params := TraversalParams{BeamWidth: 10, MaxDepth: 3, MaxVisited: 100}
+
+	scoreMap["bs-1"] = 1.0
+	beamSearchFromAnchor(db, "bs-1", 1.0, nil, weights, params, scoreMap, viaMap, insightMap, nil)
+
+	// Neighbor should be discovered with score > 0
+	if _, ok := scoreMap["bs-2"]; !ok {
+		t.Fatal("beam search should discover neighbor bs-2")
+	}
+	if scoreMap["bs-2"] <= 0 {
+		t.Errorf("neighbor score should be positive, got %f", scoreMap["bs-2"])
+	}
+	// Score should be: startScore + lambda1 * weights[semantic] * edge_weight
+	expectedMin := 1.0 + lambda1*weights[model.EdgeSemantic]*0.9
+	if scoreMap["bs-2"] < expectedMin-0.01 {
+		t.Errorf("neighbor score %f < expected minimum %f", scoreMap["bs-2"], expectedMin)
+	}
+}
+
+func TestBeamSearchFromAnchor_BeamWidthPruning(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// Star graph: center connected to 20 leaves, leaves connected to a second layer
+	insertInsight(t, db, "bw-center", "center", "user", 3, nil, now)
+	for i := 0; i < 20; i++ {
+		leafID := fmt.Sprintf("bw-leaf-%d", i)
+		insertInsight(t, db, leafID, fmt.Sprintf("leaf %d content", i), "user", 3, nil, now)
+		db.InsertEdge(&model.Edge{SourceID: "bw-center", TargetID: leafID, EdgeType: model.EdgeSemantic, Weight: float64(20-i) * 0.05, Metadata: map[string]string{}, CreatedAt: now})
+
+		// Second layer: each leaf connects to a unique deep node
+		deepID := fmt.Sprintf("bw-deep-%d", i)
+		insertInsight(t, db, deepID, fmt.Sprintf("deep %d content", i), "user", 3, nil, now)
+		db.InsertEdge(&model.Edge{SourceID: leafID, TargetID: deepID, EdgeType: model.EdgeSemantic, Weight: 0.5, Metadata: map[string]string{}, CreatedAt: now})
+	}
+
+	scoreMap := make(map[string]float64)
+	viaMap := make(map[string]string)
+	insightMap := make(map[string]*model.Insight)
+
+	weights := GetWeights(IntentGeneral)
+	// BeamWidth=3: only top 3 leaves should be expanded to the deep layer
+	params := TraversalParams{BeamWidth: 3, MaxDepth: 3, MaxVisited: 500}
+
+	scoreMap["bw-center"] = 1.0
+	beamSearchFromAnchor(db, "bw-center", 1.0, nil, weights, params, scoreMap, viaMap, insightMap, nil)
+
+	// Count deep nodes discovered — should be limited by beam width
+	deepCount := 0
+	for id := range scoreMap {
+		if len(id) > 7 && id[:7] == "bw-deep" {
+			deepCount++
+		}
+	}
+	// With beam width 3, at most 3 leaves expand → at most 3 deep nodes
+	if deepCount > 3 {
+		t.Errorf("beam width 3: want at most 3 deep nodes, got %d", deepCount)
+	}
+}
+
+func TestBeamSearchFromAnchor_MaxVisitedBudget(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// Chain: n0 → n1 → n2 → ... → n20
+	for i := 0; i <= 20; i++ {
+		id := fmt.Sprintf("mv-%d", i)
+		insertInsight(t, db, id, fmt.Sprintf("node %d", i), "user", 3, nil, now)
+		if i > 0 {
+			prev := fmt.Sprintf("mv-%d", i-1)
+			db.InsertEdge(&model.Edge{SourceID: prev, TargetID: id, EdgeType: model.EdgeTemporal, Weight: 1.0, Metadata: map[string]string{}, CreatedAt: now})
+		}
+	}
+
+	scoreMap := make(map[string]float64)
+	viaMap := make(map[string]string)
+	insightMap := make(map[string]*model.Insight)
+
+	weights := GetWeights(IntentGeneral)
+	// MaxVisited=5: should stop after visiting 5 nodes total (including start)
+	params := TraversalParams{BeamWidth: 10, MaxDepth: 20, MaxVisited: 5}
+
+	scoreMap["mv-0"] = 1.0
+	beamSearchFromAnchor(db, "mv-0", 1.0, nil, weights, params, scoreMap, viaMap, insightMap, nil)
+
+	// scoreMap includes the anchor itself, so discovered nodes (excluding anchor) should be <= 4
+	discovered := len(scoreMap) - 1 // subtract anchor
+	if discovered > 4 {
+		t.Errorf("MaxVisited=5: want at most 4 discovered nodes, got %d", discovered)
 	}
 }

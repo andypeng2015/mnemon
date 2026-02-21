@@ -1,6 +1,7 @@
 package graph
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -787,5 +788,112 @@ func TestCreateSemanticEdges_NilCacheFallback(t *testing.T) {
 	count := CreateSemanticEdges(db, ins2, nil)
 	if count == 0 {
 		t.Error("want semantic edges via DB fallback")
+	}
+}
+
+// --- BFS direct tests ---
+
+func TestBFS_EdgeFilter(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// Graph: A --semantic--> B --temporal--> C
+	insertInsight(t, db, "bf-A", "node A", "user", 3, nil, now)
+	insertInsight(t, db, "bf-B", "node B", "user", 3, nil, now)
+	insertInsight(t, db, "bf-C", "node C", "user", 3, nil, now)
+
+	db.InsertEdge(&model.Edge{SourceID: "bf-A", TargetID: "bf-B", EdgeType: model.EdgeSemantic, Weight: 0.9, Metadata: map[string]string{}, CreatedAt: now})
+	db.InsertEdge(&model.Edge{SourceID: "bf-B", TargetID: "bf-C", EdgeType: model.EdgeTemporal, Weight: 1.0, Metadata: map[string]string{}, CreatedAt: now})
+
+	// Filter to semantic only: should reach B but NOT C (temporal edge blocked)
+	nodes := BFS(db, "bf-A", BFSOptions{MaxDepth: 3, EdgeFilter: model.EdgeSemantic})
+	ids := make(map[string]bool)
+	for _, n := range nodes {
+		ids[n.Insight.ID] = true
+	}
+	if !ids["bf-B"] {
+		t.Error("EdgeFilter=semantic: should reach bf-B via semantic edge")
+	}
+	if ids["bf-C"] {
+		t.Error("EdgeFilter=semantic: should NOT reach bf-C (only reachable via temporal edge)")
+	}
+
+	// Filter to temporal only: should NOT reach B from A (semantic edge blocked)
+	nodes2 := BFS(db, "bf-A", BFSOptions{MaxDepth: 3, EdgeFilter: model.EdgeTemporal})
+	if len(nodes2) != 0 {
+		t.Errorf("EdgeFilter=temporal from bf-A: want 0 nodes, got %d", len(nodes2))
+	}
+
+	// No filter: should reach both B and C
+	nodesAll := BFS(db, "bf-A", BFSOptions{MaxDepth: 3})
+	if len(nodesAll) != 2 {
+		t.Errorf("no EdgeFilter: want 2 nodes (B,C), got %d", len(nodesAll))
+	}
+}
+
+func TestBFS_BidirectionalTraversal(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// Edge direction: A → B, but BFS should traverse both directions
+	insertInsight(t, db, "bd-A", "node A", "user", 3, nil, now)
+	insertInsight(t, db, "bd-B", "node B", "user", 3, nil, now)
+
+	db.InsertEdge(&model.Edge{SourceID: "bd-A", TargetID: "bd-B", EdgeType: model.EdgeCausal, Weight: 0.5, Metadata: map[string]string{}, CreatedAt: now})
+
+	// Starting from B, should reach A via reverse traversal
+	nodes := BFS(db, "bd-B", BFSOptions{MaxDepth: 2})
+	if len(nodes) != 1 || nodes[0].Insight.ID != "bd-A" {
+		t.Errorf("reverse traversal from bd-B: want [bd-A], got %v", nodes)
+	}
+}
+
+func TestBFS_ExcludesStartNode(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	insertInsight(t, db, "ex-A", "start", "user", 3, nil, now)
+	insertInsight(t, db, "ex-B", "neighbor", "user", 3, nil, now)
+	db.InsertEdge(&model.Edge{SourceID: "ex-A", TargetID: "ex-B", EdgeType: model.EdgeSemantic, Weight: 1.0, Metadata: map[string]string{}, CreatedAt: now})
+
+	nodes := BFS(db, "ex-A", BFSOptions{MaxDepth: 2})
+	for _, n := range nodes {
+		if n.Insight.ID == "ex-A" {
+			t.Error("start node should be excluded from BFS results")
+		}
+	}
+}
+
+// --- CreateEntityEdges: maxTotalEntityEdges cap ---
+
+func TestCreateEntityEdges_TotalEdgeCap(t *testing.T) {
+	db := testDB(t)
+	now := time.Now().UTC()
+
+	// Create many entities, each shared with multiple existing insights,
+	// to trigger the maxTotalEntityEdges (50) global cap.
+	// We need: enough entities × enough targets per entity > 50 edges.
+	// Use 15 entities, each shared by 5 existing insights = potential 150 edges (bidirectional).
+	entities := make([]string, 15)
+	for i := range entities {
+		entities[i] = "Entity" + string(rune('A'+i))
+	}
+
+	// Insert 5 existing insights, each having all 15 entities
+	for i := 0; i < 5; i++ {
+		id := fmt.Sprintf("cap-%d", i)
+		insertInsight(t, db, id, "content "+id, "user", 3, entities, now.Add(-time.Duration(i+1)*time.Hour))
+	}
+
+	// New insight with all 15 entities
+	ins := insertInsight(t, db, "cap-new", "new insight with many entities", "user", 3, entities, now)
+
+	count := CreateEntityEdges(db, ins)
+	if count > maxTotalEntityEdges {
+		t.Errorf("total entity edges should be capped at %d, got %d", maxTotalEntityEdges, count)
+	}
+	// Should have created some edges (not zero)
+	if count == 0 {
+		t.Error("want at least some entity edges")
 	}
 }
