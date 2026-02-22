@@ -104,6 +104,99 @@ Adapt the mount syntax to match the existing pattern in `container-runner.ts` (i
 
 **Important**: The `mkdirSync` call ensures the per-group mnemon directory exists on the host before the container starts, preventing mount failures.
 
+### 2d. Add lifecycle hook scripts
+
+Create `container/hooks/mnemon/` with four shell scripts. These run inside the container at Claude Code lifecycle events to actively drive memory operations.
+
+**File**: `container/hooks/mnemon/prime.sh`
+
+```bash
+#!/bin/bash
+# mnemon SessionStart hook — report memory stats on session init.
+STATS=$(mnemon status 2>/dev/null)
+if [ -n "$STATS" ]; then
+  INSIGHTS=$(echo "$STATS" | sed -n 's/.*"total_insights": *\([0-9]*\).*/\1/p' | head -1)
+  EDGES=$(echo "$STATS" | sed -n 's/.*"edge_count": *\([0-9]*\).*/\1/p' | head -1)
+  echo "[mnemon] Memory active (${INSIGHTS:-0} insights, ${EDGES:-0} edges)."
+else
+  echo "[mnemon] Memory active."
+fi
+```
+
+**File**: `container/hooks/mnemon/user_prompt.sh`
+
+```bash
+#!/bin/bash
+# mnemon UserPromptSubmit hook — remind agent to evaluate recall/remember.
+echo "[mnemon] Evaluate: recall needed? After responding, evaluate: remember needed?"
+```
+
+**File**: `container/hooks/mnemon/stop.sh`
+
+```bash
+#!/bin/bash
+# mnemon Stop hook — remind agent to consider remember after responding.
+INPUT=$(cat)
+MSG=$(echo "$INPUT" | jq -r '.last_assistant_message // ""' 2>/dev/null)
+if echo "$MSG" | grep -qiE "mnemon remember|sub-agent.*remember|Stored.*imp="; then
+  exit 0
+fi
+echo "[mnemon] Consider: does this exchange warrant a remember sub-agent?"
+```
+
+**File**: `container/hooks/mnemon/compact.sh`
+
+```bash
+#!/bin/bash
+# mnemon PreCompact hook — save key insights before context compaction.
+echo "[mnemon] Context compaction starting. Review this session and remember the most valuable insights (up to 5) before context is compressed. Delegate to Task sub-agents now."
+```
+
+Make all scripts executable: `chmod +x container/hooks/mnemon/*.sh`
+
+### 2e. Copy hooks into container and register in settings.json
+
+**File**: `container/Dockerfile`
+
+Add after the mnemon binary install block:
+
+```dockerfile
+# Copy mnemon hook scripts
+COPY hooks/mnemon/ /app/hooks/mnemon/
+RUN chmod +x /app/hooks/mnemon/*.sh
+```
+
+**File**: `src/container-runner.ts`
+
+In the block where `settings.json` is created for each group session (look for `writeFileSync` with `settings.json`), merge mnemon hooks into the settings object:
+
+```typescript
+// Register mnemon lifecycle hooks
+const mnemonHooks = {
+  SessionStart: [{
+    hooks: [{ type: 'command', command: '/app/hooks/mnemon/prime.sh' }]
+  }],
+  UserPromptSubmit: [{
+    hooks: [{ type: 'command', command: '/app/hooks/mnemon/user_prompt.sh' }]
+  }],
+  Stop: [{
+    hooks: [{ type: 'command', command: '/app/hooks/mnemon/stop.sh' }]
+  }],
+  PreCompact: [{
+    hooks: [{ type: 'command', command: '/app/hooks/mnemon/compact.sh' }]
+  }],
+};
+
+// Merge into existing settings.hooks (preserve any existing hooks)
+const existingHooks = settings.hooks || {};
+for (const [event, entries] of Object.entries(mnemonHooks)) {
+  existingHooks[event] = [...(existingHooks[event] || []), ...entries];
+}
+settings.hooks = existingHooks;
+```
+
+Adapt this to match the existing settings.json construction pattern in `container-runner.ts`.
+
 ---
 
 ## Phase 3: Setup
@@ -154,8 +247,10 @@ Adapt the mount syntax to match the existing pattern in `container-runner.ts` (i
 
 To remove mnemon from your NanoClaw installation:
 
-1. Remove from Dockerfile: delete the `ARG MNEMON_VERSION` and `RUN ... mnemon` block
+1. Remove from Dockerfile: delete the `ARG MNEMON_VERSION` + `RUN ... mnemon` block and the `COPY hooks/mnemon/` line
 2. Remove container skill: `rm -rf container/skills/mnemon/`
-3. Remove volume mounts from `src/container-runner.ts`: delete the mnemon mount blocks
-4. Rebuild: `./container/build.sh`
-5. (Optional) Remove data: `rm -rf ~/.mnemon/data/`
+3. Remove hook scripts: `rm -rf container/hooks/mnemon/`
+4. Remove volume mounts from `src/container-runner.ts`: delete the mnemon mount blocks
+5. Remove hooks registration from `src/container-runner.ts`: delete the mnemon hooks merge in settings.json
+6. Rebuild: `./container/build.sh`
+7. (Optional) Remove data: `rm -rf ~/.mnemon/data/`
