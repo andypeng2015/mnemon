@@ -14,6 +14,7 @@ var version = "dev"
 var (
 	dataDir   string
 	storeName string
+	readOnly  bool
 )
 
 var rootCmd = &cobra.Command{
@@ -33,6 +34,7 @@ func Execute() {
 func init() {
 	rootCmd.PersistentFlags().StringVar(&dataDir, "data-dir", store.DefaultDataDir(), "base data directory")
 	rootCmd.PersistentFlags().StringVar(&storeName, "store", "", "named memory store (overrides MNEMON_STORE and active file)")
+	rootCmd.PersistentFlags().BoolVar(&readOnly, "readonly", false, "open database in read-only mode (no WAL files, safe for read-only mounts)")
 }
 
 // resolveStoreName returns the effective store name.
@@ -57,10 +59,15 @@ func truncID(id string) string {
 
 // openDB is a helper used by subcommands.
 func openDB() (*store.DB, error) {
+	name := resolveStoreName()
+	dir := store.StoreDir(dataDir, name)
+
+	if readOnly {
+		return store.OpenReadOnly(dir)
+	}
+
 	if err := store.MigrateIfNeeded(dataDir); err != nil {
 		return nil, fmt.Errorf("migrate: %w", err)
 	}
-	name := resolveStoreName()
-	dir := store.StoreDir(dataDir, name)
 	return store.Open(dir)
 }

@@ -172,6 +172,23 @@ func MigrateIfNeeded(baseDir string) error {
 	return nil
 }
 
+// OpenReadOnly opens the SQLite database in read-only mode.
+// Safe for read-only filesystem mounts: uses journal_mode=OFF to avoid
+// writing WAL/SHM sidecar files.
+func OpenReadOnly(dataDir string) (*DB, error) {
+	dbPath := filepath.Join(dataDir, "mnemon.db")
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil, fmt.Errorf("database not found: %s", dbPath)
+	}
+
+	conn, err := sql.Open("sqlite", dbPath+"?mode=ro&_pragma=journal_mode(OFF)&_pragma=foreign_keys(1)")
+	if err != nil {
+		return nil, fmt.Errorf("open readonly database: %w", err)
+	}
+	conn.SetMaxOpenConns(1)
+	return &DB{conn: conn, path: dbPath}, nil
+}
+
 // Open opens (or creates) the SQLite database at the given directory.
 func Open(dataDir string) (*DB, error) {
 	if err := os.MkdirAll(dataDir, 0o755); err != nil {

@@ -4,6 +4,8 @@
 
 # Mnemon
 
+**English** | [中文](docs/zh/README.md)
+
 **LLM-supervised persistent memory for AI agents.**
 
 [![Go 1.24+](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
@@ -90,6 +92,16 @@ mnemon setup --target openclaw --yes
 
 One command deploys skill, hook, plugin, and behavioral guide to `~/.openclaw/`. Restart the OpenClaw gateway to activate.
 
+### [NanoClaw](https://github.com/qwibitai/nanoclaw)
+
+NanoClaw runs agents inside Linux containers. Use the `/add-mnemon` skill to integrate:
+
+1. Install mnemon on the host (see above)
+2. In your NanoClaw project, run `/add-mnemon` — Claude Code will modify the Dockerfile, add a container skill, and set up volume mounts
+3. Each WhatsApp group gets its own isolated memory store, with optional global shared memory (read-only)
+
+The skill is available at `.claude/skills/add-mnemon/` in the NanoClaw repo.
+
 ### Uninstall
 
 ```bash
@@ -146,13 +158,15 @@ All your local agentic AIs — across sessions and frameworks — sharing one po
   Claude Code ──┐
                 │
   OpenClaw ─────┤
+                │
+  NanoClaw ─────┤
                 ├──▶  ~/.mnemon  ◀── shared memory
   OpenCode ─────┤
                 │
   Gemini CLI ───┘
 ```
 
-The foundation is in place: a single `~/.mnemon` database that any agent can read and write. Claude Code's hook integration is the reference implementation — the same pattern (lifecycle hooks + skill + behavioral guide) can be replicated for any LLM CLI that supports event hooks or system prompts.
+The foundation is in place: a single `~/.mnemon` database that any agent can read and write. Claude Code's hook integration is the reference implementation; OpenClaw uses a plugin-based approach; NanoClaw integrates via container skills and volume mounts. The same pattern can be replicated for any LLM CLI that supports event hooks or system prompts.
 
 ## FAQ
 
@@ -211,7 +225,6 @@ make help           # show all targets
 - [Design & Architecture](docs/DESIGN.md) — philosophy, algorithms, integration design
 - [Usage & Reference](docs/USAGE.md) — CLI commands, embedding support, architecture overview
 - [Architecture Diagrams](docs/diagrams/) — system architecture, pipelines, lifecycle management
-- [中文文档](docs/zh/) — Chinese documentation
 
 ## References
 

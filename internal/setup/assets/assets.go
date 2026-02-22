@@ -38,7 +38,13 @@ var OpenClawPluginManifest []byte
 //go:embed openclaw/plugin/index.js
 var OpenClawPluginIndex []byte
 
+//go:embed nanoclaw/SKILL.md
+var NanoClawSkill []byte
+
+//go:embed nanoclaw/container-skill.md
+var NanoClawContainerSkill []byte
+
 // All returns the embedded filesystem for inspection.
 //
-//go:embed claude openclaw
+//go:embed claude openclaw nanoclaw
 var All embed.FS

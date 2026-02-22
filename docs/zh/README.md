@@ -4,6 +4,8 @@
 
 # Mnemon
 
+[English](../../README.md) | **中文**
+
 **LLM 智能体的持久记忆系统** — LLM 监督式、钩子集成、四图架构。
 
 [![Go 1.24+](https://img.shields.io/badge/Go-1.24%2B-00ADD8?logo=go&logoColor=white)](https://go.dev/)
@@ -83,6 +85,14 @@ mnemon setup --target openclaw
 
 > 阅读 `~/.mnemon/prompt/guide.md` 并按照其 recall/remember 工作流配置自身。
 
+### [NanoClaw](https://github.com/qwibitai/nanoclaw)
+
+NanoClaw 在 Linux 容器内运行智能体。使用 `/add-mnemon` 技能集成：
+
+1. 在宿主机安装 mnemon（见上方）
+2. 在 NanoClaw 项目中运行 `/add-mnemon` — Claude Code 将修改 Dockerfile、添加容器技能、配置卷挂载
+3. 每个 WhatsApp 群组获得独立的记忆存储，可选全局共享记忆（只读）
+
 ### 从源码构建
 
 ```bash
@@ -146,13 +156,15 @@ mnemon setup --eject
   Claude Code ──┐
                 │
   OpenClaw ─────┤
+                │
+  NanoClaw ─────┤
                 ├──▶  ~/.mnemon  ◀── 共享记忆
   OpenCode ─────┤
                 │
   Gemini CLI ───┘
 ```
 
-基础已就绪：一个 `~/.mnemon` 数据库，任何 agent 都可以读写。Claude Code 的钩子集成是参考实现 — 同样的模式（生命周期钩子 + 技能文件 + 行为引导）可以复制到任何支持事件钩子或系统提示的 LLM CLI。
+基础已就绪：一个 `~/.mnemon` 数据库，任何 agent 都可以读写。Claude Code 的钩子集成是参考实现；OpenClaw 使用插件方式集成；NanoClaw 通过容器技能和卷挂载集成。同样的模式可以复制到任何支持事件钩子或系统提示的 LLM CLI。
 
 ## 常见问题
 
