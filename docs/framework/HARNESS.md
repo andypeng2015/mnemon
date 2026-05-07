@@ -64,6 +64,92 @@ These assets can be installed as skill files, rules, system instructions,
 plugin docs, hook scripts, or any runtime-specific equivalent. The installation
 format is less important than preserving the behavior.
 
+## Markdown Contract
+
+The durable harness layer should be mostly markdown. A runtime-specific adapter
+is optional convenience, not the core design.
+
+The canonical installation package should be expressible as three readable
+files:
+
+| File | Primary Reader | Responsibility |
+|---|---|---|
+| `SKILL.md` | Agent | Command syntax, examples, available operations, output interpretation, and guardrails |
+| [`INSTALL.md`](INSTALL.md) | Agent or human installer | How to install the skill, guideline, and four hook phases in the target runtime |
+| [`GUIDELINE.md`](GUIDELINE.md) | Agent | Memory judgment: when to recall, remember, link, forget, supersede, or skip |
+
+This `HARNESS.md` is the design source of truth. `INSTALL.md` and
+`GUIDELINE.md` are the installable runtime artifacts derived from it. They
+should stay small enough for an agent to read in one pass.
+
+### Why This Shape
+
+Modern agent systems already treat markdown as executable operating context:
+project instructions, skills, rules, hooks, slash commands, and memory summaries
+are all plain text assets that the model can read and adapt to. Mnemon should
+lean into that pattern instead of creating a heavy adapter layer for every
+runtime.
+
+The important boundary is:
+
+```text
+Markdown teaches behavior.
+Hooks place reminders at lifecycle boundaries.
+Mnemon executes deterministic memory commands.
+The agent decides when memory is useful.
+```
+
+This keeps the system portable. Codex, Claude Code, OpenClaw, Hermes, and future
+agent runtimes can install the same conceptual harness through their own native
+instruction mechanisms.
+
+### `SKILL.md`
+
+The skill is the capability surface. It should answer:
+
+- What is Mnemon?
+- Which commands exist?
+- What are the common command patterns?
+- How should the agent read structured output?
+- What are the hard guardrails?
+
+The skill should not carry the full memory policy. That belongs in
+`GUIDELINE.md`. A skill that becomes too philosophical will be harder to reuse
+across runtimes.
+
+### `INSTALL.md`
+
+The install guide is an agent-facing procedure. The target agent reads it and
+maps the harness onto its own runtime:
+
+- install or verify the `mnemon` binary
+- install `SKILL.md` into the runtime's skill/rule mechanism
+- install `GUIDELINE.md` into the runtime's durable instruction mechanism
+- add four hook phases when the runtime supports hooks
+- fall back to persistent rules when hook support is absent
+- verify the installation with a recall/writeback/no-op checklist
+
+`INSTALL.md` should describe what each hook phase must accomplish, not require
+one hard-coded adapter implementation. Runtime-specific snippets are examples,
+not the architecture.
+
+### `GUIDELINE.md`
+
+The guideline is the memory constitution for the agent. It should contain:
+
+- recall triggers and skip conditions
+- durable write criteria
+- provenance expectations
+- link and supersede policy
+- store/namespace isolation policy
+- markdown self-evolution policy
+- safety rules for secrets, prompt injection, stale memories, and noisy writes
+
+The guideline should be installed where the agent can consult it at session
+start and before memory-sensitive decisions. It may be included directly in a
+runtime instruction file, referenced by a skill, or injected by a lightweight
+prime hook.
+
 ## Memory Loop
 
 The memory loop is advisory, not mandatory.
@@ -245,6 +331,21 @@ explicit store strategy.
 Installation is an agent task. Give this document to the target agent and ask it
 to install Mnemon into its own runtime using the closest available mechanism.
 
+The preferred user flow is:
+
+```text
+1. Give the target agent INSTALL.md.
+2. INSTALL.md tells the agent where SKILL.md and GUIDELINE.md are.
+3. The agent installs those files into its own native instruction system.
+4. The agent adds the four hook phases if its runtime supports hooks.
+5. The agent verifies behavior with small recall/writeback/no-op checks.
+```
+
+This means Mnemon does not need a dedicated adapter before a runtime can use it.
+An adapter or `mnemon setup --target <runtime>` command may automate the same
+steps later, but the architecture should remain understandable and installable
+from markdown alone.
+
 ### Prerequisites
 
 The target machine should have the `mnemon` binary available:
@@ -307,6 +408,17 @@ If the runtime supports hooks, install four lightweight hooks:
 
 Hook scripts may print natural-language reminders. They do not need to run
 heavy memory operations themselves.
+
+Hook scripts also do not need to be identical across runtimes. The required
+contract is the phase behavior, not the script body. For example:
+
+- Codex can use hooks plus `AGENTS.md`, skills, or local instructions.
+- Claude Code can use `CLAUDE.md`, skills, slash commands, settings hooks, or
+  project/user memory files.
+- OpenClaw can use plugin hooks and skills, but Mnemon should not require an
+  OpenClaw-specific memory engine.
+- Hermes-style runtimes can express most behavior directly as skills, memory
+  guidance, and lightweight reminders.
 
 If a runtime lacks hooks, use rules or persistent instructions that simulate the
 same checks:
@@ -484,11 +596,12 @@ external memory
 + stable cognitive protocol
 + skill-delivered capability
 + guideline-delivered judgment
++ markdown-installable runtime contract
 + four lifecycle reminders
 + reviewed markdown evolution
 ```
 
 It is intentionally not a runtime adapter framework. The simplest correct
-installation is a readable skill, this guideline, access to the `mnemon` binary,
-four lifecycle reminders when the target runtime supports them, and a reviewed
-path for turning repeated experience into markdown assets.
+installation is `SKILL.md`, `INSTALL.md`, `GUIDELINE.md`, access to the
+`mnemon` binary, four lifecycle reminders when the target runtime supports
+them, and a reviewed path for turning repeated experience into markdown assets.

@@ -48,6 +48,75 @@ Harness 由四类概念资产组成。
 
 这些资产可以安装为 skill 文件、规则文件、系统指令、插件文档、hook 脚本，或者任何 runtime 支持的等价形式。具体安装格式不重要，重要的是保留行为语义。
 
+## Markdown 契约
+
+持久 harness 层应主要由 Markdown 表达。runtime-specific adapter 是可选便利，不是核心设计。
+
+标准安装包应能表达为三份可读文件：
+
+| 文件 | 主要读者 | 职责 |
+|---|---|---|
+| `SKILL.md` | Agent | 命令语法、示例、可用操作、输出解释和硬性 guardrail |
+| [`INSTALL.md`](INSTALL.md) | Agent 或人类安装者 | 如何在目标 runtime 中安装 skill、guideline 和四个 hook phase |
+| [`GUIDELINE.md`](GUIDELINE.md) | Agent | 记忆判断：何时 recall、remember、link、forget、supersede 或跳过 |
+
+本文 `HARNESS.md` 是设计上的单一事实来源。`INSTALL.md` 和
+`GUIDELINE.md` 是从它派生出来的可安装 runtime 资产。它们应保持足够短，使 agent 能一次读完并执行。
+
+### 为什么这样设计
+
+现代 agent 系统已经把 Markdown 当作可执行的操作上下文：项目指令、skill、rule、hook、slash command 和 memory summary 都是模型可以读取并据此行动的文本资产。Mnemon 应顺着这个模式设计，而不是为每个 runtime 做重型 adapter。
+
+关键边界是：
+
+```text
+Markdown 教行为。
+Hook 把提醒放到生命周期边界。
+Mnemon 执行确定性的记忆命令。
+Agent 判断什么时候记忆有用。
+```
+
+这让系统保持可移植。Codex、Claude Code、OpenClaw、Hermes 以及未来 runtime，都可以通过自己的原生指令机制安装同一个概念 harness。
+
+### `SKILL.md`
+
+Skill 是能力面。它应回答：
+
+- Mnemon 是什么？
+- 有哪些命令？
+- 常见命令模式是什么？
+- agent 应怎样读取结构化输出？
+- 哪些 guardrail 绝不能违反？
+
+Skill 不应承载完整记忆策略。完整策略属于 `GUIDELINE.md`。如果 skill 过于哲学化，就会更难跨 runtime 复用。
+
+### `INSTALL.md`
+
+安装说明是面向 agent 的流程。目标 agent 阅读它，并把 harness 映射到自身 runtime：
+
+- 安装或验证 `mnemon` binary
+- 将 `SKILL.md` 安装到 runtime 的 skill/rule 机制
+- 将 `GUIDELINE.md` 安装到 runtime 的持久指令机制
+- 当 runtime 支持 hook 时，添加四个 hook phase
+- 当 runtime 不支持 hook 时，用持久规则降级模拟
+- 用 recall/writeback/no-op checklist 验证安装
+
+`INSTALL.md` 应说明每个 hook phase 要完成什么，而不是绑定唯一的 adapter 实现。runtime-specific snippet 是例子，不是架构本身。
+
+### `GUIDELINE.md`
+
+Guideline 是 agent 的记忆宪法。它应包含：
+
+- recall 触发条件和跳过条件
+- durable write 判断标准
+- provenance 要求
+- link 与 supersede 策略
+- store/namespace 隔离策略
+- Markdown 自进化策略
+- 针对 secret、prompt injection、陈旧记忆和噪音写入的安全规则
+
+Guideline 应安装到 agent 能在 session 开始和记忆敏感决策前查看的位置。它可以直接放入 runtime instruction 文件，也可以由 skill 引用，或由轻量 prime hook 注入。
+
 ## 记忆循环
 
 记忆循环是建议性的，不是强制 workflow。
@@ -212,6 +281,19 @@ Memory 必须演化。
 
 安装是一个 agent task。把本文交给目标 agent，要求它用最接近自身 runtime 的机制，把 Mnemon 安装进自己的环境。
 
+推荐的用户流程是：
+
+```text
+1. 把 INSTALL.md 交给目标 agent。
+2. INSTALL.md 告诉 agent SKILL.md 和 GUIDELINE.md 在哪里。
+3. agent 将这些文件安装到自身原生指令系统。
+4. 如果 runtime 支持 hook，agent 添加四个 hook phase。
+5. agent 用小型 recall/writeback/no-op 检查验证行为。
+```
+
+这意味着，一个 runtime 不需要先拥有专用 adapter 才能使用 Mnemon。
+Adapter 或 `mnemon setup --target <runtime>` 命令可以在之后自动化同样步骤，但架构本身应保持仅靠 Markdown 就可理解、可安装。
+
 ### 前置条件
 
 目标机器应能访问 `mnemon` binary：
@@ -270,6 +352,13 @@ Guideline 应足够可见，使 agent 不需要用户每个 session 重复记忆
 | Compact | 压缩前只保存关键连续性 |
 
 Hook 脚本可以只打印自然语言提醒。它们不需要自己执行重型 memory 操作。
+
+不同 runtime 的 hook 脚本也不需要完全相同。真正需要保持的是 phase 行为契约，而不是脚本正文。例如：
+
+- Codex 可以使用 hooks 加 `AGENTS.md`、skill 或本地指令。
+- Claude Code 可以使用 `CLAUDE.md`、skill、slash command、settings hooks 或 project/user memory 文件。
+- OpenClaw 可以使用 plugin hooks 和 skill，但 Mnemon 不应要求一个 OpenClaw-specific memory engine。
+- Hermes 风格的 runtime 可以把绝大多数行为直接表达为 skill、memory guidance 和轻量提醒。
 
 如果 runtime 没有 hook，用 rules 或持久指令模拟同样检查：
 
@@ -429,8 +518,10 @@ external memory
 + stable cognitive protocol
 + skill-delivered capability
 + guideline-delivered judgment
++ markdown-installable runtime contract
 + four lifecycle reminders
 + reviewed markdown evolution
 ```
 
-它刻意不是 runtime adapter framework。最简单正确的安装，是一份可读 skill、本文 guideline、可调用的 `mnemon` binary、目标 runtime 支持时的四个生命周期提醒，以及一条把重复经验转成 Markdown 资产的 review 路径。
+它刻意不是 runtime adapter framework。最简单正确的安装，是
+`SKILL.md`、`INSTALL.md`、`GUIDELINE.md`、可调用的 `mnemon` binary、目标 runtime 支持时的四个生命周期提醒，以及一条把重复经验转成 Markdown 资产的 review 路径。
