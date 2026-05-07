@@ -230,7 +230,8 @@ See [Development and Deployment](docs/DEPLOYMENT.md) for Docker, Compose, Ollama
 
 ## Documentation
 
-- [Design & Architecture](docs/DESIGN.md) — philosophy, algorithms, integration design
+- [Mnemon Memory Harness](docs/framework/HARNESS.md) — skill-first memory harness design and installation guideline
+- [Design & Architecture](docs/DESIGN.md) — current engine architecture, algorithms, integration design
 - [Usage & Reference](docs/USAGE.md) — CLI commands, embedding support, architecture overview
 - [Architecture Diagrams](docs/diagrams/) — system architecture, pipelines, lifecycle management
 

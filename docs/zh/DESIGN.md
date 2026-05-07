@@ -6,6 +6,8 @@
 
 Mnemon 是一个为 LLM agent 设计的持久化记忆系统。它采用 **LLM-Supervised** 模式：宿主 LLM 作为独立记忆 Binary 的外部编排者，通过符号化 CLI 接口交互，而 Binary 负责确定性的存储、图索引和生命周期管理。记忆以四图知识结构组织 — temporal、entity、causal、semantic 四种 edge。以单一 Go binary + SQLite 的形式实现，不依赖任何外部 API。
 
+本文档描述当前 Mnemon binary 与 engine architecture。更上层的 memory harness doctrine 见 [Mnemon Memory Harness](framework/HARNESS.md)，它与当前实现分开讨论。
+
 ---
 
 ## 目录
@@ -14,9 +16,9 @@ Mnemon 是一个为 LLM agent 设计的持久化记忆系统。它采用 **LLM-S
 
 Mnemon 存在的原因 — LLM agent 的失忆问题、传统方案的结构性瓶颈，以及与现有方案（Mem0、MemGPT、Claude Code Memory）的对比。
 
-### [2. 设计哲学](design/02-philosophy.md)
+### [2. 引擎设计哲学](design/02-philosophy.md)
 
-LLM-Supervised 模式、器官 vs 教科书隐喻、记忆网关协议（LLM↔DB 交互的 MCP 类比）、关键设计洞察，以及 RLM、MAGMA 和 Graph-LLM 结构分析的理论基础。
+当前 engine 的 LLM-Supervised 模式、Hook-native / LLM-led / Protocol-constrained 原则、器官 vs 教科书隐喻、记忆网关协议（LLM↔DB 交互的 MCP 类比）、关键设计洞察，以及 RLM、MAGMA 和 Graph-LLM 结构分析的理论基础。
 
 ### [3. 核心概念与架构](design/03-concepts.md)
 

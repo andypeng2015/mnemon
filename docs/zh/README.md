@@ -227,7 +227,8 @@ make help           # 显示所有目标
 
 ## 文档
 
-- [设计与架构](DESIGN.md) — 核心概念、算法、集成设计
+- [Mnemon Memory Harness](framework/HARNESS.md) — skill-first memory harness 设计与安装指引
+- [设计与架构](DESIGN.md) — 当前 engine architecture、核心概念、算法、集成设计
 - [用法与参考](USAGE.md) — CLI 命令、嵌入向量支持、架构概览
 - [架构图](../diagrams/) — 系统架构、记忆/召回流程、四图模型、生命周期管理
 

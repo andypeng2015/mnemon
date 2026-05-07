@@ -8,6 +8,14 @@
 
 Mnemon integrates with LLM CLIs through lifecycle hooks, a skill file, and a behavioral guide. Claude Code's [hook system](https://docs.anthropic.com/en/docs/claude-code/hooks) is the reference implementation — all components are deployed automatically via `mnemon setup`.
 
+The integration layer follows the **Hook-native, LLM-led, Protocol-constrained**
+principle. Hooks are not hard orchestrators and should not automatically make
+all recall/write-back decisions on behalf of the agent. They are lifecycle
+cognitive affordances: at the right moments, they bring memory entry points,
+state, and rules in front of the LLM so the host LLM can actively decide whether
+to use memory. Mnemon constrains only the protocol, structured output,
+provenance, and audit trail.
+
 ## 7.1 Integration Architecture
 
 Four hooks drive the memory lifecycle:
@@ -42,13 +50,17 @@ Three layers work together:
 
 | Layer | What | Where | Role |
 |-------|------|-------|------|
-| **Hooks** | Shell scripts triggered by Claude Code lifecycle events | `.claude/hooks/mnemon/` | Prime (guide), Remind (recall & remember), Nudge (remember), Compact (critical save) |
+| **Hooks** | Shell scripts triggered by Claude Code lifecycle events | `.claude/hooks/mnemon/` | Provide memory affordances and reminders at lifecycle boundaries; do not force memory operations |
 | **Skill** | `SKILL.md` — command reference in Claude Code skill format | `.claude/skills/mnemon/` | Teaches the LLM *how* to use mnemon commands |
 | **Guide** | `guide.md` — detailed execution manual for recall, remember, and delegation | `~/.mnemon/prompt/` | Teaches the LLM *when* to recall, *what* to remember, and *how* to delegate |
 
 ## 7.2 Hook Details
 
-Claude Code fires hooks at specific lifecycle events. Mnemon registers up to four, each with a distinct role in the memory lifecycle:
+Claude Code fires hooks at specific lifecycle events. Mnemon registers up to
+four, each with a distinct role in the memory lifecycle. Their design goal is
+to **activate the LLM's memory judgment**, not bypass it. Unless a runtime
+adapter explicitly chooses otherwise, hook output should stay lightweight,
+ignorable, and interpretable through the guide.
 
 **Prime (SessionStart) — `prime.sh`**
 
@@ -91,7 +103,7 @@ echo "[mnemon] Consider: does this exchange warrant a remember sub-agent?"
 
 **Compact (PreCompact) — `compact.sh` (optional)**
 
-Fires before context window compression. Instructs the agent to extract the most critical insights and remember them before context is lost:
+Fires before context window compression. Prompts the agent to extract the most critical insights and remember them before context is lost:
 
 ```bash
 echo "[mnemon] Context compaction starting. Review this session and remember the most valuable insights (up to 5) before context is compressed. Delegate to Task sub-agents now."
