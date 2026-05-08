@@ -889,6 +889,261 @@
       margin-top: 2px;
     }
 
+    .skill-lab {
+      display: grid;
+      grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.75fr);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .skill-map {
+      position: relative;
+      min-height: 470px;
+      margin: 18px;
+      border: 1px solid #e6ebf2;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(22, 24, 29, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 24, 29, 0.035) 1px, transparent 1px),
+        #fbfcfe;
+      background-size: 30px 30px;
+    }
+
+    .skill-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .skill-line {
+      fill: none;
+      stroke: #aeb8c8;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-dasharray: 8 12;
+      opacity: 0.3;
+      transition: opacity 180ms ease, stroke 180ms ease, stroke-width 180ms ease, stroke-dasharray 180ms ease;
+    }
+
+    .skill-line.active {
+      opacity: 0.96;
+      stroke: var(--active, var(--orange));
+      stroke-width: 6;
+      stroke-dasharray: 1 0;
+    }
+
+    .skill-node {
+      position: absolute;
+      width: min(215px, 24vw);
+      min-height: 96px;
+      border: 1px solid #d6dce7;
+      border-left: 6px solid var(--accent, var(--orange));
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 12px 24px rgba(29, 38, 54, 0.08);
+      padding: 11px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 170ms ease, box-shadow 170ms ease, opacity 170ms ease, border-color 170ms ease;
+    }
+
+    .skill-node:hover,
+    .skill-node.selected {
+      transform: translateY(-2px);
+      border-color: var(--ink);
+      box-shadow: 0 18px 35px rgba(29, 38, 54, 0.15);
+    }
+
+    .skill-node.dim {
+      opacity: 0.42;
+    }
+
+    .skill-node.active {
+      outline: 3px solid color-mix(in srgb, var(--accent) 24%, transparent);
+      opacity: 1;
+    }
+
+    .skill-node .kicker {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 780;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .skill-node strong {
+      display: block;
+      font-size: 15px;
+      line-height: 1.16;
+    }
+
+    .skill-node span:last-child {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      margin-top: 6px;
+    }
+
+    .skill-node.user { left: 4%; top: 8%; --accent: var(--blue); }
+    .skill-node.offer { left: 4%; top: 39%; --accent: var(--green); }
+    .skill-node.review { left: 4%; top: 70%; --accent: var(--violet); }
+    .skill-node.manager { left: 36%; top: 35%; --accent: var(--orange); width: min(230px, 25vw); }
+    .skill-node.artifacts { left: 64%; top: 14%; --accent: var(--cyan); }
+    .skill-node.sidecar { left: 64%; top: 48%; --accent: var(--green); }
+    .skill-node.curator { left: 36%; top: 70%; --accent: var(--gold); }
+    .skill-node.projection { right: 3%; top: 23%; --accent: var(--gold); }
+    .skill-node.reports { right: 3%; top: 66%; --accent: var(--red); }
+
+    .skill-inspector {
+      border-left: 1px solid var(--line);
+      padding: 18px;
+      min-width: 0;
+      background: #fbfcfe;
+    }
+
+    .skill-inspector h3 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .skill-inspector p {
+      margin: 8px 0 14px;
+      color: var(--muted);
+    }
+
+    .skill-detail-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .skill-detail-item {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: white;
+      padding: 10px;
+    }
+
+    .skill-detail-item b {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 5px;
+    }
+
+    .skill-detail-item ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .skill-flow-panel {
+      padding: 18px;
+    }
+
+    .skill-flow-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .skill-flow-tab {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: white;
+      color: var(--muted);
+      min-height: 36px;
+      padding: 7px 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .skill-flow-tab.active,
+    .skill-flow-tab:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+      background: #f8fbff;
+    }
+
+    .skill-flow-stage {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .skill-flow-copy {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfe;
+      padding: 14px;
+    }
+
+    .skill-flow-copy h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .skill-flow-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .skill-step-list {
+      display: grid;
+      gap: 8px;
+      counter-reset: skill-step;
+    }
+
+    .skill-step {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      gap: 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: white;
+      padding: 9px;
+    }
+
+    .skill-step::before {
+      counter-increment: skill-step;
+      content: counter(skill-step);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: white;
+      font-size: 12px;
+      font-weight: 780;
+    }
+
+    .skill-step strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .skill-step span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
     .pipeline {
       display: grid;
       gap: 10px;
@@ -1062,6 +1317,8 @@
       .map-layout,
       .memory-lab,
       .memory-flow-stage,
+      .skill-lab,
+      .skill-flow-stage,
       .projection-layout,
       .grid-2,
       .grid-3 {
@@ -1070,7 +1327,8 @@
 
       .map-wrap,
       .host-list,
-      .memory-inspector {
+      .memory-inspector,
+      .skill-inspector {
         border-right: 0;
         border-left: 0;
         border-bottom: 1px solid var(--line);
@@ -1098,6 +1356,24 @@
       .memory-node.store { left: 6%; right: auto; top: 51%; }
       .memory-node.evidence { left: 6%; top: 67%; }
       .memory-node.skills { left: 6%; right: auto; top: 83%; }
+
+      .skill-map {
+        min-height: 1060px;
+      }
+
+      .skill-node {
+        width: min(260px, calc(100vw - 74px));
+      }
+
+      .skill-node.user { left: 6%; top: 3%; }
+      .skill-node.offer { left: 6%; top: 14%; }
+      .skill-node.review { left: 6%; top: 25%; }
+      .skill-node.manager { left: 6%; top: 38%; width: min(260px, calc(100vw - 74px)); }
+      .skill-node.artifacts { left: 6%; top: 51%; }
+      .skill-node.sidecar { left: 6%; top: 62%; }
+      .skill-node.curator { left: 6%; top: 73%; }
+      .skill-node.projection { left: 6%; right: auto; top: 84%; }
+      .skill-node.reports { left: 6%; right: auto; top: 93%; }
 
       .projection-columns {
         grid-template-columns: 1fr;
@@ -1157,6 +1433,7 @@
         <a href="#map" data-i18n="nav.map">架构地图</a>
         <a href="#pipelines" data-i18n="nav.pipelines">管道</a>
         <a href="#memory" data-i18n="nav.memory">记忆流</a>
+        <a href="#skills" data-i18n="nav.skills">技能演化</a>
         <a href="#projection" data-i18n="nav.projection">Host 挂载</a>
         <a href="#levels" data-i18n="nav.levels">能力等级</a>
       </nav>
@@ -1234,6 +1511,7 @@
           <button class="chip" data-flow="task" type="button">Recall</button>
           <button class="chip" data-flow="observe" type="button">Observe</button>
           <button class="chip" data-flow="reflect" type="button">Reflect</button>
+          <button class="chip" data-flow="skill" type="button">Skill Evolution</button>
           <button class="chip" data-flow="maintenance" type="button">Curate/Dream</button>
           <button class="chip" data-flow="eval" type="button">Eval</button>
           <button class="chip" data-flow="projection" type="button">Projection</button>
@@ -1404,6 +1682,50 @@
       <div class="memory-flow-panel">
         <div class="memory-flow-tabs" id="memory-flow-tabs" role="tablist" aria-label="Memory flow selector" data-i18n-aria="sections.memory.flowAria"></div>
         <div class="memory-flow-stage" id="memory-flow-stage"></div>
+      </div>
+    </section>
+
+    <section id="skills" class="panel">
+      <div class="section-head">
+        <div>
+          <h2 data-i18n="sections.skills.title">Skill Self-Evolution</h2>
+          <p data-i18n="sections.skills.body">Skill 的生产有三个入口：用户声明、agent 询问确认、后台 review；curator 负责跨时间治理 self-authored skills。</p>
+        </div>
+      </div>
+      <div class="skill-lab">
+        <div class="skill-map" aria-label="Skill self-evolution diagram" data-i18n-aria="sections.skills.loopAria">
+          <svg class="skill-svg" viewBox="0 0 1000 470" preserveAspectRatio="none" aria-hidden="true">
+            <path id="skill-line-user-manager" class="skill-line" style="--active: var(--blue)" d="M168 75 C270 75 305 190 392 220" />
+            <path id="skill-line-offer-manager" class="skill-line" style="--active: var(--green)" d="M168 222 C270 222 304 230 392 236" />
+            <path id="skill-line-review-manager" class="skill-line" style="--active: var(--violet)" d="M168 368 C282 340 316 280 392 250" />
+            <path id="skill-line-manager-artifacts" class="skill-line" style="--active: var(--cyan)" d="M540 210 C610 160 665 128 742 102" />
+            <path id="skill-line-manager-sidecar" class="skill-line" style="--active: var(--green)" d="M540 245 C615 255 668 268 742 285" />
+            <path id="skill-line-sidecar-curator" class="skill-line" style="--active: var(--gold)" d="M740 315 C610 376 560 384 485 388" />
+            <path id="skill-line-curator-artifacts" class="skill-line" style="--active: var(--gold)" d="M460 365 C545 280 620 180 742 120" />
+            <path id="skill-line-artifacts-projection" class="skill-line" style="--active: var(--gold)" d="M825 126 C900 142 930 155 955 170" />
+            <path id="skill-line-review-reports" class="skill-line" style="--active: var(--red)" d="M160 390 C355 470 735 450 904 388" />
+            <path id="skill-line-curator-reports" class="skill-line" style="--active: var(--red)" d="M520 395 C675 425 800 420 902 385" />
+          </svg>
+
+          <button class="skill-node user" type="button" data-skill-node="user"></button>
+          <button class="skill-node offer" type="button" data-skill-node="offer"></button>
+          <button class="skill-node review" type="button" data-skill-node="review"></button>
+          <button class="skill-node manager" type="button" data-skill-node="manager"></button>
+          <button class="skill-node artifacts" type="button" data-skill-node="artifacts"></button>
+          <button class="skill-node sidecar" type="button" data-skill-node="sidecar"></button>
+          <button class="skill-node curator" type="button" data-skill-node="curator"></button>
+          <button class="skill-node projection" type="button" data-skill-node="projection"></button>
+          <button class="skill-node reports" type="button" data-skill-node="reports"></button>
+        </div>
+        <aside class="skill-inspector" aria-live="polite">
+          <h3 id="skill-detail-title"></h3>
+          <p id="skill-detail-body"></p>
+          <div class="skill-detail-grid" id="skill-detail-grid"></div>
+        </aside>
+      </div>
+      <div class="skill-flow-panel">
+        <div class="skill-flow-tabs" id="skill-flow-tabs" role="tablist" aria-label="Skill flow selector" data-i18n-aria="sections.skills.flowAria"></div>
+        <div class="skill-flow-stage" id="skill-flow-stage"></div>
       </div>
     </section>
 
@@ -1610,6 +1932,18 @@
           ["Apply or propose", "Low-risk allowlisted writes only; otherwise report."]
         ]
       },
+      skill: {
+        title: "Skill Self-Evolution",
+        body: "Three production entrances feed procedural memory; curator governs self-authored skill sediment over time.",
+        nodes: ["host", "hooks", "skills", "sidecar", "reports", "human", "runner", "mnemon"],
+        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-runner-skills", "line-runner-reports", "line-reports-human", "line-human-host"],
+        steps: [
+          ["User-declared", "User explicitly asks to save or update a procedure."],
+          ["Agent-offered", "Foreground agent asks after difficult work; user confirmation protects the result."],
+          ["Background review", "Post-turn reflect job patches or creates self-authored skill candidates."],
+          ["Curator governance", "Scheduled maintenance consolidates umbrellas, archives stale self-authored skills, and reports first."]
+        ]
+      },
       maintenance: {
         title: "Curator / Dreaming",
         body: "Periodic maintenance consolidates self-authored assets, manages memory overflow and proposes promotion/demotion.",
@@ -1697,6 +2031,7 @@
             map: "架构地图",
             pipelines: "管道",
             memory: "记忆循环",
+            skills: "技能演化",
             projection: "Host 挂载",
             levels: "能力等级"
           },
@@ -1743,6 +2078,12 @@
               body: "Working Memory 是直接进入 prompt 的 Markdown；Long-Term Memory 由 Mnemon Store 和 Skills 承载；Dreaming Jobs 负责巩固、降级、晋升和技能候选。",
               loopAria: "Memory loop diagram",
               flowAria: "Memory flow selector"
+            },
+            skills: {
+              title: "Skill Self-Evolution",
+              body: "Skill 的生产有三个入口：用户声明、agent 询问确认、后台 review；curator 负责跨时间治理 self-authored skills。",
+              loopAria: "Skill self-evolution diagram",
+              flowAria: "Skill flow selector"
             },
             projection: {
               title: "Host Projection Explorer",
@@ -1976,6 +2317,19 @@
               ["应用或提案", "只有 low-risk allowlisted writes 可直接 apply；否则写 report。"]
             ]
           },
+          skill: {
+            chip: "技能演化",
+            title: "Skill Self-Evolution",
+            body: "三个生产入口把经验转成程序性记忆；curator 跨时间治理 self-authored skill sediment。",
+            nodes: ["host", "hooks", "skills", "sidecar", "reports", "human", "runner", "mnemon"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-runner-skills", "line-runner-reports", "line-reports-human", "line-human-host"],
+            steps: [
+              ["用户声明", "用户明确要求保存或更新某个 procedure。"],
+              ["Agent 询问确认", "困难任务后由前台 agent 询问；用户确认后写入并默认保护。"],
+              ["后台 review", "turn-end reflect job patch 现有 skill，或生成 self-authored skill candidate。"],
+              ["Curator 治理", "定期维护合并 umbrella、归档 stale self-authored skills，并坚持 report-first。"]
+            ]
+          },
           maintenance: {
             chip: "治理/梦境",
             title: "Curator / Dreaming",
@@ -2192,6 +2546,158 @@
             ]
           }
         },
+        skillLabels: {
+          contains: "承载",
+          reads: "读取",
+          writes: "写入",
+          safety: "边界"
+        },
+        skillNodes: {
+          user: {
+            kicker: "入口 A",
+            title: "用户声明",
+            summary: "用户明确要求保存或更新 procedure。",
+            body: "这是最强的 foreground 信号。用户显式要求把流程写成 skill、更新已有 skill，或要求以后按某个步骤执行。",
+            contains: ["explicit save request", "明确目标 skill", "用户意图"],
+            reads: ["skill index", "现有 project skill", "用户确认"],
+            writes: ["protected project skill", "foreground report"],
+            safety: "默认 protected；curator 不得静默改写。"
+          },
+          offer: {
+            kicker: "入口 B",
+            title: "Agent 询问确认",
+            summary: "困难任务后，前台 agent 询问是否沉淀。",
+            body: "当前台任务出现复杂修复、用户纠正、重复流程或重要工具策略时，agent 可以询问用户是否保存为 skill。",
+            contains: ["difficult task", "workflow correction", "non-trivial recovery"],
+            reads: ["turn outcome", "loaded skills", "user response"],
+            writes: ["foreground_confirmed skill", "manual-review provenance"],
+            safety: "没有确认就不写 durable skill。"
+          },
+          review: {
+            kicker: "入口 C",
+            title: "后台 Review",
+            summary: "turn-end reflect job 生产 self-authored skill candidate。",
+            body: "任务交付后，受限 review agent 或 reflect hook 检查本轮经验，并决定是 memory、skill、session note、evidence 还是 report-only。",
+            contains: ["turn summary", "tool outcome", "user correction", "loaded skill context"],
+            reads: ["bounded transcript", "skill index", "write allowlist"],
+            writes: ["skill patch", "candidate skill", "reflection report"],
+            safety: "只能写 allowlisted targets；不能强制时 proposal-only。"
+          },
+          manager: {
+            kicker: "写入面",
+            title: "Skill Index / Manage",
+            summary: "list/view/patch/create/write_file/archive。",
+            body: "逻辑 API 采用 Hermes 风格：先 list metadata，再 view SKILL.md 或 support files，写入时优先 patch，必要时 write_file 或 create。",
+            contains: ["skills_list", "skill_view", "skill_manage contract"],
+            reads: ["SKILL.md frontmatter", "support files", "protected targets"],
+            writes: ["patch", "create", "write_file", "archive proposal"],
+            safety: "delete 不作为自动操作；archive over delete。"
+          },
+          artifacts: {
+            kicker: "程序性记忆",
+            title: "Skill Artifacts",
+            summary: "SKILL.md + references/templates/scripts/assets。",
+            body: "Skill 是 procedural memory。SKILL.md 写触发条件、步骤、坑点和验证；细节、模板和脚本放支持目录。",
+            contains: ["SKILL.md", "references/", "templates/", "scripts/", "assets/"],
+            reads: ["host skill loader", "review/curator jobs"],
+            writes: ["project skills", "generated candidates", "active generated skills"],
+            safety: "新 generated skill 先 candidate/quarantine，再 promotion。"
+          },
+          sidecar: {
+            kicker: "治理元数据",
+            title: "Usage / Lineage",
+            summary: "created_by、provenance、state、pins。",
+            body: "Sidecar 承载工程治理状态，不污染 SKILL.md。它决定哪些 skill 可被 curator 自动治理。",
+            contains: ["usage.json", "lineage.json", "pins.json"],
+            reads: ["skill view/use/patch signals", "projection drift"],
+            writes: ["candidate/active/stale/archive state", "absorbed_into lineage"],
+            safety: "自动治理只允许 agent+reflection/curator/dreaming 且未 pinned 的目标。"
+          },
+          curator: {
+            kicker: "治理路径",
+            title: "Curator",
+            summary: "跨时间维护 skill library shape。",
+            body: "Curator 不是单轮生产入口。它治理 self-authored sediment：合并 umbrella、归档 stale、把窄内容降级到 support file。",
+            contains: ["cluster review", "umbrella synthesis", "archive decision"],
+            reads: ["usage sidecar", "lineage", "reflection reports", "active candidates"],
+            writes: ["curator report", "umbrella patch", "archive decision"],
+            safety: "默认 dry-run；跳过 user/package/imported/protected/pinned。"
+          },
+          projection: {
+            kicker: "挂载",
+            title: "Host Projection",
+            summary: "active skill 才投影到 host-native skill surface。",
+            body: "Canonical skill 留在 .mnemon；host 侧通过 symlink/copy/pointer 注册。projection drift 先报告，不静默覆盖。",
+            contains: ["symlink_or_copy", "managed pointer", "native import"],
+            reads: [".mnemon skills", "binding metadata"],
+            writes: [".claude/skills", "~/.hermes/skills", "host pointers"],
+            safety: "projected copy 不是 source of truth。"
+          },
+          reports: {
+            kicker: "审计",
+            title: "Reports / Approval",
+            summary: "每次 durable change 都有报告和回滚上下文。",
+            body: "报告解释为什么这是 skill 而不是 memory、查过哪些 existing skills、执行了什么验证、风险是什么。",
+            contains: ["reflection report", "curator report", "approval decision"],
+            reads: ["diff", "evidence links", "validation output"],
+            writes: ["proposal", "apply record", "rollback pointer"],
+            safety: "高风险和 protected targets 必须人工确认。"
+          }
+        },
+        skillFlows: {
+          user: {
+            chip: "用户声明",
+            title: "User-Declared Production",
+            body: "用户显式要求保存或更新流程时，系统按 foreground protected 路径写入。",
+            nodes: ["user", "manager", "artifacts", "sidecar", "reports", "projection"],
+            lines: ["skill-line-user-manager", "skill-line-manager-artifacts", "skill-line-manager-sidecar", "skill-line-artifacts-projection"],
+            steps: [
+              ["明确请求", "用户说保存、更新、以后按这个流程做。"],
+              ["查找现有 skill", "先 list/view，优先 patch 已有 class-level skill。"],
+              ["写入 protected", "创建或 patch project skill，并记录 foreground provenance。"],
+              ["投影激活", "经确认后的 active skill 才进入 host-native surface。"]
+            ]
+          },
+          offered: {
+            chip: "询问确认",
+            title: "Agent-Offered Production",
+            body: "前台 agent 发现可复用流程后询问用户；确认后才产生 durable skill。",
+            nodes: ["offer", "manager", "artifacts", "sidecar", "reports"],
+            lines: ["skill-line-offer-manager", "skill-line-manager-artifacts", "skill-line-manager-sidecar"],
+            steps: [
+              ["发现信号", "复杂修复、错误恢复、用户纠正或重复 workflow。"],
+              ["询问用户", "简单 one-off 不问；无确认不写 durable skill。"],
+              ["Patch first", "有 umbrella 就 patch；细节写 references/。"],
+              ["标记来源", "写入 foreground_confirmed，默认 manual-review。"]
+            ]
+          },
+          background: {
+            chip: "后台 Review",
+            title: "Background Review Production",
+            body: "turn-end review 不继续用户任务，只把经验分类为 memory、skill、session note、evidence 或 proposal。",
+            nodes: ["review", "manager", "artifacts", "sidecar", "reports"],
+            lines: ["skill-line-review-manager", "skill-line-manager-artifacts", "skill-line-manager-sidecar", "skill-line-review-reports"],
+            steps: [
+              ["收集上下文", "bounded transcript、tool outcome、用户修正、loaded skills。"],
+              ["分类", "facts/preferences -> memory；procedures/workflows -> skill。"],
+              ["优先 patch", "先 loaded skill，再 existing umbrella，再 support file，最后 new candidate。"],
+              ["候选化", "self-authored skill 带 reflection provenance，进入 candidate/quarantine。"]
+            ]
+          },
+          curator: {
+            chip: "Curator",
+            title: "Curator Governance",
+            body: "curator 跨时间整理 self-authored skills，负责 library shape，而不是每轮直接学习。",
+            nodes: ["sidecar", "curator", "artifacts", "reports", "projection"],
+            lines: ["skill-line-sidecar-curator", "skill-line-curator-artifacts", "skill-line-curator-reports", "skill-line-artifacts-projection"],
+            steps: [
+              ["读取治理状态", "usage、lineage、pins、reflection reports。"],
+              ["跳过保护对象", "user/package/imported/protected/pinned 不自动改。"],
+              ["合并 umbrella", "把窄 skill 吸收到 class-level skill 或 support file。"],
+              ["报告优先", "默认 dry-run；apply 前 snapshot，archive over delete。"]
+            ]
+          }
+        },
         levels: [
           { number: "L0", title: "Skill-only", body: "只读 Markdown 和手动调用。可以安装 guideline 与 manual reflect/curate。", accent: "var(--cyan)" },
           { number: "L1", title: "Instruction + Skill", body: "通过 CLAUDE.md、AGENTS.md 或 native skill index 发现 .mnemon。", accent: "var(--blue)" },
@@ -2209,6 +2715,7 @@
             map: "Architecture",
             pipelines: "Pipelines",
             memory: "Memory Loop",
+            skills: "Skill Evolution",
             projection: "Host Mounts",
             levels: "Capability Levels"
           },
@@ -2255,6 +2762,12 @@
               body: "Working Memory is prompt-loaded Markdown; Long-Term Memory is carried by Mnemon Store and Skills; Dreaming Jobs consolidate, demote, promote, and propose skill candidates.",
               loopAria: "Memory loop diagram",
               flowAria: "Memory flow selector"
+            },
+            skills: {
+              title: "Skill Self-Evolution",
+              body: "Skills are produced through three entrances: user-declared, agent-offered with confirmation, and background review. Curator governs self-authored skills across time.",
+              loopAria: "Skill self-evolution diagram",
+              flowAria: "Skill flow selector"
             },
             projection: {
               title: "Host Projection Explorer",
@@ -2488,6 +3001,19 @@
               ["Apply or propose", "Apply only low-risk allowlisted writes; otherwise write a report."]
             ]
           },
+          skill: {
+            chip: "Skill Evolution",
+            title: "Skill Self-Evolution",
+            body: "Three production entrances turn experience into procedural memory; curator governs self-authored skill sediment across time.",
+            nodes: ["host", "hooks", "skills", "sidecar", "reports", "human", "runner", "mnemon"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-runner-skills", "line-runner-reports", "line-reports-human", "line-human-host"],
+            steps: [
+              ["User-declared", "The user explicitly asks to save or update a procedure."],
+              ["Agent-offered", "The foreground agent asks after difficult work; confirmed writes are protected by default."],
+              ["Background review", "A turn-end reflect job patches existing skills or creates self-authored skill candidates."],
+              ["Curator governance", "Scheduled maintenance builds umbrellas, archives stale self-authored skills, and reports first."]
+            ]
+          },
           maintenance: {
             chip: "Curate/Dream",
             title: "Curator / Dreaming",
@@ -2704,6 +3230,158 @@
             ]
           }
         },
+        skillLabels: {
+          contains: "Contains",
+          reads: "Reads",
+          writes: "Writes",
+          safety: "Boundary"
+        },
+        skillNodes: {
+          user: {
+            kicker: "Entrance A",
+            title: "User-Declared",
+            summary: "The user explicitly asks to save or update a procedure.",
+            body: "This is the strongest foreground signal. The user asks the agent to write a workflow as a skill, update an existing skill, or use a procedure in the future.",
+            contains: ["explicit save request", "target skill", "user intent"],
+            reads: ["skill index", "existing project skill", "user confirmation"],
+            writes: ["protected project skill", "foreground report"],
+            safety: "Protected by default; curator must not rewrite it silently."
+          },
+          offer: {
+            kicker: "Entrance B",
+            title: "Agent-Offered",
+            summary: "After difficult work, the foreground agent asks whether to save.",
+            body: "When foreground work reveals a complex fix, user workflow correction, recurring procedure, or important tool tactic, the agent may ask whether to save it as a skill.",
+            contains: ["difficult task", "workflow correction", "non-trivial recovery"],
+            reads: ["turn outcome", "loaded skills", "user response"],
+            writes: ["foreground_confirmed skill", "manual-review provenance"],
+            safety: "No confirmation means no durable skill write."
+          },
+          review: {
+            kicker: "Entrance C",
+            title: "Background Review",
+            summary: "A turn-end reflect job produces self-authored skill candidates.",
+            body: "After delivery, a restricted review agent or reflect hook inspects the turn and decides whether the learning is memory, skill, session note, evidence, or report-only.",
+            contains: ["turn summary", "tool outcome", "user correction", "loaded skill context"],
+            reads: ["bounded transcript", "skill index", "write allowlist"],
+            writes: ["skill patch", "candidate skill", "reflection report"],
+            safety: "Writes only allowlisted targets; otherwise proposal-only."
+          },
+          manager: {
+            kicker: "Write Surface",
+            title: "Skill Index / Manage",
+            summary: "list/view/patch/create/write_file/archive.",
+            body: "The logical API follows the Hermes shape: list metadata first, then view SKILL.md or support files, and prefer patch/write_file before creating.",
+            contains: ["skills_list", "skill_view", "skill_manage contract"],
+            reads: ["SKILL.md frontmatter", "support files", "protected targets"],
+            writes: ["patch", "create", "write_file", "archive proposal"],
+            safety: "Delete is not an automatic operation; archive over delete."
+          },
+          artifacts: {
+            kicker: "Procedural Memory",
+            title: "Skill Artifacts",
+            summary: "SKILL.md plus references/templates/scripts/assets.",
+            body: "Skills are procedural memory. SKILL.md holds triggers, steps, pitfalls, and verification; details, templates, and scripts live in support directories.",
+            contains: ["SKILL.md", "references/", "templates/", "scripts/", "assets/"],
+            reads: ["host skill loader", "review/curator jobs"],
+            writes: ["project skills", "generated candidates", "active generated skills"],
+            safety: "New generated skills start as candidates or quarantine before promotion."
+          },
+          sidecar: {
+            kicker: "Governance Metadata",
+            title: "Usage / Lineage",
+            summary: "created_by, provenance, state, and pins.",
+            body: "The sidecar carries governance state outside SKILL.md. It decides which skills are eligible for automatic curator governance.",
+            contains: ["usage.json", "lineage.json", "pins.json"],
+            reads: ["skill view/use/patch signals", "projection drift"],
+            writes: ["candidate/active/stale/archive state", "absorbed_into lineage"],
+            safety: "Automatic governance only applies to unpinned agent+reflection/curator/dreaming targets."
+          },
+          curator: {
+            kicker: "Governance Path",
+            title: "Curator",
+            summary: "Maintains skill library shape across time.",
+            body: "Curator is not a per-turn production entrance. It governs self-authored sediment by building umbrellas, archiving stale skills, and demoting narrow detail into support files.",
+            contains: ["cluster review", "umbrella synthesis", "archive decision"],
+            reads: ["usage sidecar", "lineage", "reflection reports", "active candidates"],
+            writes: ["curator report", "umbrella patch", "archive decision"],
+            safety: "Dry-run by default; skips user/package/imported/protected/pinned skills."
+          },
+          projection: {
+            kicker: "Mount",
+            title: "Host Projection",
+            summary: "Only active skills project into host-native skill surfaces.",
+            body: "Canonical skills stay in .mnemon; host-native registration uses symlink, copy, or pointer. Projection drift is reported before overwrite.",
+            contains: ["symlink_or_copy", "managed pointer", "native import"],
+            reads: [".mnemon skills", "binding metadata"],
+            writes: [".claude/skills", "~/.hermes/skills", "host pointers"],
+            safety: "Projected copies are not the source of truth."
+          },
+          reports: {
+            kicker: "Audit",
+            title: "Reports / Approval",
+            summary: "Every durable change gets a report and rollback context.",
+            body: "Reports explain why the change is a skill rather than memory, which existing skills were checked, what validation ran, and what risk remains.",
+            contains: ["reflection report", "curator report", "approval decision"],
+            reads: ["diff", "evidence links", "validation output"],
+            writes: ["proposal", "apply record", "rollback pointer"],
+            safety: "High-risk and protected targets require human approval."
+          }
+        },
+        skillFlows: {
+          user: {
+            chip: "User-Declared",
+            title: "User-Declared Production",
+            body: "When the user explicitly asks to save or update a procedure, the system writes through a foreground protected path.",
+            nodes: ["user", "manager", "artifacts", "sidecar", "reports", "projection"],
+            lines: ["skill-line-user-manager", "skill-line-manager-artifacts", "skill-line-manager-sidecar", "skill-line-artifacts-projection"],
+            steps: [
+              ["Explicit request", "The user asks to save, update, or reuse this procedure in the future."],
+              ["Search existing skill", "List/view first; prefer patching an existing class-level skill."],
+              ["Write protected", "Create or patch a project skill and record foreground provenance."],
+              ["Project active skill", "Confirmed active skills can enter host-native skill surfaces."]
+            ]
+          },
+          offered: {
+            chip: "Agent-Offered",
+            title: "Agent-Offered Production",
+            body: "The foreground agent detects reusable procedural value and asks the user; no durable write happens without confirmation.",
+            nodes: ["offer", "manager", "artifacts", "sidecar", "reports"],
+            lines: ["skill-line-offer-manager", "skill-line-manager-artifacts", "skill-line-manager-sidecar"],
+            steps: [
+              ["Detect signal", "Complex fix, error recovery, user correction, or repeated workflow."],
+              ["Ask user", "Skip simple one-offs; no confirmation means no durable skill write."],
+              ["Patch first", "Patch an umbrella if one fits; put detail in references/."],
+              ["Mark origin", "Record foreground_confirmed provenance and manual-review policy."]
+            ]
+          },
+          background: {
+            chip: "Background Review",
+            title: "Background Review Production",
+            body: "A turn-end review does not continue the user task; it classifies learning as memory, skill, session note, evidence, or proposal.",
+            nodes: ["review", "manager", "artifacts", "sidecar", "reports"],
+            lines: ["skill-line-review-manager", "skill-line-manager-artifacts", "skill-line-manager-sidecar", "skill-line-review-reports"],
+            steps: [
+              ["Collect context", "Bounded transcript, tool outcome, user corrections, and loaded skills."],
+              ["Classify", "facts/preferences -> memory; procedures/workflows -> skill."],
+              ["Patch first", "Loaded skill, existing umbrella, support file, then new candidate last."],
+              ["Candidate first", "Self-authored skills carry reflection provenance and enter candidate/quarantine."]
+            ]
+          },
+          curator: {
+            chip: "Curator",
+            title: "Curator Governance",
+            body: "Curator maintains self-authored skills across time. It owns library shape, not per-turn learning.",
+            nodes: ["sidecar", "curator", "artifacts", "reports", "projection"],
+            lines: ["skill-line-sidecar-curator", "skill-line-curator-artifacts", "skill-line-curator-reports", "skill-line-artifacts-projection"],
+            steps: [
+              ["Read governance state", "Usage, lineage, pins, and reflection reports."],
+              ["Skip protected assets", "Do not auto-mutate user/package/imported/protected/pinned skills."],
+              ["Build umbrellas", "Absorb narrow skills into class-level skills or support files."],
+              ["Report first", "Dry-run by default; snapshot before apply; archive over delete."]
+            ]
+          }
+        },
         levels: [
           { number: "L0", title: "Skill-only", body: "Read-only Markdown and manual invocation. Installs guidelines plus manual reflect/curate.", accent: "var(--cyan)" },
           { number: "L1", title: "Instruction + Skill", body: "Discover .mnemon through CLAUDE.md, AGENTS.md, or a native skill index.", accent: "var(--blue)" },
@@ -2722,6 +3400,8 @@
     let activeNode = null;
     let activeMemoryFlow = "write";
     let activeMemoryNode = "working";
+    let activeSkillFlow = "background";
+    let activeSkillNode = "review";
 
     function cloneData(value) {
       return JSON.parse(JSON.stringify(value));
@@ -2806,6 +3486,24 @@
       renderMemoryNodeDetail(activeMemoryNode);
     }
 
+    function renderSkillContent() {
+      const data = locale();
+      document.querySelectorAll("[data-skill-node]").forEach((button) => {
+        const node = data.skillNodes[button.dataset.skillNode];
+        if (!node) return;
+        button.innerHTML = `
+          <span class="kicker">${node.kicker}</span>
+          <strong>${node.title}</strong>
+          <span>${node.summary}</span>
+        `;
+      });
+      document.getElementById("skill-flow-tabs").innerHTML = Object.entries(data.skillFlows).map(([key, flow]) => `
+        <button class="skill-flow-tab" type="button" data-skill-flow="${key}" role="tab">${flow.chip}</button>
+      `).join("");
+      renderSkillFlow(activeSkillFlow);
+      renderSkillNodeDetail(activeSkillNode);
+    }
+
     function renderMemoryNodeDetail(nodeKey) {
       activeMemoryNode = nodeKey;
       const data = locale();
@@ -2822,6 +3520,24 @@
       document.getElementById("memory-detail-grid").innerHTML = ["contains", "reads", "writes"].map((key) => `
         <div class="memory-detail-item"><b>${labels[key]}</b><ul>${node[key].map((item) => `<li>${item}</li>`).join("")}</ul></div>
       `).join("") + `<div class="memory-detail-item"><b>${labels.safety}</b><ul><li>${node.safety}</li></ul></div>`;
+    }
+
+    function renderSkillNodeDetail(nodeKey) {
+      activeSkillNode = nodeKey;
+      const data = locale();
+      const node = data.skillNodes[nodeKey];
+      if (!node) return;
+      const labels = data.skillLabels;
+      document.querySelectorAll("[data-skill-node]").forEach((button) => {
+        const selected = button.dataset.skillNode === nodeKey;
+        button.classList.toggle("selected", selected);
+        if (selected) button.classList.remove("dim");
+      });
+      document.getElementById("skill-detail-title").textContent = node.title;
+      document.getElementById("skill-detail-body").textContent = node.body;
+      document.getElementById("skill-detail-grid").innerHTML = ["contains", "reads", "writes"].map((key) => `
+        <div class="skill-detail-item"><b>${labels[key]}</b><ul>${node[key].map((item) => `<li>${item}</li>`).join("")}</ul></div>
+      `).join("") + `<div class="skill-detail-item"><b>${labels.safety}</b><ul><li>${node.safety}</li></ul></div>`;
     }
 
     function renderMemoryFlow(flowKey) {
@@ -2851,6 +3567,33 @@
       `;
     }
 
+    function renderSkillFlow(flowKey) {
+      const data = locale();
+      const flow = data.skillFlows[flowKey] || data.skillFlows.background;
+      activeSkillFlow = flowKey in data.skillFlows ? flowKey : "background";
+      document.querySelectorAll(".skill-flow-tab").forEach((button) => {
+        button.classList.toggle("active", button.dataset.skillFlow === activeSkillFlow);
+        button.setAttribute("aria-selected", button.dataset.skillFlow === activeSkillFlow ? "true" : "false");
+      });
+      document.querySelectorAll(".skill-line").forEach((path) => {
+        path.classList.toggle("active", flow.lines.includes(path.id));
+      });
+      document.querySelectorAll("[data-skill-node]").forEach((button) => {
+        const active = flow.nodes.includes(button.dataset.skillNode);
+        button.classList.toggle("active", active);
+        button.classList.toggle("dim", !active);
+      });
+      document.getElementById("skill-flow-stage").innerHTML = `
+        <article class="skill-flow-copy">
+          <h3>${flow.title}</h3>
+          <p>${flow.body}</p>
+        </article>
+        <div class="skill-step-list">
+          ${flow.steps.map(([title, body]) => `<div class="skill-step"><div><strong>${title}</strong><span>${body}</span></div></div>`).join("")}
+        </div>
+      `;
+    }
+
     function renderLevels() {
       document.getElementById("levels-list").innerHTML = locale().levels.map((level) => `
         <article class="level" style="--accent: ${level.accent}">
@@ -2873,6 +3616,7 @@
       renderHostButtons();
       renderPipelines();
       renderMemoryContent();
+      renderSkillContent();
       renderLevels();
       renderHost(activeHost);
       if (activeNode) {
@@ -2979,6 +3723,14 @@
       const memoryNode = event.target.closest("[data-memory-node]");
       if (memoryNode) {
         renderMemoryNodeDetail(memoryNode.dataset.memoryNode);
+      }
+      const skillFlow = event.target.closest("[data-skill-flow]");
+      if (skillFlow) {
+        renderSkillFlow(skillFlow.dataset.skillFlow);
+      }
+      const skillNode = event.target.closest("[data-skill-node]");
+      if (skillNode) {
+        renderSkillNodeDetail(skillNode.dataset.skillNode);
       }
     });
 

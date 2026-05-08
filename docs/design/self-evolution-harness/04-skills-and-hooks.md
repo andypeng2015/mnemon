@@ -2,20 +2,22 @@
 
 Harness 的行为能力主要通过 skill 表达；自动触发通过 hook 表达。Host 不支持 hook 时，skill 仍可手动调用。完整的 skill 生产路径见 [08-skill-production-paths.md](08-skill-production-paths.md)。
 
-## Skill Production Paths
+## Skill Production And Governance Paths
 
-Harness recognizes three skill production paths. They differ by trigger, provenance, and auto-curation eligibility. This section is the hook-level summary; the detailed architecture is in `08`.
+Harness recognizes three skill production entrances and one governance path. They differ by trigger, provenance, and auto-curation eligibility. This section is the hook-level summary; the detailed architecture is in `08`.
 
 | Path | Trigger | Output | Provenance | Auto-curation |
 |---|---|---|---|---|
-| Foreground skill update | User explicitly asks, or current task calls a skill update | patch/create skill or proposal | `user` / `foreground` | no by default |
-| Post-turn review | `turn_delivered` / `Stop` / `SessionEnd` reflection | memory/skill proposal, optional allowlisted patch | `agent` + `reflection` | yes, if self-authored and not pinned |
-| Maintenance synthesis | curator/dreaming runner or scheduled job | umbrella skill, consolidation, archive/demotion proposal | `agent` + `curator` / `dreaming` | yes, within allowlist |
+| User-declared production | User explicitly asks to save or update a procedure | protected patch/create skill or proposal | `user` / `foreground` | no by default |
+| Agent-offered production | Agent asks after a difficult task; user confirms | protected patch/create skill or proposal | `agent` + `foreground_confirmed` | manual-review by default |
+| Background review production | `turn_delivered` / `Stop` / `SessionEnd` reflection | self-authored patch, candidate skill, support file, or report | `agent` + `reflection` | yes, if self-authored and not pinned |
+| Curator governance | curator/dreaming runner or scheduled job | umbrella skill, consolidation, archive/demotion proposal | `agent` + `curator` / `dreaming` | yes, within allowlist |
 
 Rules:
 
-- Foreground user-created skills belong to the user and must not be silently curated.
+- Foreground user-created and user-confirmed skills belong to the user and must not be silently curated.
 - Post-turn review may create or patch skills only when host can enforce write targets; otherwise it writes proposal reports.
+- Curator/dreaming governs library shape across time; it is not a per-turn production entrance.
 - Curator/dreaming should prefer umbrella skills and support files over one-session skills.
 - Every path writes usage/provenance metadata.
 - High-risk skills, policy skills, install maps, and hooks require human approval.

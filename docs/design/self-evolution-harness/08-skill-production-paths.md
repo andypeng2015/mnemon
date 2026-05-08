@@ -1,85 +1,221 @@
-# 08. Skill Production Paths
+# 08. Skill Self-Evolution Architecture
 
-The harness treats skill as the primary unit of self-evolution. Memory stores stable facts, preferences, and compact context. Skills store reusable procedures, operational strategies, tool workflows, and domain tactics. This mirrors the strongest Hermes lesson: self-evolution is less about an engineered memory database and more about repeatedly turning experience into agent-readable behavior assets.
+The harness treats skills as procedural memory. Memory stores stable facts, preferences, and compact context. Skills store reusable procedures, operational strategies, tool workflows, failure recovery paths, and task-class tactics.
 
-## Core Principle
+The Hermes lesson is not "build a larger skill runtime." The lesson is:
+
+```text
+experience signal
+  -> classify memory vs skill vs session note
+  -> patch an existing class-level skill first
+  -> create a new skill only when a reusable class of work exists
+  -> record provenance and usage outside SKILL.md
+  -> let curator consolidate self-authored sediment later
+```
+
+## Core Boundary
 
 ```text
 facts / preferences / stable project context -> memory
 procedures / workflows / repeated tactics -> skill
 raw evidence / transcript / failed attempts -> episodic long-term memory
 task continuity -> session summary
+skill overlap / stale self-authored behavior -> curator
 ```
 
 Skill production must be conservative. A system that creates one skill per turn becomes noisy and harder to use. The default is:
 
 1. patch an existing skill;
-2. create an umbrella skill only when a repeated class of work emerges;
-3. write a proposal report when evidence is weak;
-4. let curator archive or consolidate self-authored skills later.
+2. add a support file under an existing umbrella skill;
+3. create a new class-level skill only when no existing skill covers the behavior;
+4. write a proposal report when evidence is weak or write restrictions are unavailable;
+5. let curator archive or consolidate self-authored skills later.
 
-## Three Production Paths
+## Production And Governance Model
 
-| Path | Trigger | Producer | Output | Provenance | Auto-curation |
+Hermes effectively has three skill production entrances and one governance path:
+
+| Layer | Trigger | Producer | Output | Provenance | Auto-curation |
 |---|---|---|---|---|---|
-| Foreground update | user asks or current task explicitly needs it | active host agent | skill patch/create or proposal | `user` / `foreground` | no by default |
-| Post-turn review | `turn_delivered`, `Stop`, `SessionEnd`, queued reflection | host review agent or runner job | memory/skill proposal, optional low-risk patch | `agent` + `reflection` | yes, if self-authored |
-| Maintenance synthesis | curator/dreaming/index/eval schedule | curator or dreaming job | umbrella skill, consolidation, archive/promotion proposal | `agent` + `curator` / `dreaming` | yes, within allowlist |
+| User-declared production | user explicitly asks to save/update a procedure | foreground host agent | protected skill patch/create or proposal | `user` / `foreground` | no by default |
+| Agent-offered production | foreground agent asks after a difficult or iterative task, then user confirms | foreground host agent | protected skill patch/create or proposal | `agent` + `foreground_confirmed` | manual-review by default |
+| Background review production | `turn_delivered`, `Stop`, `SessionEnd`, or queued reflection | restricted review agent or reflect job | self-authored patch, candidate skill, support file, or report | `agent` + `reflection` | yes, if not pinned/protected |
+| Curator governance | idle/scheduled/manual maintenance | curator or dreaming job | umbrella consolidation, archive, demotion, promotion, or report | `agent` + `curator` / `dreaming` | yes, within allowlist |
 
-These are architectural paths, not hardcoded implementations. Hermes can implement path 2 with a background review agent. Claude Code can implement path 2 with Stop hooks. Codex can implement it with explicit skill invocation or queued jobs. A generic agent can implement it manually.
+The first three paths create or patch skill artifacts from recent experience. Curator is different: it governs skill sediment across time. It can still produce a new umbrella skill, but its primary job is library health, not direct per-turn learning.
 
-## Path A: Foreground Skill Update
+## Artifact Model
 
-Foreground updates are user-directed or task-directed.
+The harness should keep the Hermes artifact shape but move the source of truth into `.mnemon`:
 
-Examples:
+```text
+.mnemon/
+  skills/
+    core/
+      install/SKILL.md
+      recall/SKILL.md
+      observe/SKILL.md
+      reflect/SKILL.md
+      curate/SKILL.md
+    project/
+      <user-or-project-skill>/SKILL.md
+    generated/
+      candidates/
+      quarantine/
+      active/
+    archive/
+  state/
+    usage.json
+    lineage.json
+    pins.json
+  reports/
+    reflection/
+    curator/
+```
 
-- user says "把这个流程写成 skill";
-- current task requires editing a known skill;
-- installer creates the core harness skill pack;
-- migration updates package-provided skills.
+Each skill is a directory:
+
+```text
+<skill>/
+  SKILL.md
+  references/
+  templates/
+  scripts/
+  assets/
+```
+
+`SKILL.md` is model-facing procedural guidance. Sidecar state is engineering-facing governance metadata. The two should not be mixed.
+
+Recommended limits follow the Hermes/Claude-style progressive disclosure model:
+
+| Field | Policy |
+|---|---|
+| `name` | lowercase slug, stable, class-level, max 64 chars |
+| `description` | discovery summary, max 1024 chars |
+| `SKILL.md` | concise trigger, workflow, pitfalls, verification; large detail moves to support files |
+| support files | `references/`, `templates/`, `scripts/`, `assets/`; bounded size and schema checked |
+| model-facing metadata | YAML frontmatter only for discovery and compatibility |
+| governance metadata | `state/usage.json`, `state/lineage.json`, `state/pins.json` |
+
+## Skill Index And Write Surface
+
+The harness needs two logical APIs, even when implemented as Markdown instructions or CLI commands rather than native tools:
+
+```text
+skill_index:
+  list -> name, description, category, state
+  view -> SKILL.md
+  view_file -> support file by relative path
+
+skill_manage:
+  create
+  patch
+  edit
+  write_file
+  remove_file
+  archive
+```
 
 Rules:
 
-- user-authored content is protected by default;
-- foreground changes should preserve the user's intent even if curator later disagrees;
-- automatic curator must not rewrite foreground/user skills unless explicitly approved;
-- write report if the change affects harness policy, hooks, install map, or guideline.
+- list returns metadata only;
+- view loads full `SKILL.md`;
+- support files load on demand;
+- patch is preferred over edit;
+- archive is preferred over delete;
+- delete should not exist as an automatic operation;
+- every write records provenance and report evidence;
+- foreground/user-created skills are protected by default;
+- self-authored reflection skills are curator-eligible by default.
+
+## Path A: User-Declared Production
+
+User-declared production happens when the user explicitly asks the agent to save or update a procedure.
+
+Examples:
+
+- "把这个流程写成 skill";
+- "记住以后这个项目要这样发布";
+- "更新 debug skill，加上这个坑";
+- "把刚才的安装步骤整理成一个可复用技能。"
+
+Pipeline:
+
+```text
+explicit user request
+  -> identify target skill or new class
+  -> read existing skill index
+  -> patch existing skill when possible
+  -> create project skill only if needed
+  -> write report
+  -> mark protected/manual-review
+```
+
+Rules:
+
+- user intent wins over curator preference;
+- foreground user-created skills belong to the user;
+- automatic curator must not rewrite or archive them without approval;
+- package/core/harness skills may be patched only through explicit approved upgrade flow;
+- any hook, install, permission, or guideline change requires human approval.
 
 Foreground provenance:
 
 ```yaml
-created_by: user|agent|harness
+created_by: user
 provenance: foreground
-curation_policy: protected|manual-review
+curation_policy: protected
+review_required: false
 ```
 
-## Path B: Post-Turn Review
+## Path B: Agent-Offered Production
 
-Post-turn review is the Hermes-style self-improvement loop. It is triggered after the active task completes, so it can inspect outcomes without competing with the user's current request.
+Agent-offered production happens during foreground work when the agent notices reusable procedural value and asks the user before saving.
+
+Hermes does this through the `skill_manage` tool description: after difficult or iterative tasks, offer to save; skip simple one-offs; confirm with the user before creating or deleting.
+
+Trigger signals:
+
+- complex task succeeded after several tool calls;
+- a non-trivial error path was overcome;
+- the user corrected the workflow and the corrected approach worked;
+- a recurring project workflow became clear;
+- a loaded skill was missing an important step.
+
+Pipeline:
 
 ```text
-turn summary + tool outcomes + user corrections
-  -> reflection prompt
-  -> classify insight
-  -> choose memory / skill / session / evidence
-  -> generate proposal or low-risk patch
-  -> validate target and schema
-  -> write report
+foreground work
+  -> detect reusable workflow
+  -> ask user whether to save/update a skill
+  -> if confirmed, search skill index
+  -> patch existing skill first
+  -> create new skill only for a reusable class
+  -> mark protected/manual-review
 ```
 
-Reflection classification:
+Rules:
 
-| Insight | Destination | Example |
-|---|---|---|
-| stable user preference | Prompt Memory | "User prefers concise technical summaries." |
-| project fact | Prompt Memory or semantic summary | "This repo uses pnpm." |
-| reusable workflow | skill | "How to recover from Vite port collision." |
-| one-off task progress | session summary | "PR review stopped at file X." |
-| raw log/error | episodic evidence | command output, stack trace |
-| uncertain inference | report only | "Likely cause was cache issue." |
+- no confirmation means no durable skill write;
+- the saved skill should describe a task class, not the exact session;
+- the body should include trigger conditions, steps, pitfalls, and verification;
+- session-specific detail should move to `references/`;
+- this path is not silently auto-curated because it is foreground/user-confirmed.
 
-Post-turn review can be implemented in three ways:
+Foreground-confirmed provenance:
+
+```yaml
+created_by: agent
+provenance: foreground_confirmed
+confirmed_by_user: true
+curation_policy: manual-review
+```
+
+## Path C: Background Review Production
+
+Background review is the Hermes-style self-improvement loop. It runs after the active task completes, so it can inspect outcomes without competing with the user's current request.
+
+Host implementations differ:
 
 | Host capability | Implementation |
 |---|---|
@@ -87,71 +223,116 @@ Post-turn review can be implemented in three ways:
 | Hook-capable host | run `reflect` hook with write allowlist |
 | Weak host | enqueue `reflect.deferred` job for runner/manual processing |
 
-Review-agent constraints:
+Reflection input:
 
-- it receives a summarized transcript or bounded evidence pack;
+- bounded turn summary or transcript window;
+- tool outcomes and failures;
+- user corrections;
+- skills loaded or viewed during the turn;
+- current skill index metadata;
+- write allowlist and protected-target list.
+
+Pipeline:
+
+```text
+turn delivered
+  -> run restricted reflect prompt
+  -> classify insight
+  -> memory / skill / session note / evidence / report-only
+  -> inspect loaded skill first
+  -> inspect existing umbrella skill next
+  -> patch or write support file
+  -> create candidate only if no umbrella fits
+  -> validate schema and target
+  -> write sidecar + report
+```
+
+Review constraints:
+
 - it cannot talk to the user;
+- it cannot continue the user task;
 - it cannot call arbitrary tools;
 - it cannot patch protected targets;
-- it prefers patching existing skills over creating new skills;
-- it writes a report for every proposal or mutation.
+- it must prefer currently-loaded skills;
+- it must prefer existing umbrella skills;
+- it must write a report for every proposal or mutation;
+- if write-target restrictions are unavailable, it must be proposal-only.
 
-## Path C: Maintenance Synthesis
+Background provenance:
 
-Maintenance synthesis is not about a single turn. It detects patterns across time.
+```yaml
+created_by: agent
+provenance: reflection
+curation_policy: auto-curatable
+state: candidate|quarantined|active
+```
+
+## Path D: Curator Governance
+
+Curator is not a fourth per-turn production path. It is the library governance path.
 
 Inputs:
 
 - `state/usage.json`;
+- `state/lineage.json`;
+- `state/pins.json`;
+- active and candidate skills;
 - reflection reports;
 - curator reports;
 - memory consolidation candidates;
-- long-term evidence index;
-- active skills;
-- pins and protection rules.
+- long-term evidence index.
 
 Outputs:
 
-- umbrella skill proposals;
+- umbrella skill proposal;
 - duplicated skill consolidation;
 - stale skill archive proposal;
-- Prompt Memory demotion into Long-Term Memory;
-- Long-Term Memory promotion into Prompt Memory;
-- eval/PR proposal for high-risk changes.
+- support-file demotion;
+- candidate promotion;
+- quarantine or archive decision;
+- curator report.
 
-This is where dreaming matters. Dreaming turns accumulated low-level evidence into candidates and theme reports. Curator then applies deterministic governance and writes bounded proposals.
-
-## Skill Creation Pipeline
-
-Every path should follow the same pipeline:
+Pipeline:
 
 ```text
-observe signal
-  -> classify destination
-  -> search existing skill index
-  -> patch existing skill if enough overlap
-  -> create new skill only if class-level behavior exists
-  -> assign provenance and curation policy
-  -> validate schema / size / protected target
-  -> write report
-  -> apply or propose
+idle / scheduled / manual curator
+  -> apply deterministic usage transitions
+  -> scan self-authored skills only
+  -> skip pinned/user/package/imported
+  -> cluster overlap by task class
+  -> patch umbrella or create umbrella
+  -> archive absorbed skills
+  -> write structured report
 ```
 
-Class-level behavior means the skill is likely to help future tasks beyond the exact session that created it.
+Curator rules:
 
-Creation gates:
+- default dry-run;
+- snapshot before apply;
+- archive over delete;
+- skip pinned skills;
+- skip user-created, package/core, imported, and protected skills;
+- consolidate by human-maintainer shape, not exact name similarity;
+- prefer support files for narrow but valuable session-specific detail;
+- every absorbed skill records `absorbed_into`;
+- every archive has a restore path.
+
+## Creation Gates
+
+Every path should pass the same gates:
 
 | Gate | Requirement |
 |---|---|
-| Reuse | at least one repeated pattern, user request, or strong project-level workflow |
-| Scope | skill has a clear trigger and bounded responsibility |
-| Evidence | links to report/evidence/session summary |
-| Non-overlap | not already covered by an existing skill |
-| Size | under configured max chars, with support files if needed |
-| Safety | no secrets, no unreviewed policy change |
-| Provenance | created_by/provenance/created_at recorded |
+| Reuse | repeated pattern, explicit user request, or strong project-level workflow |
+| Scope | clear trigger and bounded responsibility |
+| Evidence | links to report, session summary, or evidence event |
+| Non-overlap | existing skill index checked first |
+| Shape | class-level name, concise body, support files for detail |
+| Size | under configured limits |
+| Safety | no secrets, no unreviewed policy or permission change |
+| Provenance | `created_by`, `provenance`, `state`, `created_at`, evidence refs recorded |
 
-## Skill Patch Policy
+## Patch Policy
 
 Patch before create.
 
@@ -161,7 +342,9 @@ Patch candidates:
 - update command preference;
 - add a failure recovery path;
 - clarify when the skill should not be used;
-- move detailed examples into support files.
+- broaden a trigger for a real task class;
+- add a pointer to a support file;
+- move detailed examples into `references/`.
 
 Avoid patching when:
 
@@ -169,7 +352,9 @@ Avoid patching when:
 - the patch would turn the skill into a transcript;
 - the patch conflicts with user-authored instructions;
 - the target skill is package-provided and not forked;
-- the skill is pinned.
+- the target is protected and the user did not approve.
+
+Pinned skills should be protected from archive/delete. Patching pinned skills may still be allowed when the owner explicitly requested the improvement.
 
 ## Provenance And Curation
 
@@ -179,10 +364,10 @@ Recommended provenance values:
 |---|---|---|---|
 | `harness` | `package` | shipped by harness package | no |
 | `user` | `foreground` | explicitly authored by user | no |
-| `agent` | `foreground` | active agent edited during task | manual-review |
-| `agent` | `reflection` | post-turn self-authored | yes, if not pinned |
-| `agent` | `curator` | maintenance-authored | yes, if not pinned |
-| `agent` | `dreaming` | synthesized from evidence | proposal first |
+| `agent` | `foreground_confirmed` | foreground agent saved after user confirmation | manual-review |
+| `agent` | `reflection` | post-turn self-authored | yes, if not pinned/protected |
+| `agent` | `curator` | maintenance-authored umbrella or patch | yes, if not pinned/protected |
+| `agent` | `dreaming` | synthesized from accumulated evidence | proposal first |
 | `external` | `imported` | imported from another package/repo | no |
 
 Auto-curation eligibility:
@@ -195,9 +380,9 @@ AND state in {"candidate", "quarantined", "active", "stale"}
 AND target not protected
 ```
 
-## Quarantine And Lineage
+## Lifecycle
 
-New agent-authored skills should not immediately become first-class durable behavior unless the host/user explicitly requested that. Reflection and dreaming outputs start as candidates or quarantined skills:
+Agent-authored skills should not immediately become first-class durable behavior unless the host/user explicitly requested that. Reflection and dreaming outputs start as candidates or quarantined skills:
 
 ```yaml
 state: candidate|quarantined|active|stale|archived
@@ -237,10 +422,10 @@ Skill production report should answer:
 ```yaml
 report:
   type: skill-production
-  path: foreground|reflection|curator|dreaming
+  path: user-declared|agent-offered|reflection|curator|dreaming
   mode: proposal|apply
   target: skills/example/SKILL.md
-  action: create|patch|archive|consolidate
+  action: create|patch|write_file|archive|consolidate
   risk: low|medium|high
   evidence:
     - reports/reflection/...
@@ -249,13 +434,32 @@ report:
   existing_skill_search:
     searched: true
     candidates: []
+    selected_target: string|null
   validation:
     schema: pass
     allowlist: pass
     protected_target: false
+  provenance:
+    created_by: agent
+    source: reflection
+    curation_policy: auto-curatable
   rollback:
     backup: backups/...
 ```
+
+## Harness Mapping Of Hermes
+
+| Hermes mechanism | Harness mapping |
+|---|---|
+| `~/.hermes/skills/<name>/SKILL.md` | `.mnemon/skills/**/<name>/SKILL.md` canonical artifact |
+| `skills_list` / `skill_view` | skill index progressive disclosure contract |
+| `skill_manage` | CLI/tool/skill write contract with create/patch/edit/write_file/archive |
+| background review fork | `reflect` hook, detached review command, or queued job |
+| ContextVar write origin | persisted job provenance and lineage |
+| `.usage.json` | `.mnemon/state/usage.json` |
+| pinned sidecar flag | `.mnemon/state/pins.json` keyed by canonical path |
+| curator idle run | host scheduler, external cron, optional runner, or manual `curate` |
+| `.archive/` | `.mnemon/skills/archive/` with restore metadata |
 
 ## Human Review Rules
 
@@ -267,16 +471,20 @@ Require human approval for:
 - evaluation policy;
 - permissions and safety instructions;
 - user-created or imported artifacts;
+- package/core skill changes outside an upgrade flow;
 - any skill that encodes external factual claims without source evidence.
 
 ## Acceptance Criteria
 
-The skill-production system is healthy when:
+The skill self-evolution system is healthy when:
 
-1. most new knowledge becomes patches, not new skills;
-2. one-off task details stay out of skills;
-3. every skill has a clear trigger;
-4. self-authored skills can be curated later;
-5. user-authored/package/imported skills are protected;
-6. every automated change has a report and provenance;
-7. the same design works with hooks, background review agents, runner jobs, or manual invocation.
+1. the three production entrances are distinguishable in provenance;
+2. foreground user/user-confirmed skills are protected;
+3. most new knowledge becomes patches or support files, not new skills;
+4. one-off task details stay out of skills;
+5. every skill has a clear trigger and verification path;
+6. self-authored skills can be curated later;
+7. user-authored/package/imported skills are protected;
+8. every automated change has report, provenance, and rollback context;
+9. curator improves library shape without owning the agent runtime;
+10. the same design works with hooks, background review agents, runner jobs, or manual invocation.
