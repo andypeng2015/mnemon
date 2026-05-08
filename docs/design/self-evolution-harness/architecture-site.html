@@ -1431,11 +1431,11 @@
       </div>
       <nav class="nav" aria-label="Page sections" data-i18n-aria="navAria">
         <a href="#map" data-i18n="nav.map">架构地图</a>
-        <a href="#pipelines" data-i18n="nav.pipelines">管道</a>
-        <a href="#memory" data-i18n="nav.memory">记忆流</a>
+        <a href="#pipelines" data-i18n="nav.pipelines">四条路径</a>
+        <a href="#memory" data-i18n="nav.memory">记忆循环</a>
         <a href="#skills" data-i18n="nav.skills">技能演化</a>
-        <a href="#projection" data-i18n="nav.projection">Host 挂载</a>
-        <a href="#levels" data-i18n="nav.levels">能力等级</a>
+        <a href="#projection" data-i18n="nav.projection">Hook 挂载</a>
+        <a href="#levels" data-i18n="nav.levels">四个部分</a>
       </nav>
       <div class="language-switch" role="group" aria-label="Language">
         <button class="lang-button active" type="button" data-lang="zh" lang="zh-CN">中</button>
@@ -1487,7 +1487,7 @@
           <div class="mini-cell wide" style="border-left: 5px solid var(--violet)">
             <div>
               <h3 data-i18n="hero.cells.loop.title">Self-Evolution Loop</h3>
-              <p data-i18n="hero.cells.loop.body">任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 在维护路径上治理增长；eval gate 处理高风险修改。</p>
+              <p data-i18n="hero.cells.loop.body">任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 治理增长；risk gate 处理高风险修改。</p>
             </div>
             <div class="mini-tags">
               <span class="tag violet">reflect</span>
@@ -1504,7 +1504,7 @@
       <div class="section-head">
         <div>
           <h2 data-i18n="sections.map.title">交互架构地图</h2>
-          <p data-i18n="sections.map.body">点击管道高亮能力流；点击节点查看职责、读写边界和风险控制。</p>
+          <p data-i18n="sections.map.body">点击四条路径高亮能力流；点击节点查看职责、读写边界和风险控制。</p>
         </div>
         <div class="toolbar" role="tablist" aria-label="Flow selector" data-i18n-aria="sections.map.toolbarAria">
           <button class="chip active" data-flow="install" type="button">Install</button>
@@ -1513,7 +1513,7 @@
           <button class="chip" data-flow="reflect" type="button">Reflect</button>
           <button class="chip" data-flow="skill" type="button">Skill Evolution</button>
           <button class="chip" data-flow="maintenance" type="button">Curate/Dream</button>
-          <button class="chip" data-flow="eval" type="button">Eval</button>
+          <button class="chip" data-flow="eval" type="button">Risk</button>
           <button class="chip" data-flow="projection" type="button">Projection</button>
         </div>
       </div>
@@ -1629,7 +1629,7 @@
           <p id="detail-body">安装阶段探测 host 模板，创建 .mnemon canonical filesystem，再用 managed block、pointer、symlink/copy 或 hook config 挂载到 host。</p>
           <div class="detail-grid" id="detail-grid"></div>
           <div class="flow-summary">
-            <h4 id="flow-title">当前管道</h4>
+            <h4 id="flow-title">当前路径</h4>
             <div class="steps" id="flow-steps"></div>
           </div>
         </aside>
@@ -1639,8 +1639,8 @@
     <section id="pipelines" class="panel">
       <div class="section-head">
         <div>
-          <h2 data-i18n="sections.pipelines.title">能力管道与自进化路径</h2>
-          <p data-i18n="sections.pipelines.body">每条管道都可以被 host hook、manual skill、external cron 或 optional runner 触发；能力强弱取决于 host 可安装等级。</p>
+          <h2 data-i18n="sections.pipelines.title">四条核心路径</h2>
+          <p data-i18n="sections.pipelines.body">架构展示只保留四条主线：安装挂载、记忆循环、技能演进、评测风控。其他 hook 和 runner 都是这些路径的实现细节。</p>
         </div>
       </div>
       <div class="pipeline" id="pipeline-list"></div>
@@ -1754,8 +1754,8 @@
     <section id="levels" class="panel">
       <div class="section-head">
         <div>
-          <h2 data-i18n="sections.levels.title">能力等级</h2>
-          <p data-i18n="sections.levels.body">Harness 不能假设 host 能力。安装器应探测 host 后选择最高可安全安装等级。</p>
+          <h2 data-i18n="sections.levels.title">四个核心部分</h2>
+          <p data-i18n="sections.levels.body">Self-evolution harness 最终只由这四部分组成；filesystem、reports、schemas、runner 都是支撑设施。</p>
         </div>
       </div>
       <div class="levels" id="levels-list"></div>
@@ -2029,11 +2029,11 @@
           navAria: "页面分区",
           nav: {
             map: "架构地图",
-            pipelines: "管道",
+            pipelines: "四条路径",
             memory: "记忆循环",
             skills: "技能演化",
             projection: "Hook 挂载",
-            levels: "能力等级"
+            levels: "四个部分"
           },
           hero: {
             eyebrow: "Agent 无关的自进化 harness",
@@ -2058,20 +2058,20 @@
               },
               loop: {
                 title: "Self-Evolution Loop",
-                body: "任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 在维护路径上治理增长；eval gate 处理高风险修改。"
+                body: "任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 治理增长；risk gate 处理高风险修改。"
               }
             }
           },
           sections: {
             map: {
               title: "交互架构地图",
-              body: "点击管道高亮能力流；点击节点查看职责、读写边界和风险控制。",
+              body: "点击四条路径高亮能力流；点击节点查看职责、读写边界和风险控制。",
               toolbarAria: "能力流选择器",
               canvasAria: "Mnemon 架构节点"
             },
             pipelines: {
-              title: "能力管道与自进化路径",
-              body: "每条管道都可以由 host hook、manual skill、external cron 或 optional runner 触发；能力强弱取决于 host 可安装等级。"
+              title: "四条核心路径",
+              body: "架构展示只保留四条主线：安装挂载、记忆循环、技能演进、评测风控。其他 hook 和 runner 都是这些路径的实现细节。"
             },
             memory: {
               title: "Working Memory / Long-Term Memory Consolidation",
@@ -2091,8 +2091,8 @@
               selectorAria: "Host projection 选择器"
             },
             levels: {
-              title: "能力等级",
-              body: "Harness 不能假设 host 能力。安装器应探测 host 后选择最高可安全安装等级。"
+              title: "四个核心部分",
+              body: "Self-evolution harness 最终只由这四部分组成；filesystem、reports、schemas、runner 都是支撑设施。"
             }
           },
           detailLabels: {
@@ -2700,11 +2700,10 @@
           }
         },
         levels: [
-          { number: "L0", title: "Skill-only", body: "只读 Markdown 和手动调用。可以安装 guideline 与 manual reflect/curate。", accent: "var(--cyan)" },
-          { number: "L1", title: "Instruction + Skill", body: "通过 host instruction surface 或 native skill index 发现 .mnemon。", accent: "var(--blue)" },
-          { number: "L2", title: "Lifecycle Hooks", body: "自动 recall、observe、reflect。写入能力受 allowlist 和 host permission 限制。", accent: "var(--green)" },
-          { number: "L3", title: "Scheduled / Idle", body: "curator、dreaming、index jobs 可由 host scheduler、cron 或 runner tick 执行。", accent: "var(--orange)" },
-          { number: "L4", title: "Risk / CI", body: "高风险修改走 R0-R4 gate、static scan、rollback report 和 human approval。", accent: "var(--red)" }
+          { number: "01", title: "安装挂载", body: "Agent 读取 INSTALL.md，把 semantic hooks 挂到 host lifecycle。", accent: "var(--cyan)" },
+          { number: "02", title: "记忆循环", body: "Working Memory + Long-Term Memory + dreaming consolidation。", accent: "var(--blue)" },
+          { number: "03", title: "技能演进", body: "Hermes 风格 skills_list / skill_view / skill_manage + curator。", accent: "var(--green)" },
+          { number: "04", title: "评测风控", body: "R0-R4 gate、static scan、approval、checkpoint/report。", accent: "var(--red)" }
         ]
       },
       en: {
@@ -2714,11 +2713,11 @@
           navAria: "Page sections",
           nav: {
             map: "Architecture",
-            pipelines: "Pipelines",
+            pipelines: "Four Paths",
             memory: "Memory Loop",
             skills: "Skill Evolution",
             projection: "Hook Mounts",
-            levels: "Capability Levels"
+            levels: "Four Parts"
           },
           hero: {
             eyebrow: "Agent-agnostic self-evolution harness",
@@ -2743,20 +2742,20 @@
               },
               loop: {
                 title: "Self-Evolution Loop",
-                body: "After work is delivered, reflection proposes skill or memory updates; curator and dreaming govern long-term growth; eval gates high-risk changes."
+                body: "After work is delivered, reflection proposes skill or memory updates; curator and dreaming govern growth; risk gates high-risk changes."
               }
             }
           },
           sections: {
             map: {
               title: "Interactive Architecture Map",
-              body: "Select a pipeline to highlight capability flow; select a node to inspect ownership, read/write boundaries, and risk controls.",
+              body: "Select one of the four paths to highlight capability flow; select a node to inspect ownership, read/write boundaries, and risk controls.",
               toolbarAria: "Flow selector",
               canvasAria: "Mnemon architecture nodes"
             },
             pipelines: {
-              title: "Capability Pipelines And Self-Evolution Paths",
-              body: "Each pipeline can be triggered by host hooks, manual skills, external cron, or the optional runner. Available behavior depends on the host capability level."
+              title: "Four Core Paths",
+              body: "The display keeps four main paths: install/mount, memory loop, skill evolution, and risk control. Hooks and runners are implementation details of those paths."
             },
             memory: {
               title: "Working Memory / Long-Term Memory Consolidation",
@@ -2776,8 +2775,8 @@
               selectorAria: "Host projection selector"
             },
             levels: {
-              title: "Capability Levels",
-              body: "The harness must not assume host capabilities. The installer detects the host and chooses the highest safe install level."
+              title: "Four Core Parts",
+              body: "The self-evolution harness is made of these four parts; filesystem, reports, schemas, and runner are supporting infrastructure."
             }
           },
           detailLabels: {
@@ -3384,11 +3383,10 @@
           }
         },
         levels: [
-          { number: "L0", title: "Skill-only", body: "Read-only Markdown and manual invocation. Installs guidelines plus manual reflect/curate.", accent: "var(--cyan)" },
-          { number: "L1", title: "Instruction + Skill", body: "Discover .mnemon through a host instruction surface or native skill index.", accent: "var(--blue)" },
-          { number: "L2", title: "Lifecycle Hooks", body: "Automatic recall, observe, and reflect. Writes are limited by allowlists and host permissions.", accent: "var(--green)" },
-          { number: "L3", title: "Scheduled / Idle", body: "Curator, dreaming, and index jobs run through host scheduler, cron, or runner tick.", accent: "var(--orange)" },
-          { number: "L4", title: "Risk / CI", body: "High-risk changes go through R0-R4 gates, static scans, rollback reports, and human approval.", accent: "var(--red)" }
+          { number: "01", title: "Install & Mount", body: "The agent reads INSTALL.md and mounts semantic hooks into the host lifecycle.", accent: "var(--cyan)" },
+          { number: "02", title: "Memory Loop", body: "Working Memory plus Long-Term Memory plus dreaming consolidation.", accent: "var(--blue)" },
+          { number: "03", title: "Skill Evolution", body: "Hermes-style skills_list / skill_view / skill_manage plus curator.", accent: "var(--green)" },
+          { number: "04", title: "Risk Control", body: "R0-R4 gates, static scan, approval, checkpoint and report.", accent: "var(--red)" }
         ]
       }
     };
@@ -3403,6 +3401,7 @@
     let activeMemoryNode = "working";
     let activeSkillFlow = "background";
     let activeSkillNode = "review";
+    const PRIMARY_FLOW_KEYS = ["install", "task", "skill", "eval"];
 
     function cloneData(value) {
       return JSON.parse(JSON.stringify(value));
@@ -3456,6 +3455,8 @@
 
     function renderFlowChips() {
       document.querySelectorAll("[data-flow]").forEach((button) => {
+        const visible = PRIMARY_FLOW_KEYS.includes(button.dataset.flow);
+        button.hidden = !visible;
         const flow = flows[button.dataset.flow];
         if (flow) button.textContent = flow.chip;
       });
@@ -3670,7 +3671,7 @@
     function renderPipelines() {
       const container = document.getElementById("pipeline-list");
       const highlight = locale().ui.highlight;
-      container.innerHTML = Object.entries(flows).map(([key, flow]) => {
+      container.innerHTML = PRIMARY_FLOW_KEYS.map((key) => [key, flows[key]]).filter(([, flow]) => Boolean(flow)).map(([key, flow]) => {
         const pills = flow.steps.map(([title], index) => (
           `${index > 0 ? '<span class="arrow">-></span>' : ''}<span class="pill">${title}</span>`
         )).join("");
