@@ -47,7 +47,7 @@ Some self-evolution tasks are bad foreground work:
 | Curator | scans many skills/memory files, requires snapshots | controlled dry-run/apply loop |
 | Post-turn review fallback | some hosts cannot run immediate `Stop` hooks | process queued session summaries later |
 | Long-term index rebuild | deterministic but potentially expensive | rebuild outside conversation |
-| Eval batch | needs repeated checks and held-out examples | write PR-style proposal |
+| Risk/eval batch | needs static scans, target checks, or optional regression cases | write risk report / proposal |
 | Backup rotation | unrelated to active task | bounded housekeeping |
 
 The runner is not required for Hermes-style post-turn review when the host already supports a background review agent. In that case the harness only provides the reflection prompt, provenance schema, and write policy.

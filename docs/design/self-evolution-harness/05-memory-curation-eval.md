@@ -413,50 +413,140 @@ Curator rules:
 - skip pinned/user/imported unless approved;
 - high-risk guideline/hook/install changes are proposal-only.
 
-## Eval Gate
+## Hermes-Derived Eval And Risk Control
 
-Eval-driven self-evolution is for higher-risk changes:
+Hermes does not rely on a heavy evaluation framework for day-to-day self-evolution. Its effective pattern is layered risk control:
 
-| Target | Risk | Gate |
+| Hermes mechanism | Harness abstraction |
+|---|---|
+| dangerous command hardline block | unbypassable protected-target gate |
+| dangerous command approval | human approval gate for risky apply |
+| smart approval | optional low-risk false-positive reviewer |
+| cron dangerous command deny-by-default | background jobs default to dry-run/proposal |
+| Skills Guard | static scanner for skills, hooks, guidelines, and generated scripts |
+| `skill_manage` validation | schema, size, path, and target validation before write |
+| curator dry-run | report-first preview for maintenance |
+| checkpoint/rollback | snapshot before durable apply when host supports it |
+| tool-loop guardrails | stop repeated failed/no-progress maintenance loops |
+
+The harness should copy this shape directly. "Eval" means a small gate pipeline, not an always-on benchmark system.
+
+```text
+candidate change
+  -> classify target and risk
+  -> validate schema / path / size / budget
+  -> scan for injection / exfiltration / destructive / persistence patterns
+  -> apply trust policy
+  -> choose allow / proposal / approval / block
+  -> optional checkpoint
+  -> apply or write report
+```
+
+### Risk Levels
+
+| Level | Targets | Default outcome |
 |---|---|---|
-| Prompt Memory entry | low/medium | budget + evidence + conflict check |
-| long-term recall ranking | medium | regression recall cases |
-| skill wording | low/medium | schema + sample task eval |
-| hook prompt | medium | dry-run + regression cases |
-| guideline | high | human approval |
-| install map | high | install dry-run tests |
-| code/scripts | high | tests + review |
+| R0 telemetry | `reports/**`, `state/usage.json`, non-mutating dry-run output | auto write |
+| R1 self-authored skill patch | generated skill patch/support file with valid schema and clean scan | allow if host enforces target; otherwise proposal |
+| R2 memory movement | Prompt Memory promotion/demotion, semantic extraction, recall ranking changes | proposal unless explicit low-risk policy allows |
+| R3 harness behavior | `GUIDELINE.md`, `INSTALL.md`, hook prompts, hook mounting policy, eval constraints | human approval only |
+| R4 hardline | secret exfiltration, destructive filesystem ops, hidden instructions, safety weakening, host config outside marker | block |
 
-Eval artifacts:
+R4 is not "needs approval"; it is blocked from self-evolution. A human may still edit the file outside the harness.
+
+### Trust Policy
+
+Use Hermes' trust-aware shape:
+
+| Source | Safe | Caution | Dangerous |
+|---|---|---|---|
+| package/builtin | allow | allow | block unless package upgrade is explicitly reviewed |
+| user-declared | allow | ask/report | ask/report |
+| agent-created foreground | allow | proposal | block or ask |
+| background review / curator | allow inside allowlist | proposal | block |
+| imported/community | allow after scan | proposal | block |
+
+The scanner is advisory for trusted package content, strict for imported/community content, and strict for automatic background writes. Foreground user intent can override caution, but not hardline blocks.
+
+### Static Scanner
+
+The scanner should be simple and explicit. It checks:
+
+- prompt injection and hidden instruction patterns;
+- credential exfiltration and secret references;
+- destructive commands and filesystem wipe patterns;
+- persistence mechanisms such as cron, shell rc, service files, startup hooks;
+- network exposure and tunneling;
+- obfuscation, encoded execution, invisible Unicode;
+- structural limits: file count, total size, single-file size, symlink escape, suspicious binary files.
+
+Findings produce `safe`, `caution`, or `dangerous`. `dangerous` blocks automatic writes.
+
+### Approval And Background Rules
+
+Foreground:
+
+- safe R0/R1 may apply if target allowlist is enforced;
+- caution writes ask or produce report;
+- protected targets require explicit human approval.
+
+Background:
+
+- no interactive approval is assumed;
+- `reflect`, `curate`, and `dreaming` default to report/proposal;
+- low-risk R0 writes may apply;
+- R1 applies only when target allowlist, scanner, schema, and provenance gates pass;
+- R2/R3 become proposals;
+- R4 blocks.
+
+This mirrors Hermes' cron approval model: unattended jobs should deny or defer risky actions rather than invent approval.
+
+### Checkpoint And Rollback
+
+Before applying any durable mutation beyond R0, the harness should create a rollback point when the host can support it:
+
+```text
+pre-apply snapshot
+  -> apply allowlisted mutation
+  -> write report with rollback pointer
+```
+
+If no checkpoint mechanism exists, the mutation should either stay proposal-only or include enough diff context for manual rollback.
+
+### Minimal Eval Artifacts
 
 ```text
 eval/
   constraints.yaml
-  datasets/
+  scanners/
   results/
   templates/
-    pr.md
+    proposal.md
 ```
 
-Constraints example:
+`constraints.yaml` should stay small:
 
 ```yaml
-constraints:
-  max_prompt_memory_chars:
-    MEMORY.md: 2200
-    USER.md: 1375
-    project.md: 4000
-  max_prompt_growth: 0.2
-  required_checks:
-    - prompt-memory-budget
-    - longterm-recall-regression
-    - validate-skill
-    - check-target-allowlist
-    - report-schema
-  protected_targets:
-    - GUIDELINE.md
-    - INSTALL.md
+protected_targets:
+  - GUIDELINE.md
+  - INSTALL.md
+  - hooks/**
+  - eval/**
+  - host_config_outside_marker
+
+auto_apply:
+  - reports/**
+  - state/usage.json
+
+required_gates:
+  - target-allowlist
+  - schema-validation
+  - static-scan
+  - budget-check
+  - report-written
 ```
+
+Regression cases are optional and target-specific. They are useful for hook prompts, recall ranking, and package upgrades, but they should not block the simple Hermes-style daily loop.
 
 ## Reports
 

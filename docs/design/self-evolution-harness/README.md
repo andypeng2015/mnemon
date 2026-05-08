@@ -49,7 +49,7 @@ Self-Evolution Harness 应满足：
     promotion.md
   schemas/
     harness.schema.json
-    install-map.schema.json
+    hook-binding.schema.json
     skill.schema.json
     prompt-memory.schema.json
     usage.schema.json
@@ -95,7 +95,7 @@ Self-Evolution Harness 应满足：
 | [02-installation-contract.md](02-installation-contract.md) | agent-readable 安装契约、semantic hook mounting、host binding、升级/卸载 |
 | [03-artifacts-and-schemas.md](03-artifacts-and-schemas.md) | 主要 artifacts 和 schemas 的详细字段 |
 | [04-skills-and-hooks.md](04-skills-and-hooks.md) | core skills、四阶段 hooks、fallback 规则 |
-| [05-memory-curation-eval.md](05-memory-curation-eval.md) | Working Memory、Long-Term Memory、Dreaming consolidation、curator、eval gate |
+| [05-memory-curation-eval.md](05-memory-curation-eval.md) | Working Memory、Long-Term Memory、Dreaming consolidation、curator、Hermes-derived risk gate |
 | [06-implementation-roadmap.md](06-implementation-roadmap.md) | MVP、阶段计划、验收标准 |
 | [07-maintenance-runner.md](07-maintenance-runner.md) | 可选 daemon/runner 的边界、jobs、状态、锁、预算 |
 | [08-skill-production-paths.md](08-skill-production-paths.md) | 抽离 Hermes 的 skill index/manage、三种生产入口、usage sidecar、curator governance |

@@ -359,20 +359,43 @@ archives:
     "INSTALL.md",
     "GUIDELINE.md",
     "harness.yaml",
-    "install/**",
     "hooks/**",
+    "eval/**",
     "schemas/**"
   ],
   "approval_required": [
     "GUIDELINE.md",
     "INSTALL.md",
+    "harness.yaml",
     "hooks/**",
     "eval/**"
+  ],
+  "hardline_block": [
+    "host_config_outside_marker",
+    "secret_exfiltration",
+    "destructive_filesystem_operation",
+    "safety_policy_weakening"
   ]
 }
 ```
 
-If host cannot enforce this allowlist, reflection and curator must run proposal-only.
+If host cannot enforce this allowlist, reflection and curator must run proposal-only. Risk classification follows the Hermes-derived R0-R4 model in `05-memory-curation-eval.md`.
+
+Minimal risk result:
+
+```yaml
+risk:
+  level: R0|R1|R2|R3|R4
+  source: user|agent|background_review|curator|imported|package
+  verdict: safe|caution|dangerous
+  decision: allow|proposal|approval_required|block
+  reasons: []
+  required_gates:
+    - target-allowlist
+    - schema-validation
+    - static-scan
+    - report-written
+```
 
 ## Reports
 

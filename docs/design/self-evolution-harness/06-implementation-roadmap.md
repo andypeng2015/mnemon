@@ -145,21 +145,24 @@ Acceptance:
 
 ## Phase 5: Eval-Driven Evolution
 
-Goal: evaluate harness artifact changes.
+Goal: add Hermes-style risk gates before durable self-evolution writes.
 
 Deliverables:
 
 - `eval/constraints.yaml`
-- sample eval dataset schema
-- `eval/templates/pr.md`
-- report schema for eval result
+- static scanner rules
+- risk classifier
+- approval/proposal report schema
+- rollback pointer field in reports
+- optional target-specific regression cases
 
 Acceptance:
 
-- Skill prompt changes run schema + sample eval.
-- Hook prompt changes run regression cases.
-- Guideline/hook mounting policy changes require human approval.
-- Eval output is proposal/PR, not prompt mutation.
+- R0/R1 writes pass target allowlist, schema, budget, scanner, and report gates.
+- R2/R3 writes become proposals unless explicitly approved.
+- R4 hardline changes are blocked from self-evolution.
+- Background jobs default to dry-run/proposal when approval is unavailable.
+- Eval output is proposal/report first, not silent prompt mutation.
 
 ## Initial File Tree
 
@@ -221,7 +224,7 @@ Do not start by writing a daemon, server, SDK, database adapter, or universal ag
 | User-created artifacts mutated | provenance and created_by gates |
 | Install corrupts host config | dry-run, markers, backup, uninstall |
 | Host-native files drift from `.mnemon` | projection checksums, drift reports, explicit import |
-| Evaluation becomes theater | explicit constraints and held-out cases |
+| Evaluation becomes theater | Hermes-style gates first; target-specific regression only when useful |
 | Runner competes with foreground task | foreground activity signal, leases, budget, deferral |
 
 ## Success Criteria

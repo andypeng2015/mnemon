@@ -1582,9 +1582,9 @@
             </button>
 
             <button class="node" data-node="eval" style="--accent: var(--red); left: 4%; top: 76%; --w: 185px;">
-              <span class="kicker">Eval Gate</span>
-              <strong>constraints / tests / PR</strong>
-              <span>prompt、hook、guideline 进入 PR 式评估。</span>
+              <span class="kicker">Risk Gate</span>
+              <strong>R0-R4 / scanner / approval</strong>
+              <span>Hermes 风格的轻量 gate，而不是重型 benchmark。</span>
             </button>
 
             <button class="node" data-node="reports" style="--accent: var(--violet); left: 29%; top: 76%; --w: 190px;">
@@ -1857,12 +1857,12 @@
         risk: "Durable changes without reports are architecture violations."
       },
       eval: {
-        title: "Eval Gate",
-        body: "Higher-risk changes are evaluated through constraints, held-out tasks, regression checks and PR-style proposals.",
-        owns: ["constraints", "datasets", "PR templates"],
-        reads: ["candidate changes", "reports", "schemas"],
-        writes: ["eval reports", "PR proposals"],
-        risk: "Eval constraints are protected and cannot be self-weakened."
+        title: "Risk Gate",
+        body: "Hermes-style risk control: classify R0-R4, validate schema/path/size, scan for dangerous content, then allow, propose, ask, or block.",
+        owns: ["risk classifier", "static scanner", "approval policy", "rollback contract"],
+        reads: ["candidate changes", "reports", "schemas", "write policy"],
+        writes: ["risk reports", "approval proposals", "rollback pointers"],
+        risk: "Hardline targets are blocked from self-evolution, not merely escalated."
       },
       projection: {
         title: "Hook Binding Metadata",
@@ -1957,15 +1957,15 @@
         ]
       },
       eval: {
-        title: "Eval-Gated Evolution",
-        body: "High-risk changes go through constraints, tests and PR-style reports instead of silent mutation.",
+        title: "Hermes Risk Gate",
+        body: "Self-evolution changes pass a lightweight Hermes-style gate before any durable write.",
         nodes: ["eval", "reports", "human", "runner", "mnemon"],
         lines: ["line-eval-reports", "line-runner-reports", "line-reports-human", "line-human-host"],
         steps: [
-          ["Candidate", "Skill prompt, hook prompt, guideline or install-map proposal."],
-          ["Validate", "Run schema checks, regression cases and held-out tasks."],
-          ["Report", "Write eval result and PR template."],
-          ["Human merge", "Protected targets require approval."]
+          ["Classify", "Assign R0-R4 by target, source, provenance and execution context."],
+          ["Validate", "Run target allowlist, schema, size, budget and static scanner checks."],
+          ["Decide", "Allow, proposal, approval_required or block."],
+          ["Apply/report", "Checkpoint when possible, then apply or write a report with rollback pointer."]
         ]
       },
       projection: {
@@ -2230,15 +2230,15 @@
             risk: "没有 report 的 durable change 是架构违规。"
           },
           eval: {
-            kicker: "Eval Gate",
-            mapTitle: "constraints / tests / PR",
-            summary: "prompt、hook、guideline 进入 PR 式评估。",
-            title: "Eval Gate",
-            body: "高风险变化通过 constraints、held-out tasks、regression checks 和 PR-style proposals 评估。",
-            owns: ["constraints", "datasets", "PR templates"],
-            reads: ["candidate changes", "reports", "schemas"],
-            writes: ["eval reports", "PR proposals"],
-            risk: "Eval constraints 是 protected，不能被自进化流程自动削弱。"
+            kicker: "Risk Gate",
+            mapTitle: "R0-R4 / scanner / approval",
+            summary: "Hermes 风格的轻量 gate，而不是重型 benchmark。",
+            title: "Risk Gate",
+            body: "Hermes 风格风控：先分 R0-R4，再做 schema/path/size 校验、静态扫描，最后决定 allow、proposal、ask 或 block。",
+            owns: ["risk classifier", "static scanner", "approval policy", "rollback contract"],
+            reads: ["candidate changes", "reports", "schemas", "write policy"],
+            writes: ["risk reports", "approval proposals", "rollback pointers"],
+            risk: "Hardline targets 不能通过自进化修改；不是升级审批，而是直接 block。"
           },
           projection: {
             kicker: "Projection State",
@@ -2344,16 +2344,16 @@
             ]
           },
           eval: {
-            chip: "评估",
-            title: "Eval-Gated Evolution",
-            body: "高风险变化必须通过 constraints、tests 和 PR-style reports，不能静默 mutation。",
+            chip: "风控",
+            title: "Hermes Risk Gate",
+            body: "所有自进化写入先经过 Hermes 风格的轻量 gate，再决定是否持久化。",
             nodes: ["eval", "reports", "human", "runner", "mnemon"],
             lines: ["line-eval-reports", "line-runner-reports", "line-reports-human", "line-human-host"],
             steps: [
-              ["候选变化", "Skill prompt、hook prompt、guideline 或 install-map proposal。"],
-              ["验证", "运行 schema checks、regression cases 和 held-out tasks。"],
-              ["报告", "写入 eval result 和 PR template。"],
-              ["人工合并", "Protected targets 需要 approval。"]
+              ["分类", "根据 target、source、provenance 和 execution context 标记 R0-R4。"],
+              ["校验", "运行 target allowlist、schema、size、budget 和 static scanner。"],
+              ["决策", "输出 allow、proposal、approval_required 或 block。"],
+              ["应用/报告", "可用时先 checkpoint，再 apply 或写入带 rollback pointer 的 report。"]
             ]
           },
           projection: {
@@ -2704,7 +2704,7 @@
           { number: "L1", title: "Instruction + Skill", body: "通过 host instruction surface 或 native skill index 发现 .mnemon。", accent: "var(--blue)" },
           { number: "L2", title: "Lifecycle Hooks", body: "自动 recall、observe、reflect。写入能力受 allowlist 和 host permission 限制。", accent: "var(--green)" },
           { number: "L3", title: "Scheduled / Idle", body: "curator、dreaming、index jobs 可由 host scheduler、cron 或 runner tick 执行。", accent: "var(--orange)" },
-          { number: "L4", title: "Eval / CI", body: "高风险修改走 constraints、dataset、PR proposal 和 human approval。", accent: "var(--red)" }
+          { number: "L4", title: "Risk / CI", body: "高风险修改走 R0-R4 gate、static scan、rollback report 和 human approval。", accent: "var(--red)" }
         ]
       },
       en: {
@@ -2915,15 +2915,15 @@
             risk: "Durable changes without reports are architecture violations."
           },
           eval: {
-            kicker: "Eval Gate",
-            mapTitle: "constraints / tests / PR",
-            summary: "Prompts, hooks, and guidelines move through PR-style evaluation.",
-            title: "Eval Gate",
-            body: "Higher-risk changes are evaluated through constraints, held-out tasks, regression checks, and PR-style proposals.",
-            owns: ["constraints", "datasets", "PR templates"],
-            reads: ["candidate changes", "reports", "schemas"],
-            writes: ["eval reports", "PR proposals"],
-            risk: "Eval constraints are protected and cannot be weakened by self-evolution."
+            kicker: "Risk Gate",
+            mapTitle: "R0-R4 / scanner / approval",
+            summary: "Hermes-style lightweight gates, not heavy benchmarks.",
+            title: "Risk Gate",
+            body: "Hermes-style risk control: classify R0-R4, validate schema/path/size, scan for dangerous content, then allow, propose, ask, or block.",
+            owns: ["risk classifier", "static scanner", "approval policy", "rollback contract"],
+            reads: ["candidate changes", "reports", "schemas", "write policy"],
+            writes: ["risk reports", "approval proposals", "rollback pointers"],
+            risk: "Hardline targets are blocked from self-evolution, not merely escalated."
           },
           projection: {
             kicker: "Projection State",
@@ -3029,16 +3029,16 @@
             ]
           },
           eval: {
-            chip: "Eval",
-            title: "Eval-Gated Evolution",
-            body: "High-risk changes go through constraints, tests, and PR-style reports instead of silent mutation.",
+            chip: "Risk",
+            title: "Hermes Risk Gate",
+            body: "Self-evolution changes pass a lightweight Hermes-style gate before any durable write.",
             nodes: ["eval", "reports", "human", "runner", "mnemon"],
             lines: ["line-eval-reports", "line-runner-reports", "line-reports-human", "line-human-host"],
             steps: [
-              ["Candidate change", "Skill prompt, hook prompt, guideline, or install-map proposal."],
-              ["Validate", "Run schema checks, regression cases, and held-out tasks."],
-              ["Report", "Write eval results and a PR template."],
-              ["Human merge", "Protected targets require approval."]
+              ["Classify", "Assign R0-R4 by target, source, provenance, and execution context."],
+              ["Validate", "Run target allowlist, schema, size, budget, and static scanner checks."],
+              ["Decide", "Return allow, proposal, approval_required, or block."],
+              ["Apply/report", "Checkpoint when possible, then apply or write a report with rollback pointer."]
             ]
           },
           projection: {
@@ -3388,7 +3388,7 @@
           { number: "L1", title: "Instruction + Skill", body: "Discover .mnemon through a host instruction surface or native skill index.", accent: "var(--blue)" },
           { number: "L2", title: "Lifecycle Hooks", body: "Automatic recall, observe, and reflect. Writes are limited by allowlists and host permissions.", accent: "var(--green)" },
           { number: "L3", title: "Scheduled / Idle", body: "Curator, dreaming, and index jobs run through host scheduler, cron, or runner tick.", accent: "var(--orange)" },
-          { number: "L4", title: "Eval / CI", body: "High-risk changes go through constraints, datasets, PR proposals, and human approval.", accent: "var(--red)" }
+          { number: "L4", title: "Risk / CI", body: "High-risk changes go through R0-R4 gates, static scans, rollback reports, and human approval.", accent: "var(--red)" }
         ]
       }
     };
