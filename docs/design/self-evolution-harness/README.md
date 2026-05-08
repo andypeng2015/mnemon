@@ -10,7 +10,7 @@ Self-Evolution Harness 应满足：
 2. **Harness-owned filesystem**：harness 拥有 `.mnemon` canonical filesystem；host 原生文件只是 projection/binding。
 3. **Installable everywhere**：Claude Code、Codex、Cursor、Continue、Hermes、OpenClaw、generic agent 都可按能力等级安装。
 4. **Everything is skill**：流程、工具经验、操作方法主要沉淀为 skill；memory 只保存 facts/preferences。
-5. **Hot/warm/cold memory**：模型直接消费 hot；warm 承载整理 capsule；cold 承载 evidence、history、index。
+5. **Working/long-term memory consolidation**：Working Memory 是直接进 prompt 的 bounded Markdown；Long-Term Memory 由 Mnemon Store 承载 episodic/semantic、由 skills 承载 procedural；Dreaming Jobs 负责巩固与迁移。
 6. **Proposal-first evolution**：默认先写 reports/proposals；只有低风险、allowlist 内、host 可强制权限时才自动 patch。
 7. **No mandatory agent runtime**：harness core 不要求常驻进程，不持有 agent state，不接管任何 host execution surface；可选 maintenance runner 只执行维护 jobs。
 
@@ -62,7 +62,7 @@ Self-Evolution Harness 应满足：
     harness.schema.json
     install-map.schema.json
     skill.schema.json
-    hot-memory.schema.json
+    prompt-memory.schema.json
     usage.schema.json
     hook-io.schema.json
     proposal.schema.json
@@ -75,9 +75,9 @@ Self-Evolution Harness 应满足：
     snapshot
     rollback
   memory/
-    hot/
-    warm/
-    cold/
+    prompt/
+    longterm/
+    consolidation/
   state/
     install.json
     usage.json
@@ -108,13 +108,13 @@ Self-Evolution Harness 应满足：
 | [02-installation-contract.md](02-installation-contract.md) | `harness.yaml`、`INSTALL.md`、host binding、升级/卸载 |
 | [03-artifacts-and-schemas.md](03-artifacts-and-schemas.md) | 主要 artifacts 和 schemas 的详细字段 |
 | [04-skills-and-hooks.md](04-skills-and-hooks.md) | core skills、四阶段 hooks、fallback 规则 |
-| [05-memory-curation-eval.md](05-memory-curation-eval.md) | hot/warm/cold、curator、dreaming、eval gate |
+| [05-memory-curation-eval.md](05-memory-curation-eval.md) | Working Memory、Long-Term Memory、Dreaming consolidation、curator、eval gate |
 | [06-implementation-roadmap.md](06-implementation-roadmap.md) | MVP、阶段计划、验收标准 |
 | [07-maintenance-runner.md](07-maintenance-runner.md) | 可选 daemon/runner 的边界、jobs、状态、锁、预算 |
 | [08-skill-production-paths.md](08-skill-production-paths.md) | foreground、post-turn review、maintenance synthesis 三条 skill 生产路径 |
 | [09-anti-patterns.md](09-anti-patterns.md) | 防止 harness 滑成 agent framework 的反模式清单 |
 | [10-filesystem-and-host-projection.md](10-filesystem-and-host-projection.md) | `.mnemon` canonical filesystem、host template sensing、projection/mount 策略 |
-| [architecture-site.html](architecture-site.html) | 交互式 HTML 架构地图、管道流、host projection explorer |
+| [architecture-site.html](architecture-site.html) | 交互式 HTML 架构地图、管道流、host projection explorer，支持中文/英文切换 |
 
 ## 架构一句话
 

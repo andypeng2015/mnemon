@@ -57,8 +57,8 @@ Outputs:
 
 Rules:
 
-- Prefer hot memory.
-- Warm/cold recall must be summarized.
+- Prefer Prompt Memory because it is already in the host prompt snapshot.
+- Long-term recall must be summarized and evidence-linked.
 - Never inject raw transcript.
 - Keep output below host budget.
 
@@ -75,9 +75,9 @@ Inputs:
 
 Outputs:
 
-- cold evidence file.
+- episodic evidence/event file.
 - optional usage signal.
-- no hot memory write by default.
+- no semantic long-term write by default.
 
 ### `reflect`
 
@@ -106,7 +106,9 @@ Inputs:
 
 - `state/usage.json`.
 - active skills.
-- hot/warm memory.
+- Prompt Memory.
+- long-term recall/index summaries.
+- consolidation proposals.
 - reports.
 
 Outputs:
@@ -137,7 +139,7 @@ Rules:
 
 - cite source URLs.
 - mark inference separately.
-- do not promote unverified claims to hot memory.
+- do not promote unverified claims to Prompt Memory.
 
 ## Hook Templates
 
@@ -190,13 +192,13 @@ Semantic events:
 Host action:
 
 1. Redact secrets.
-2. Save evidence under `memory/cold/evidence/`.
+2. Save evidence under `memory/longterm/episodic/evidence/`.
 3. Update usage if relevant.
 
 Boundary:
 
 - Evidence only.
-- No conclusions in hot memory.
+- No conclusions in Prompt Memory.
 - If output contains secrets, discard or redact.
 
 ### Reflect Hook
@@ -275,7 +277,7 @@ Reflection prompt must include:
 You are not continuing the user task.
 You may only propose or apply durable memory/skill changes.
 Do not save one-off task progress.
-Facts/preferences go to hot memory.
+Facts/preferences go to Prompt Memory.
 Procedures/workflows go to skills.
 If write-target restrictions are unavailable, output proposals only.
 ```

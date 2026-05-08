@@ -17,9 +17,9 @@ protected:
   - schemas/**
   - hooks/**
 canonical:
-  memory_hot: memory/hot
-  memory_warm: memory/warm
-  memory_cold: memory/cold
+  memory_prompt: memory/prompt
+  memory_longterm: memory/longterm
+  memory_consolidation: memory/consolidation
   skills_active:
     - skills/core
     - skills/project
@@ -116,12 +116,12 @@ Rules:
 - Do not create one-session-one-skill.
 - Package/harness skills are not auto-curated.
 
-## Hot Memory Artifact
+## Prompt Memory Artifact
 
-Hot memory is small Markdown:
+Prompt Memory is the engineering implementation of Working Memory. It is small Markdown:
 
 ```text
-memory/hot/
+memory/prompt/
   MEMORY.md
   USER.md
   project.md
@@ -134,6 +134,8 @@ Recommended budgets:
 | `MEMORY.md` | 2k-4k chars |
 | `USER.md` | 1k-2k chars |
 | `project.md` | 2k-6k chars |
+
+Prompt Memory is fully loaded into the host prompt snapshot. It is not a recall database.
 
 Entry shape:
 
@@ -152,7 +154,7 @@ Rules:
 - Facts/preferences only.
 - Declarative, not imperative.
 - Current user request overrides memory.
-- Exceeding budget produces demotion proposal, not silent truncation.
+- Exceeding budget produces a consolidation/demotion proposal, not silent truncation.
 
 ## Usage Sidecar
 
@@ -198,6 +200,69 @@ AND target not protected
 ```
 
 User, package, harness, imported, and pinned artifacts default to no auto mutation.
+
+## Long-Term Memory And Consolidation Artifacts
+
+Long-Term Memory is split by cognitive role. Mnemon Store carries episodic and semantic memory; skills carry procedural memory.
+
+```text
+memory/longterm/
+  episodic/
+    evidence/
+    transcripts/
+    events/
+    decisions/
+    failures/
+  semantic/
+    facts/
+    preferences/
+    summaries/
+    topics/
+    index/
+  archive/
+    prompt/
+  imports/
+
+memory/consolidation/
+  candidates/
+  summaries/
+  promotions/
+  demotions/
+  decisions/
+```
+
+Consolidation artifacts are staging records for Prompt Memory / Long-Term Memory movement, not a third memory layer.
+
+Promotion proposal:
+
+```yaml
+type: prompt_promotion
+from:
+  longterm_refs:
+    - memory/longterm/semantic/summaries/session-2026-05-09.md
+candidate: memory/consolidation/candidates/build-tooling.yaml
+to: memory/prompt/project.md
+scores:
+  importance: 0.86
+  confidence: 0.91
+  recurrence: 0.74
+  risk: 0.12
+patch:
+  action: add_or_replace
+  content: "This repo uses pnpm for frontend package management."
+```
+
+Demotion proposal:
+
+```yaml
+type: prompt_demotion
+from: memory/prompt/project.md
+to:
+  longterm_ref: memory/longterm/archive/prompt/project-2026-05-09.md
+reason: "Too detailed for always-on prompt memory."
+replacement:
+  prompt_pointer: "Build details archived in long-term memory; recall when working on frontend tooling."
+```
 
 ## Hook IO
 
@@ -247,7 +312,7 @@ Recall output:
 type: recall
 status: ok
 context:
-  - source: memory/hot/project.md
+  - source: memory/prompt/project.md
     confidence: high
     text: "Use pnpm for this repository."
 warnings: []
@@ -386,10 +451,12 @@ job:
   inputs:
     - state/usage.json
     - skills/**
-    - memory/hot/**
-    - memory/warm/**
+    - memory/prompt/**
+    - memory/longterm/semantic/summaries/**
+    - memory/consolidation/**
   write_allowlist:
     - reports/curator/**
+    - memory/consolidation/**
     - state/curator_state.json
   budgets:
     max_runtime_seconds: 900
@@ -409,11 +476,11 @@ Runner job types:
 | `reflect.deferred` | delayed post-turn review when host cannot run immediate hook | proposal |
 | `curator.transitions` | deterministic usage state updates | apply to state only |
 | `curator.review` | skill/memory consolidation, demotion, archive proposals | dry-run |
-| `dreaming.light` | extract candidates from cold/warm evidence | warm candidate write |
+| `dreaming.light` | extract candidates from long-term evidence and summaries | consolidation candidate write |
 | `dreaming.rem` | consolidate themes and write dreaming report | report-only |
 | `dreaming.deep` | promotion/demotion proposals from scored candidates | proposal |
-| `cold.index.incremental` | update cold memory search index | apply to index only |
-| `cold.index.rebuild` | rebuild cold memory FTS/vector/index artifacts | apply to index only |
+| `longterm.index.incremental` | update long-term memory search index | apply to index only |
+| `longterm.index.rebuild` | rebuild long-term memory FTS/vector/index artifacts | apply to index only |
 | `eval.batch` | run constraints/eval and write PR proposal | proposal |
 | `snapshot.rotate` | maintain backup retention | apply |
 
@@ -442,8 +509,8 @@ LLM-based jobs must call a declared host command. The runner must not embed a se
 Backup before mutating:
 
 - `skills/**`
-- `memory/hot/**`
-- `memory/warm/**`
+- `memory/prompt/**`
+- `memory/consolidation/**`
 - `state/usage.json`
 - `state/pins.json`
 

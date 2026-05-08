@@ -76,7 +76,7 @@ Task time:
 Tool time:
   pre_tool / post_tool
     -> observe hook
-    -> evidence appended to cold/warm
+    -> evidence appended to long-term episodic memory
     -> usage sidecar updated if host supports it
 
 Post-turn:
@@ -107,7 +107,7 @@ Harness 定义语义事件，host binding 负责映射到具体平台。
 
 | Event | Purpose | Required? | Fallback |
 |---|---|---:|---|
-| `session_start` | 加载 guideline、hot memory、skill index | L2 | instruction checklist |
+| `session_start` | 加载 guideline、Prompt Memory、skill index | L2 | instruction checklist |
 | `pre_llm_call` | 注入 recall/reminder | L2 | manual `recall` skill |
 | `pre_tool_call` | safety gate、target allowlist | L2 | host permission + guideline |
 | `post_tool_call` | observe evidence、usage signal | L2 | session-end summary |
@@ -136,7 +136,7 @@ Harness 的核心不是对象方法，而是 artifacts：
 | `prompts/*.md` | host 调用的 scoped prompts |
 | `schemas/*.json` | IO、state、report、proposal、allowlist contracts |
 | `scripts/*` | host 可选调用的薄脚本 |
-| `memory/` | hot/warm/cold layout |
+| `memory/` | Prompt Memory、Long-Term Memory 与 consolidation artifacts |
 | `state/` | install、usage、pins、curator state |
 | `reports/` | install、reflection、curator、eval reports |
 | `runner/` | optional job descriptors、locks、budgets |
@@ -171,7 +171,7 @@ Harness 虽然没有 mandatory runtime，但需要自己的文件系统。推荐
 1. 当前用户请求优先于所有 memory/guideline。
 2. 旧 memory 只作参考，不是 system command。
 3. facts/preferences 进 memory，procedures/workflows 进 skill。
-4. raw evidence 进 cold，不直接进 prompt。
+4. raw evidence 进 long-term episodic memory，不直接进 prompt。
 5. 自动写入只允许 allowlist targets。
 6. host 不能强制 target allowlist 时，只能 proposal-only。
 7. curator 默认 dry-run。

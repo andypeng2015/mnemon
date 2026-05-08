@@ -75,14 +75,14 @@ Correct:
 Bad:
 
 - all memory moves into an opaque vector/database layer;
-- hot behavior cannot be reviewed as text;
+- prompt-facing behavior cannot be reviewed as text;
 - retrieval output becomes the only source of truth.
 
 Correct:
 
 - Markdown remains the behavior control plane;
-- cold memory can use indexes/databases as implementation detail;
-- hot/warm/cold promotion is explicit and report-backed.
+- Long-Term Memory can use indexes/databases as implementation detail;
+- Prompt Memory / Long-Term Memory consolidation is explicit and report-backed.
 
 ## Anti-Pattern F: Unlimited Skill Creation
 
@@ -97,7 +97,7 @@ Correct:
 - patch existing skills first;
 - create umbrella skills for class-level patterns;
 - curator consolidates self-authored skills;
-- one-off details remain session summaries or cold evidence.
+- one-off details remain session summaries or episodic evidence.
 
 ## Anti-Pattern G: Auto-Mutating User Or Package Assets
 
@@ -127,19 +127,19 @@ Correct:
 - high-risk changes become PR-style reports;
 - evaluator constraints are protected.
 
-## Anti-Pattern I: Hot Memory As Transcript Cache
+## Anti-Pattern I: Prompt Memory As Transcript Cache
 
 Bad:
 
-- hot memory accumulates raw history;
+- Prompt Memory accumulates raw history;
 - long facts are appended until context budgets fail;
 - old notes are silently dropped when size grows.
 
 Correct:
 
-- hot memory is short and declarative;
-- warm memory holds capsules and candidates;
-- cold memory holds evidence/transcripts/indexes;
+- Prompt Memory is short and declarative;
+- Long-Term Memory holds evidence, transcripts, summaries, archives, and indexes;
+- consolidation artifacts hold candidates and proposals;
 - budget pressure creates demotion proposals, not silent truncation.
 
 ## Anti-Pattern J: Maintenance Marketed As Intelligence

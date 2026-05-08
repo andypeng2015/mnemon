@@ -115,6 +115,34 @@
       background: var(--panel-2);
     }
 
+    .language-switch {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 3px;
+      background: var(--panel);
+      flex: 0 0 auto;
+    }
+
+    .lang-button {
+      min-width: 42px;
+      min-height: 30px;
+      border: 0;
+      border-radius: 5px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 760;
+    }
+
+    .lang-button.active {
+      background: var(--ink);
+      color: white;
+    }
+
     .hero {
       display: grid;
       grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
@@ -422,6 +450,19 @@
       outline: 3px solid color-mix(in srgb, var(--accent) 28%, transparent);
     }
 
+    .node.primary-memory {
+      border-width: 2px;
+      border-left-width: 6px;
+    }
+
+    .node.consolidation-node {
+      width: 150px;
+      min-height: 76px;
+      border-style: dashed;
+      background: rgba(255, 255, 255, 0.78);
+      box-shadow: 0 8px 18px rgba(29, 38, 54, 0.07);
+    }
+
     .node .kicker {
       color: var(--muted);
       font-size: 11px;
@@ -596,6 +637,258 @@
       border-radius: inherit;
     }
 
+    .memory-lab {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, 0.65fr);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .memory-loop {
+      position: relative;
+      min-height: 500px;
+      margin: 18px;
+      border: 1px solid #e6ebf2;
+      border-radius: var(--radius);
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(22, 24, 29, 0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 24, 29, 0.04) 1px, transparent 1px),
+        #fbfcfe;
+      background-size: 28px 28px;
+    }
+
+    .memory-svg {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    .memory-path {
+      fill: none;
+      stroke: #aeb8c8;
+      stroke-width: 4;
+      stroke-linecap: round;
+      stroke-dasharray: 8 12;
+      opacity: 0.32;
+      transition: opacity 180ms ease, stroke 180ms ease, stroke-width 180ms ease, stroke-dasharray 180ms ease;
+    }
+
+    .memory-path.active {
+      opacity: 0.96;
+      stroke: var(--active, var(--blue));
+      stroke-width: 6;
+      stroke-dasharray: 1 0;
+    }
+
+    .memory-node {
+      position: absolute;
+      width: min(230px, 27vw);
+      min-height: 104px;
+      border: 1px solid #d6dce7;
+      border-left: 6px solid var(--accent, var(--blue));
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.96);
+      box-shadow: 0 12px 24px rgba(29, 38, 54, 0.08);
+      padding: 12px;
+      text-align: left;
+      cursor: pointer;
+      transition: transform 170ms ease, box-shadow 170ms ease, opacity 170ms ease, border-color 170ms ease;
+    }
+
+    .memory-node:hover,
+    .memory-node.selected {
+      transform: translateY(-2px);
+      border-color: var(--ink);
+      box-shadow: 0 18px 35px rgba(29, 38, 54, 0.15);
+    }
+
+    .memory-node.dim {
+      opacity: 0.42;
+    }
+
+    .memory-node.active {
+      outline: 3px solid color-mix(in srgb, var(--accent) 24%, transparent);
+      opacity: 1;
+    }
+
+    .memory-node .kicker {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 780;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 4px;
+    }
+
+    .memory-node strong {
+      display: block;
+      font-size: 16px;
+      line-height: 1.15;
+    }
+
+    .memory-node span:last-child {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.35;
+      margin-top: 6px;
+    }
+
+    .memory-node.interaction { left: 38%; top: 7%; --accent: var(--gold); }
+    .memory-node.working { left: 5%; top: 20%; --accent: var(--blue); }
+    .memory-node.evidence { left: 6%; top: 67%; --accent: var(--green); }
+    .memory-node.consolidation { left: 39%; top: 39%; --accent: var(--orange); width: min(250px, 29vw); }
+    .memory-node.store { right: 5%; top: 20%; --accent: var(--cyan); }
+    .memory-node.skills { right: 6%; top: 67%; --accent: var(--violet); }
+
+    .memory-inspector {
+      border-left: 1px solid var(--line);
+      padding: 18px;
+      min-width: 0;
+      background: #fbfcfe;
+    }
+
+    .memory-inspector h3 {
+      margin: 0;
+      font-size: 22px;
+    }
+
+    .memory-inspector p {
+      margin: 8px 0 14px;
+      color: var(--muted);
+    }
+
+    .memory-detail-grid {
+      display: grid;
+      gap: 10px;
+    }
+
+    .memory-detail-item {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: white;
+      padding: 10px;
+    }
+
+    .memory-detail-item b {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 5px;
+    }
+
+    .memory-detail-item ul {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      display: grid;
+      gap: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .memory-flow-panel {
+      padding: 18px;
+    }
+
+    .memory-flow-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .memory-flow-tab {
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: white;
+      color: var(--muted);
+      min-height: 36px;
+      padding: 7px 10px;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 13px;
+    }
+
+    .memory-flow-tab.active,
+    .memory-flow-tab:hover {
+      color: var(--ink);
+      border-color: var(--ink);
+      background: #f8fbff;
+    }
+
+    .memory-flow-stage {
+      display: grid;
+      grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .memory-flow-copy {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fbfcfe;
+      padding: 14px;
+    }
+
+    .memory-flow-copy h3 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+
+    .memory-flow-copy p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .memory-step-list {
+      display: grid;
+      gap: 8px;
+      counter-reset: memory-step;
+    }
+
+    .memory-step {
+      display: grid;
+      grid-template-columns: 30px minmax(0, 1fr);
+      gap: 9px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: white;
+      padding: 9px;
+    }
+
+    .memory-step::before {
+      counter-increment: memory-step;
+      content: counter(memory-step);
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--ink);
+      color: white;
+      font-size: 12px;
+      font-weight: 780;
+    }
+
+    .memory-step strong {
+      display: block;
+      font-size: 13px;
+    }
+
+    .memory-step span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      margin-top: 2px;
+    }
+
     .pipeline {
       display: grid;
       gap: 10px;
@@ -767,6 +1060,8 @@
     @media (max-width: 1120px) {
       .hero,
       .map-layout,
+      .memory-lab,
+      .memory-flow-stage,
       .projection-layout,
       .grid-2,
       .grid-3 {
@@ -774,8 +1069,10 @@
       }
 
       .map-wrap,
-      .host-list {
+      .host-list,
+      .memory-inspector {
         border-right: 0;
+        border-left: 0;
         border-bottom: 1px solid var(--line);
       }
 
@@ -786,6 +1083,21 @@
       .node {
         width: min(var(--w, 170px), 42vw);
       }
+
+      .memory-loop {
+        min-height: 760px;
+      }
+
+      .memory-node {
+        width: min(260px, calc(100vw - 74px));
+      }
+
+      .memory-node.interaction { left: 6%; top: 4%; }
+      .memory-node.working { left: 6%; top: 18%; }
+      .memory-node.consolidation { left: 6%; top: 34%; width: min(260px, calc(100vw - 74px)); }
+      .memory-node.store { left: 6%; right: auto; top: 51%; }
+      .memory-node.evidence { left: 6%; top: 67%; }
+      .memory-node.skills { left: 6%; right: auto; top: 83%; }
 
       .projection-columns {
         grid-template-columns: 1fr;
@@ -839,42 +1151,46 @@
             <path d="M5 12h14M12 5v14M7 7l10 10M17 7 7 17" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
           </svg>
         </span>
-        <span>Mnemon Harness Map</span>
+        <span data-i18n="brand">Mnemon Harness Map</span>
       </div>
-      <nav class="nav" aria-label="Page sections">
-        <a href="#map">架构地图</a>
-        <a href="#pipelines">管道</a>
-        <a href="#memory">记忆流</a>
-        <a href="#projection">Host 挂载</a>
-        <a href="#levels">能力等级</a>
+      <nav class="nav" aria-label="Page sections" data-i18n-aria="navAria">
+        <a href="#map" data-i18n="nav.map">架构地图</a>
+        <a href="#pipelines" data-i18n="nav.pipelines">管道</a>
+        <a href="#memory" data-i18n="nav.memory">记忆流</a>
+        <a href="#projection" data-i18n="nav.projection">Host 挂载</a>
+        <a href="#levels" data-i18n="nav.levels">能力等级</a>
       </nav>
+      <div class="language-switch" role="group" aria-label="Language">
+        <button class="lang-button active" type="button" data-lang="zh" lang="zh-CN">中</button>
+        <button class="lang-button" type="button" data-lang="en" lang="en">EN</button>
+      </div>
     </div>
   </header>
 
   <main class="shell">
     <section class="hero">
       <div class="hero-copy">
-        <div class="eyebrow">Agent-agnostic self-evolution harness</div>
-        <h1>一个没有自有 agent runtime 的自进化外骨骼</h1>
-        <p class="lead">
+        <div class="eyebrow" data-i18n="hero.eyebrow">Agent-agnostic self-evolution harness</div>
+        <h1 data-i18n="hero.title">一个没有自有 agent runtime 的自进化外骨骼</h1>
+        <p class="lead" data-i18n-html="hero.lead">
           Mnemon 把 canonical state 放在 <strong>.mnemon</strong>，通过 host projection 挂载到 Claude Code、Codex、Hermes 或 generic agent。Host 仍拥有 LLM loop、工具、权限和 UI；harness 只提供技能、记忆、hook、报告、治理和可选 maintenance runner。
         </p>
         <div class="hero-actions">
-          <a class="action primary" href="#map">查看交互架构</a>
-          <a class="action" href="#projection">查看挂载策略</a>
-          <a class="action" href="#pipelines">查看自进化路径</a>
+          <a class="action primary" href="#map" data-i18n="hero.actions.map">查看交互架构</a>
+          <a class="action" href="#projection" data-i18n="hero.actions.projection">查看挂载策略</a>
+          <a class="action" href="#pipelines" data-i18n="hero.actions.pipelines">查看自进化路径</a>
         </div>
       </div>
-      <aside class="hero-visual" aria-label="Architecture summary">
+      <aside class="hero-visual" aria-label="Architecture summary" data-i18n-aria="hero.visualAria">
         <div class="mini-title">
-          <strong>核心形态</strong>
-          <span>canonical filesystem + host projection</span>
+          <strong data-i18n="hero.visualTitle">核心形态</strong>
+          <span data-i18n="hero.visualSubtitle">canonical filesystem + host projection</span>
         </div>
         <div class="mini-stack">
           <div class="mini-cell" style="border-left: 5px solid var(--cyan)">
             <div>
-              <h3>.mnemon</h3>
-              <p>memory、skills、state、reports、runner jobs 的 source of truth。</p>
+              <h3 data-i18n="hero.cells.mnemon.title">.mnemon</h3>
+              <p data-i18n="hero.cells.mnemon.body">memory、skills、state、reports、runner jobs 的 source of truth。</p>
             </div>
             <div class="mini-tags">
               <span class="tag cyan">canonical</span>
@@ -883,8 +1199,8 @@
           </div>
           <div class="mini-cell" style="border-left: 5px solid var(--gold)">
             <div>
-              <h3>Host Projection</h3>
-              <p>managed block、pointer、symlink/copy、native import。</p>
+              <h3 data-i18n="hero.cells.projection.title">Host Projection</h3>
+              <p data-i18n="hero.cells.projection.body">managed block、pointer、symlink/copy、native import。</p>
             </div>
             <div class="mini-tags">
               <span class="tag orange">mount</span>
@@ -893,8 +1209,8 @@
           </div>
           <div class="mini-cell wide" style="border-left: 5px solid var(--violet)">
             <div>
-              <h3>Self-Evolution Loop</h3>
-              <p>任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 在维护路径上治理增长；eval gate 处理高风险修改。</p>
+              <h3 data-i18n="hero.cells.loop.title">Self-Evolution Loop</h3>
+              <p data-i18n="hero.cells.loop.body">任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 在维护路径上治理增长；eval gate 处理高风险修改。</p>
             </div>
             <div class="mini-tags">
               <span class="tag violet">reflect</span>
@@ -910,10 +1226,10 @@
     <section id="map" class="panel">
       <div class="section-head">
         <div>
-          <h2>交互架构地图</h2>
-          <p>点击管道高亮能力流；点击节点查看职责、读写边界和风险控制。</p>
+          <h2 data-i18n="sections.map.title">交互架构地图</h2>
+          <p data-i18n="sections.map.body">点击管道高亮能力流；点击节点查看职责、读写边界和风险控制。</p>
         </div>
-        <div class="toolbar" role="tablist" aria-label="Flow selector">
+        <div class="toolbar" role="tablist" aria-label="Flow selector" data-i18n-aria="sections.map.toolbarAria">
           <button class="chip active" data-flow="install" type="button">Install</button>
           <button class="chip" data-flow="task" type="button">Recall</button>
           <button class="chip" data-flow="observe" type="button">Observe</button>
@@ -925,7 +1241,7 @@
       </div>
       <div class="map-layout">
         <div class="map-wrap">
-          <div class="map-canvas" aria-label="Mnemon architecture nodes">
+          <div class="map-canvas" aria-label="Mnemon architecture nodes" data-i18n-aria="sections.map.canvasAria">
             <svg class="flow-svg" viewBox="0 0 1200 680" preserveAspectRatio="none" aria-hidden="true">
               <path id="line-host-native" class="flow-line install projection" d="M155 118 C245 118 252 212 345 212" />
               <path id="line-native-mnemon" class="flow-line install projection" d="M505 212 C610 212 630 320 745 320" />
@@ -933,10 +1249,10 @@
               <path id="line-projection-native" class="flow-line install projection" d="M345 395 C260 350 240 240 345 224" />
               <path id="line-host-hooks" class="flow-line task observe reflect maintenance" d="M155 146 C220 210 230 300 330 300" />
               <path id="line-hooks-skills" class="flow-line task observe reflect maintenance" d="M492 300 C555 295 575 205 642 205" />
-              <path id="line-skills-hot" class="flow-line task reflect" d="M800 205 C886 200 920 145 1010 145" />
+              <path id="line-skills-prompt" class="flow-line task reflect" d="M800 205 C886 200 920 145 1010 145" />
               <path id="line-skills-sidecar" class="flow-line observe reflect maintenance" d="M805 228 C900 270 918 330 1012 346" />
-              <path id="line-hot-warm" class="flow-line reflect maintenance" d="M1040 190 C1040 250 1040 275 1040 315" />
-              <path id="line-warm-cold" class="flow-line observe maintenance" d="M1040 410 C1040 456 1040 488 1040 535" />
+              <path id="line-prompt-consolidation" class="flow-line reflect maintenance" d="M1040 190 C1040 250 1040 275 1040 315" />
+              <path id="line-consolidation-longterm" class="flow-line observe maintenance" d="M1040 410 C1040 456 1040 488 1040 535" />
               <path id="line-sidecar-runner" class="flow-line maintenance" d="M1012 362 C910 370 888 510 762 510" />
               <path id="line-runner-reports" class="flow-line maintenance eval" d="M646 535 C556 610 470 610 365 555" />
               <path id="line-runner-skills" class="flow-line maintenance" d="M652 505 C610 400 650 310 705 252" />
@@ -1005,10 +1321,10 @@
               <span>只跑维护 jobs，不接管 agent loop。</span>
             </button>
 
-            <button class="node" data-node="hot" style="--accent: var(--blue); left: 84%; top: 12%; --w: 170px;">
-              <span class="kicker">Hot Memory</span>
+            <button class="node primary-memory" data-node="prompt" style="--accent: var(--blue); left: 84%; top: 12%; --w: 170px;">
+              <span class="kicker">Prompt Memory</span>
               <strong>MEMORY / USER / project</strong>
-              <span>短、稳定、直接进模型。</span>
+              <span>Working Memory 的工程实现。</span>
             </button>
 
             <button class="node" data-node="sidecar" style="--accent: var(--green); left: 84%; top: 41%; --w: 170px;">
@@ -1017,16 +1333,16 @@
               <span>治理元数据，不污染 Markdown。</span>
             </button>
 
-            <button class="node" data-node="warm" style="--accent: var(--orange); left: 84%; top: 56%; --w: 170px;">
-              <span class="kicker">Warm Memory</span>
-              <strong>topics / sessions / candidates</strong>
-              <span>整理后的中间层。</span>
+            <button class="node consolidation-node" data-node="consolidation" style="--accent: var(--orange); left: 85%; top: 54%; --w: 150px;">
+              <span class="kicker">Consolidation</span>
+              <strong>dreaming jobs / decisions</strong>
+              <span>巩固、降级、晋升与技能候选。</span>
             </button>
 
-            <button class="node" data-node="cold" style="--accent: var(--cyan); left: 84%; top: 76%; --w: 170px;">
-              <span class="kicker">Cold Memory</span>
-              <strong>evidence / transcripts / index</strong>
-              <span>高容量证据层，不直接注入。</span>
+            <button class="node primary-memory" data-node="longterm" style="--accent: var(--cyan); left: 84%; top: 76%; --w: 170px;">
+              <span class="kicker">Long-Term Memory</span>
+              <strong>Mnemon Store / Skills</strong>
+              <span>情景、语义和程序性记忆。</span>
             </button>
           </div>
         </div>
@@ -1045,8 +1361,8 @@
     <section id="pipelines" class="panel">
       <div class="section-head">
         <div>
-          <h2>能力管道与自进化路径</h2>
-          <p>每条管道都可以被 host hook、manual skill、external cron 或 optional runner 触发；能力强弱取决于 host 可安装等级。</p>
+          <h2 data-i18n="sections.pipelines.title">能力管道与自进化路径</h2>
+          <p data-i18n="sections.pipelines.body">每条管道都可以被 host hook、manual skill、external cron 或 optional runner 触发；能力强弱取决于 host 可安装等级。</p>
         </div>
       </div>
       <div class="pipeline" id="pipeline-list"></div>
@@ -1055,58 +1371,51 @@
     <section id="memory" class="panel">
       <div class="section-head">
         <div>
-          <h2>Memory / Skill 分层</h2>
-          <p>模型直接消费 hot；工程层治理 warm/cold；流程性知识沉淀成 skill，而不是塞进 memory。</p>
+          <h2 data-i18n="sections.memory.title">Working Memory / Long-Term Memory Consolidation</h2>
+          <p data-i18n="sections.memory.body">Working Memory 是直接进入 prompt 的 Markdown；Long-Term Memory 由 Mnemon Store 和 Skills 承载；Dreaming Jobs 负责巩固、降级、晋升和技能候选。</p>
         </div>
       </div>
-      <div class="grid-3">
-        <article class="card" style="--accent: var(--blue)">
-          <h3>Hot</h3>
-          <p>短预算、稳定事实和偏好。Recall 命中也必须过相关性阈值，否则返回 NONE。</p>
-          <div class="meter" aria-label="Hot budget"><span style="--value: 28%; --accent: var(--blue)"></span></div>
-        </article>
-        <article class="card" style="--accent: var(--orange)">
-          <h3>Warm</h3>
-          <p>topic/session/candidate capsule。支持 promotion/demotion，不直接整段注入 prompt。</p>
-          <div class="meter" aria-label="Warm budget"><span style="--value: 58%; --accent: var(--orange)"></span></div>
-        </article>
-        <article class="card" style="--accent: var(--cyan)">
-          <h3>Cold</h3>
-          <p>证据、transcripts、imports、archive、index。可以用 filesystem、FTS、vector index 实现。</p>
-          <div class="meter" aria-label="Cold budget"><span style="--value: 92%; --accent: var(--cyan)"></span></div>
-        </article>
+      <div class="memory-lab">
+        <div class="memory-loop" aria-label="Memory loop diagram" data-i18n-aria="sections.memory.loopAria">
+          <svg class="memory-svg" viewBox="0 0 1000 500" preserveAspectRatio="none" aria-hidden="true">
+            <path id="memory-path-write-prompt" class="memory-path" style="--active: var(--blue)" d="M500 95 C390 112 286 142 190 168" />
+            <path id="memory-path-write-evidence" class="memory-path" style="--active: var(--green)" d="M510 108 C385 232 280 332 190 376" />
+            <path id="memory-path-prompt-consolidation" class="memory-path" style="--active: var(--orange)" d="M245 190 C330 220 382 245 452 282" />
+            <path id="memory-path-evidence-consolidation" class="memory-path" style="--active: var(--orange)" d="M245 390 C330 370 386 340 452 315" />
+            <path id="memory-path-consolidation-store" class="memory-path" style="--active: var(--cyan)" d="M555 280 C650 230 720 192 812 168" />
+            <path id="memory-path-store-prompt" class="memory-path" style="--active: var(--blue)" d="M805 122 C626 70 360 80 210 136" />
+            <path id="memory-path-consolidation-skills" class="memory-path" style="--active: var(--violet)" d="M555 320 C650 360 720 392 812 390" />
+            <path id="memory-path-prompt-archive" class="memory-path" style="--active: var(--cyan)" d="M200 235 C340 455 680 455 812 240" />
+          </svg>
+
+          <button class="memory-node interaction" type="button" data-memory-node="interaction"></button>
+          <button class="memory-node working" type="button" data-memory-node="working"></button>
+          <button class="memory-node evidence" type="button" data-memory-node="evidence"></button>
+          <button class="memory-node consolidation" type="button" data-memory-node="consolidation"></button>
+          <button class="memory-node store" type="button" data-memory-node="store"></button>
+          <button class="memory-node skills" type="button" data-memory-node="skills"></button>
+        </div>
+        <aside class="memory-inspector" aria-live="polite">
+          <h3 id="memory-detail-title"></h3>
+          <p id="memory-detail-body"></p>
+          <div class="memory-detail-grid" id="memory-detail-grid"></div>
+        </aside>
       </div>
-      <div class="grid-2">
-        <article class="card">
-          <h3>Promotion</h3>
-          <p>重复修正、稳定事实、反复成功流程、curator/dreaming 证据充分时，生成 promotion proposal。事实进 hot memory；流程进 skill。</p>
-          <ul class="mini-list">
-            <li>cold evidence -> warm candidate</li>
-            <li>warm candidate -> hot fact proposal</li>
-            <li>workflow pattern -> skill patch/create proposal</li>
-          </ul>
-        </article>
-        <article class="card">
-          <h3>Demotion</h3>
-          <p>Hot 超预算、内容过细、过时或程序性太强时，生成 demotion proposal。默认 archive over delete。</p>
-          <ul class="mini-list">
-            <li>hot detail -> warm topic capsule</li>
-            <li>stale generated skill -> archive report</li>
-            <li>conflict -> human review / eval gate</li>
-          </ul>
-        </article>
+      <div class="memory-flow-panel">
+        <div class="memory-flow-tabs" id="memory-flow-tabs" role="tablist" aria-label="Memory flow selector" data-i18n-aria="sections.memory.flowAria"></div>
+        <div class="memory-flow-stage" id="memory-flow-stage"></div>
       </div>
     </section>
 
     <section id="projection" class="panel">
       <div class="section-head">
         <div>
-          <h2>Host Projection Explorer</h2>
-          <p>.mnemon 是 canonical；host 原生文件是投影。选择 host 查看安装面、挂载方式和 fallback。</p>
+          <h2 data-i18n="sections.projection.title">Host Projection Explorer</h2>
+          <p data-i18n="sections.projection.body">.mnemon 是 canonical；host 原生文件是投影。选择 host 查看安装面、挂载方式和 fallback。</p>
         </div>
       </div>
       <div class="projection-layout">
-        <div class="host-list" role="tablist" aria-label="Host projection selector">
+        <div class="host-list" role="tablist" aria-label="Host projection selector" data-i18n-aria="sections.projection.selectorAria">
           <button class="host-button active" type="button" data-host="claude"><strong>Claude Code</strong><span>CLAUDE.md + skills + hooks</span></button>
           <button class="host-button" type="button" data-host="codex"><strong>Codex</strong><span>AGENTS.md + manual skills</span></button>
           <button class="host-button" type="button" data-host="hermes"><strong>Hermes</strong><span>native skills + hooks + cron</span></button>
@@ -1123,41 +1432,15 @@
     <section id="levels" class="panel">
       <div class="section-head">
         <div>
-          <h2>能力等级</h2>
-          <p>Harness 不能假设 host 能力。安装器应探测 host 后选择最高可安全安装等级。</p>
+          <h2 data-i18n="sections.levels.title">能力等级</h2>
+          <p data-i18n="sections.levels.body">Harness 不能假设 host 能力。安装器应探测 host 后选择最高可安全安装等级。</p>
         </div>
       </div>
-      <div class="levels">
-        <article class="level" style="--accent: var(--cyan)">
-          <span class="number">L0</span>
-          <h3>Skill-only</h3>
-          <p>只读 Markdown 和手动调用。可以安装 guideline 与 manual reflect/curate。</p>
-        </article>
-        <article class="level" style="--accent: var(--blue)">
-          <span class="number">L1</span>
-          <h3>Instruction + Skill</h3>
-          <p>通过 CLAUDE.md、AGENTS.md 或 native skill index 发现 .mnemon。</p>
-        </article>
-        <article class="level" style="--accent: var(--green)">
-          <span class="number">L2</span>
-          <h3>Lifecycle Hooks</h3>
-          <p>自动 recall、observe、reflect。写入能力受 allowlist 和 host permission 限制。</p>
-        </article>
-        <article class="level" style="--accent: var(--orange)">
-          <span class="number">L3</span>
-          <h3>Scheduled / Idle</h3>
-          <p>curator、dreaming、index jobs 可由 host scheduler、cron 或 runner tick 执行。</p>
-        </article>
-        <article class="level" style="--accent: var(--red)">
-          <span class="number">L4</span>
-          <h3>Eval / CI</h3>
-          <p>高风险修改走 constraints、dataset、PR proposal 和 human approval。</p>
-        </article>
-      </div>
+      <div class="levels" id="levels-list"></div>
     </section>
 
     <footer class="footer">
-      <p>Source docs: docs/design/self-evolution-harness. This page is a standalone visualization of the current design.</p>
+      <p data-i18n="footer">Source docs: docs/design/self-evolution-harness. This page is a standalone visualization of the current design.</p>
     </footer>
   </main>
 
@@ -1192,7 +1475,7 @@
         body: "Host lifecycle events map to recall, observe, reflect and curate. Hooks have idempotency keys, latency budgets and proposal-only fallback.",
         owns: ["hook templates", "hook IO schema", "fallback rules"],
         reads: ["event payload", "current cwd", "budgets"],
-        writes: ["bounded outputs", "reports", "cold evidence if allowed"],
+        writes: ["bounded outputs", "reports", "episodic evidence if allowed"],
         risk: "If host cannot enforce write target allowlists, hook mutations become proposal-only."
       },
       skills: {
@@ -1203,28 +1486,28 @@
         writes: ["skill proposals", "skill patches", "reports"],
         risk: "Patch existing class-level skills before creating new ones."
       },
-      hot: {
-        title: "Hot Memory",
-        body: "Small model-facing memory: MEMORY.md, USER.md and project.md. Current user request always wins over memory.",
+      prompt: {
+        title: "Prompt Memory",
+        body: "Working Memory implemented as bounded Markdown: MEMORY.md, USER.md and project.md. Current user request always wins over memory.",
         owns: ["stable facts", "preferences", "short project context"],
         reads: ["promotion proposals", "user confirmations"],
-        writes: ["budgeted hot entries"],
-        risk: "Hot memory is not a transcript cache; overflow creates demotion proposals."
+        writes: ["budgeted prompt entries"],
+        risk: "Prompt Memory is not a transcript cache; overflow creates consolidation proposals."
       },
-      warm: {
-        title: "Warm Memory",
-        body: "Curated middle layer: topics, session capsules and candidates. Recalled only through summary.",
-        owns: ["topic capsules", "session summaries", "promotion candidates"],
-        reads: ["cold evidence", "reflection reports"],
-        writes: ["summaries", "candidates", "demotion targets"],
-        risk: "Warm content can be large, but must be summarized before injection."
+      consolidation: {
+        title: "Memory Consolidation",
+        body: "Dreaming Jobs compact Prompt Memory, archive evidence, extract semantic memory, propose promotion, and create skill candidates.",
+        owns: ["candidates", "summaries", "promotion proposals", "demotion proposals"],
+        reads: ["episodic evidence", "prompt budget", "reflection reports"],
+        writes: ["consolidation decisions", "promotion candidates", "demotion plans"],
+        risk: "Consolidation artifacts are protocol state, not another memory tier."
       },
-      cold: {
-        title: "Cold Memory",
-        body: "High-capacity evidence layer: transcripts, imports, archive and index. It is searchable but not directly injected.",
-        owns: ["raw evidence", "transcripts", "archive", "indexes"],
+      longterm: {
+        title: "Long-Term Memory",
+        body: "Mnemon Store carries episodic and semantic memory; Skills carry procedural memory. Recall is ranked, summarized, and evidence-linked.",
+        owns: ["episodic evidence", "semantic summaries", "procedural skills", "indexes"],
         reads: ["observe hook", "imports", "tool results"],
-        writes: ["evidence files", "index metadata"],
+        writes: ["evidence files", "semantic memory", "skill candidates", "index metadata"],
         risk: "Raw transcripts never become prompt context without summarization and relevance gate."
       },
       sidecar: {
@@ -1239,7 +1522,7 @@
         title: "Optional Maintenance Runner",
         body: "A bounded maintenance executor. It is cron + lease + ledger, not an agent loop.",
         owns: ["runner jobs", "leases", "budgets", "ledger"],
-        reads: ["state", "reports", "warm/cold memory", "usage sidecar"],
+        reads: ["state", "reports", "long-term memory", "consolidation artifacts", "usage sidecar"],
         writes: ["reports", "proposals", "allowlisted low-risk patches"],
         risk: "One job step maps to one scoped LLM call and one schema-validated response."
       },
@@ -1294,35 +1577,35 @@
       task: {
         title: "Task-Time Recall",
         body: "Before or during a model turn, host calls recall. Recall can return NONE when memory is irrelevant.",
-        nodes: ["host", "hooks", "skills", "hot", "warm", "cold"],
-        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-hot", "line-hot-warm", "line-warm-cold"],
+        nodes: ["host", "hooks", "skills", "prompt", "consolidation", "longterm"],
+        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-prompt", "line-prompt-consolidation", "line-consolidation-longterm"],
         steps: [
           ["Event", "session_start, pre_llm_call or manual recall."],
           ["Rank candidates", "Use relevance, recency, frequency, confidence, scope and risk."],
-          ["Summarize", "Warm/cold hits are summarized with evidence links."],
+          ["Summarize", "Long-term hits are summarized with evidence links."],
           ["Inject or NONE", "Host receives bounded context or a successful empty result."]
         ]
       },
       observe: {
         title: "Observe Evidence",
-        body: "Tool outputs, user corrections and errors become cold evidence and usage signals, not immediate hot memory.",
-        nodes: ["host", "hooks", "skills", "cold", "warm", "sidecar"],
-        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-warm-cold"],
+        body: "Tool outputs, user corrections and errors become episodic evidence and usage signals, not immediate semantic memory.",
+        nodes: ["host", "hooks", "skills", "longterm", "consolidation", "sidecar"],
+        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-consolidation-longterm"],
         steps: [
           ["Capture", "pre_tool_call, post_tool_call or approval response."],
           ["Redact", "Discard or redact secrets before persistence."],
-          ["Store evidence", "Write cold evidence and optional warm session capsule."],
+          ["Store evidence", "Write episodic evidence and optional consolidation summary."],
           ["Update sidecar", "Record usage and provenance signals if allowed."]
         ]
       },
       reflect: {
         title: "Post-Turn Reflection",
         body: "After the answer is delivered, reflection classifies insights into memory, skill, session summary or report-only proposal.",
-        nodes: ["host", "hooks", "skills", "hot", "warm", "sidecar", "reports", "human"],
-        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-hot", "line-skills-sidecar", "line-hot-warm", "line-reports-human"],
+        nodes: ["host", "hooks", "skills", "prompt", "consolidation", "sidecar", "reports", "human"],
+        lines: ["line-host-hooks", "line-hooks-skills", "line-skills-prompt", "line-skills-sidecar", "line-prompt-consolidation", "line-reports-human"],
         steps: [
           ["Summarize turn", "Use bounded transcript or session summary."],
-          ["Classify", "facts/preferences -> memory; workflows -> skill; raw logs -> cold evidence."],
+          ["Classify", "facts/preferences -> Prompt Memory; workflows -> skill; raw logs -> episodic evidence."],
           ["Patch before create", "Prefer existing class-level skill patches."],
           ["Apply or propose", "Low-risk allowlisted writes only; otherwise report."]
         ]
@@ -1330,8 +1613,8 @@
       maintenance: {
         title: "Curator / Dreaming",
         body: "Periodic maintenance consolidates self-authored assets, manages memory overflow and proposes promotion/demotion.",
-        nodes: ["runner", "sidecar", "warm", "cold", "skills", "reports", "human", "mnemon"],
-        lines: ["line-sidecar-runner", "line-runner-reports", "line-runner-skills", "line-skills-sidecar", "line-warm-cold", "line-reports-human"],
+        nodes: ["runner", "sidecar", "consolidation", "longterm", "skills", "reports", "human", "mnemon"],
+        lines: ["line-sidecar-runner", "line-runner-reports", "line-runner-skills", "line-skills-sidecar", "line-consolidation-longterm", "line-reports-human"],
         steps: [
           ["Acquire lease", "Runner or host scheduler checks budgets and kill switches."],
           ["Dream", "Light/REM/Deep stages extract candidates and themes."],
@@ -1388,7 +1671,7 @@
         title: "Hermes",
         summary: "能力最完整的参考 host：native skills、hooks、curator 和 cron 都可承载 Mnemon projection，但 .mnemon 仍是 canonical root。",
         columns: [
-          ["Instruction", ["Hermes context pointer", "bounded MEMORY/USER pattern informs hot memory", "native import is protected"]],
+          ["Instruction", ["Hermes context pointer", "bounded MEMORY/USER pattern informs Prompt Memory", "native import is protected"]],
           ["Skills", ["~/.hermes/skills native_import_or_symlink", "SKILL.md frontmatter validation", "usage sidecar stays in .mnemon"]],
           ["Maintenance", ["post-turn review maps to reflect", "curator maps to L3 maintenance", "cron maps to runner tick semantics"]]
         ]
@@ -1404,22 +1687,1222 @@
       }
     };
 
+    const locales = {
+      zh: {
+        lang: "zh-CN",
+        ui: {
+          brand: "Mnemon Harness Map",
+          navAria: "页面分区",
+          nav: {
+            map: "架构地图",
+            pipelines: "管道",
+            memory: "记忆循环",
+            projection: "Host 挂载",
+            levels: "能力等级"
+          },
+          hero: {
+            eyebrow: "Agent 无关的自进化 harness",
+            title: "一个没有自有 agent runtime 的自进化外骨骼",
+            lead: "Mnemon 把 canonical state 放在 <strong>.mnemon</strong>，通过 host projection 挂载到 Claude Code、Codex、Hermes 或 generic agent。Host 仍拥有 LLM loop、工具、权限和 UI；harness 只提供技能、记忆、hook、报告、治理和可选 maintenance runner。",
+            actions: {
+              map: "查看交互架构",
+              projection: "查看挂载策略",
+              pipelines: "查看自进化路径"
+            },
+            visualAria: "架构摘要",
+            visualTitle: "核心形态",
+            visualSubtitle: "canonical filesystem + host projection",
+            cells: {
+              mnemon: {
+                title: ".mnemon",
+                body: "memory、skills、state、reports、runner jobs 的 source of truth。"
+              },
+              projection: {
+                title: "Host Projection",
+                body: "managed block、pointer、symlink/copy、native import。"
+              },
+              loop: {
+                title: "Self-Evolution Loop",
+                body: "任务完成后反思，沉淀 skill/memory proposal；curator 和 dreaming 在维护路径上治理增长；eval gate 处理高风险修改。"
+              }
+            }
+          },
+          sections: {
+            map: {
+              title: "交互架构地图",
+              body: "点击管道高亮能力流；点击节点查看职责、读写边界和风险控制。",
+              toolbarAria: "能力流选择器",
+              canvasAria: "Mnemon 架构节点"
+            },
+            pipelines: {
+              title: "能力管道与自进化路径",
+              body: "每条管道都可以由 host hook、manual skill、external cron 或 optional runner 触发；能力强弱取决于 host 可安装等级。"
+            },
+            memory: {
+              title: "Working Memory / Long-Term Memory Consolidation",
+              body: "Working Memory 是直接进入 prompt 的 Markdown；Long-Term Memory 由 Mnemon Store 和 Skills 承载；Dreaming Jobs 负责巩固、降级、晋升和技能候选。",
+              loopAria: "Memory loop diagram",
+              flowAria: "Memory flow selector"
+            },
+            projection: {
+              title: "Host Projection Explorer",
+              body: ".mnemon 是 canonical；host 原生文件是投影。选择 host 查看安装面、挂载方式和 fallback。",
+              selectorAria: "Host projection 选择器"
+            },
+            levels: {
+              title: "能力等级",
+              body: "Harness 不能假设 host 能力。安装器应探测 host 后选择最高可安全安装等级。"
+            }
+          },
+          detailLabels: {
+            owns: "拥有",
+            reads: "读取",
+            writes: "写入",
+            risk: "风险边界",
+            activeNodes: "活跃节点",
+            defaultSafety: "默认安全策略",
+            defaultSafetyBody: "proposal-first；仅 allowlist 内可 apply；每个 durable mutation 都写 report"
+          },
+          highlight: "高亮",
+          footer: "Source docs: docs/design/self-evolution-harness。本页面是当前架构设计的单文件交互式可视化。"
+        },
+        nodes: {
+          host: {
+            kicker: "Host Agent",
+            mapTitle: "LLM loop / tools / UI",
+            summary: "拥有 runtime、权限和用户会话。",
+            title: "Host Agent",
+            body: "Host 拥有 LLM loop、prompt assembly、工具、权限、UI 和实时会话状态。Harness 不拦截这些执行面。",
+            owns: ["LLM 调用", "工具路由", "权限模型", "会话生命周期"],
+            reads: ["managed block", ".mnemon guideline", "recall output"],
+            writes: ["经批准后修改 host-native config"],
+            risk: "Harness 不能变成 prompt assembler 或 tool router。"
+          },
+          native: {
+            kicker: "Host Native",
+            mapTitle: "CLAUDE.md / AGENTS.md / native skills",
+            summary: "通过 managed block 或 projection 挂载。",
+            title: "Host 原生表面",
+            body: "CLAUDE.md、AGENTS.md、native skill folders、hook configs 和 scheduler definitions 是 projection targets，不是 canonical state。",
+            owns: ["host instruction files", "native skill loader", "hook config"],
+            reads: [".mnemon pointers", "managed block", "generated skill projection"],
+            writes: ["只写 managed markers 或 projection targets"],
+            risk: "Markers 外的 host-owned 内容默认只读。"
+          },
+          mnemon: {
+            kicker: "Canonical FS",
+            mapTitle: ".mnemon",
+            summary: "memory、skills、state、reports 的 source of truth。",
+            title: ".mnemon Canonical Filesystem",
+            body: "Memory、skills、schemas、reports、state、projection metadata 和 optional runner jobs 的 canonical source of truth。",
+            owns: ["memory", "skills", "state", "reports", "bindings", "runner jobs"],
+            reads: ["host inventory", "evidence", "usage sidecar"],
+            writes: ["带 report 与 provenance 的 canonical files"],
+            risk: "Canonical files 是 durable state；projected copies 可以重新生成。"
+          },
+          hooks: {
+            kicker: "Semantic Hooks",
+            mapTitle: "recall / observe / reflect / curate",
+            summary: "由 host lifecycle 触发，失败可降级。",
+            title: "Semantic Hooks",
+            body: "Host lifecycle events 映射到 recall、observe、reflect 和 curate。Hook 带 idempotency key、latency budget，并支持 proposal-only fallback。",
+            owns: ["hook templates", "hook IO schema", "fallback rules"],
+            reads: ["event payload", "current cwd", "budgets"],
+            writes: ["bounded outputs", "reports", "允许时写 episodic evidence"],
+            risk: "Host 不能强制 write target allowlist 时，hook mutation 必须降级为 proposal-only。"
+          },
+          skills: {
+            kicker: "Skill Pack",
+            mapTitle: "install / recall / reflect / curate",
+            summary: "行为资产和自进化操作面。",
+            title: "Skill Pack",
+            body: "Skills 是行为资产，用于编码可复用流程和操作经验；facts 和 preferences 留在 memory。",
+            owns: ["install", "recall", "observe", "reflect", "curate", "research"],
+            reads: ["guideline", "memory", "reports", "usage sidecar"],
+            writes: ["skill proposals", "skill patches", "reports"],
+            risk: "创建新 skill 前，优先 patch 现有 class-level skill。"
+          },
+          prompt: {
+            kicker: "Prompt Memory",
+            mapTitle: "MEMORY / USER / project",
+            summary: "Working Memory 的工程实现。",
+            title: "Prompt Memory",
+            body: "Working Memory 的工程实现：MEMORY.md、USER.md 和 project.md。它短、小、稳定，并在 prompt snapshot 中全量加载。",
+            owns: ["稳定事实", "偏好", "短项目上下文"],
+            reads: ["promotion proposals", "user confirmations"],
+            writes: ["受预算约束的 prompt entries"],
+            risk: "Prompt Memory 不是 transcript cache；超预算必须产生 consolidation proposal。"
+          },
+          consolidation: {
+            kicker: "Consolidation",
+            mapTitle: "dreaming jobs / decisions",
+            summary: "巩固、降级、晋升与技能候选。",
+            title: "Memory Consolidation",
+            body: "由 Dreaming Jobs 实现：compact、archive、extract、promote 和 skill-candidate。它不是第三层 memory，而是记忆迁移协议。",
+            owns: ["candidates", "summaries", "promotion proposals", "demotion proposals"],
+            reads: ["episodic evidence", "prompt budget", "reflection reports"],
+            writes: ["consolidation decisions", "promotion candidates", "demotion plans"],
+            risk: "Consolidation artifacts 是协议状态，不是新的 memory tier。"
+          },
+          longterm: {
+            kicker: "Long-Term Memory",
+            mapTitle: "Mnemon Store / Skills",
+            summary: "情景、语义和程序性记忆。",
+            title: "Long-Term Memory",
+            body: "Mnemon Store 承载 episodic 与 semantic memory；Skills 承载 procedural memory。召回必须先排序、总结并附带证据。",
+            owns: ["episodic evidence", "semantic summaries", "procedural skills", "indexes"],
+            reads: ["observe hook", "imports", "tool results"],
+            writes: ["evidence files", "semantic memory", "skill candidates", "index metadata"],
+            risk: "Raw transcripts 只有在总结并通过相关性门控后才能成为上下文。"
+          },
+          sidecar: {
+            kicker: "Sidecar",
+            mapTitle: "usage / pins / lineage",
+            summary: "治理元数据，不污染 Markdown。",
+            title: "Usage / Provenance Sidecar",
+            body: "治理元数据：created_by、provenance、pinned、state、lineage、use counts 和 patch counts。",
+            owns: ["usage.json", "pins.json", "lineage.json"],
+            reads: ["skill usage", "projection state", "curator reports"],
+            writes: ["state transitions", "quarantine/active/archive states"],
+            risk: "Model-facing Markdown 不应混入治理元数据。"
+          },
+          runner: {
+            kicker: "Optional Runner",
+            mapTitle: "cron + lease + ledger",
+            summary: "只跑维护 jobs，不接管 agent loop。",
+            title: "Optional Maintenance Runner",
+            body: "一个有边界的维护执行器：cron + lease + ledger，而不是 agent loop。",
+            owns: ["runner jobs", "leases", "budgets", "ledger"],
+            reads: ["state", "reports", "long-term memory", "consolidation artifacts", "usage sidecar"],
+            writes: ["reports", "proposals", "allowlisted low-risk patches"],
+            risk: "一个 job step 只能对应一个 scoped LLM call 和一个 schema-validated response。"
+          },
+          reports: {
+            kicker: "Reports",
+            mapTitle: "install / reflection / curator / dreaming",
+            summary: "所有 durable change 的审计面。",
+            title: "Reports",
+            body: "面向人的审计层：install、reflection、curator、dreaming、projection drift 和 eval proposals。",
+            owns: ["install reports", "reflection reports", "curator reports", "dreaming reports", "projection reports"],
+            reads: ["所有 proposed 或 applied durable changes"],
+            writes: ["Markdown reports", "machine-readable metadata"],
+            risk: "没有 report 的 durable change 是架构违规。"
+          },
+          eval: {
+            kicker: "Eval Gate",
+            mapTitle: "constraints / tests / PR",
+            summary: "prompt、hook、guideline 进入 PR 式评估。",
+            title: "Eval Gate",
+            body: "高风险变化通过 constraints、held-out tasks、regression checks 和 PR-style proposals 评估。",
+            owns: ["constraints", "datasets", "PR templates"],
+            reads: ["candidate changes", "reports", "schemas"],
+            writes: ["eval reports", "PR proposals"],
+            risk: "Eval constraints 是 protected，不能被自进化流程自动削弱。"
+          },
+          projection: {
+            kicker: "Projection State",
+            mapTitle: "bindings / inventory / drift",
+            summary: "记录挂载、校验和冲突报告。",
+            title: "Projection Metadata",
+            body: "记录 .mnemon 如何挂载到 host-native surfaces：checksum、mode、target 和 drift。",
+            owns: ["bindings/active.json", "inventory.json", "projection reports"],
+            reads: ["host-native templates", "canonical source checksums"],
+            writes: ["managed blocks", "symlinks/copies", "drift reports"],
+            risk: "Projected copies 不是 canonical，不应直接编辑。"
+          },
+          human: {
+            kicker: "Human Gate",
+            mapTitle: "approval / review / merge",
+            summary: "高风险变化必须人工确认。",
+            title: "Human Approval",
+            body: "人工审核 gate 负责 guideline、install maps、hooks、safety policy、user-created content 和 eval constraints 等高风险变化。",
+            owns: ["approval decisions", "merge decisions"],
+            reads: ["reports", "diffs", "eval output"],
+            writes: ["approved apply", "rejection", "manual override"],
+            risk: "自进化不能静默改写自己的安全边界。"
+          }
+        },
+        flows: {
+          install: {
+            chip: "安装",
+            title: "安装与挂载",
+            body: "探测 host、感知已有模板、创建 .mnemon，然后投影到 host-native surfaces。",
+            nodes: ["host", "native", "mnemon", "projection", "human"],
+            lines: ["line-host-native", "line-native-mnemon", "line-mnemon-projection", "line-projection-native", "line-human-host"],
+            steps: [
+              ["探测 host", "查找 CLAUDE.md、AGENTS.md、native skill dirs 或 Hermes config。"],
+              ["创建 .mnemon", "初始化 canonical memory、skills、schemas、state 和 reports。"],
+              ["规划 projection", "选择 managed block、pointer、symlink/copy 或 native import。"],
+              ["请求批准", "只写 marked blocks 和 generated projections。"],
+              ["记录 binding", "保存 active projection 和 drift metadata。"]
+            ]
+          },
+          task: {
+            chip: "召回",
+            title: "任务时 Recall",
+            body: "模型调用前或过程中，host 调用 recall。记忆不相关时，Recall 可以返回 NONE。",
+            nodes: ["host", "hooks", "skills", "prompt", "consolidation", "longterm"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-prompt", "line-prompt-consolidation", "line-consolidation-longterm"],
+            steps: [
+              ["事件触发", "session_start、pre_llm_call 或 manual recall。"],
+              ["候选排序", "使用 relevance、recency、frequency、confidence、scope 和 risk。"],
+              ["总结上下文", "Long-Term 命中必须总结，并保留 evidence links。"],
+              ["注入或 NONE", "Host 获得 bounded context，或一个成功的 empty result。"]
+            ]
+          },
+          observe: {
+            chip: "观察",
+            title: "Observe Evidence",
+            body: "工具输出、用户修正和错误进入 episodic evidence 与 usage signals，而不是立即写入 semantic memory。",
+            nodes: ["host", "hooks", "skills", "longterm", "consolidation", "sidecar"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-consolidation-longterm"],
+            steps: [
+              ["捕获", "pre_tool_call、post_tool_call 或 approval response。"],
+              ["脱敏", "持久化前丢弃或脱敏 secrets。"],
+              ["保存 evidence", "写入 episodic evidence 和可选 consolidation summary。"],
+              ["更新 sidecar", "允许时记录 usage 和 provenance signals。"]
+            ]
+          },
+          reflect: {
+            chip: "反思",
+            title: "Post-Turn Reflection",
+            body: "回答交付后，reflection 将洞察分类为 memory、skill、session summary 或 report-only proposal。",
+            nodes: ["host", "hooks", "skills", "prompt", "consolidation", "sidecar", "reports", "human"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-prompt", "line-skills-sidecar", "line-prompt-consolidation", "line-reports-human"],
+            steps: [
+              ["总结本轮", "使用 bounded transcript 或 session summary。"],
+              ["分类洞察", "facts/preferences -> Prompt Memory；workflows -> skill；raw logs -> episodic evidence。"],
+              ["先 patch 再创建", "优先更新现有 class-level skill。"],
+              ["应用或提案", "只有 low-risk allowlisted writes 可直接 apply；否则写 report。"]
+            ]
+          },
+          maintenance: {
+            chip: "治理/梦境",
+            title: "Curator / Dreaming",
+            body: "周期性维护会整合 self-authored assets、治理 memory overflow，并提出 promotion/demotion。",
+            nodes: ["runner", "sidecar", "consolidation", "longterm", "skills", "reports", "human", "mnemon"],
+            lines: ["line-sidecar-runner", "line-runner-reports", "line-runner-skills", "line-skills-sidecar", "line-consolidation-longterm", "line-reports-human"],
+            steps: [
+              ["获取 lease", "Runner 或 host scheduler 检查 budgets 和 kill switches。"],
+              ["Dreaming", "Light/REM/Deep 阶段提取 candidates 和 themes。"],
+              ["Curate", "跳过 pinned/user/package/imported，只整合 self-authored assets。"],
+              ["Report first", "默认 dry-run/proposal；只有 backup 和 validation 后才 apply。"]
+            ]
+          },
+          eval: {
+            chip: "评估",
+            title: "Eval-Gated Evolution",
+            body: "高风险变化必须通过 constraints、tests 和 PR-style reports，不能静默 mutation。",
+            nodes: ["eval", "reports", "human", "runner", "mnemon"],
+            lines: ["line-eval-reports", "line-runner-reports", "line-reports-human", "line-human-host"],
+            steps: [
+              ["候选变化", "Skill prompt、hook prompt、guideline 或 install-map proposal。"],
+              ["验证", "运行 schema checks、regression cases 和 held-out tasks。"],
+              ["报告", "写入 eval result 和 PR template。"],
+              ["人工合并", "Protected targets 需要 approval。"]
+            ]
+          },
+          projection: {
+            chip: "投影",
+            title: "Projection Refresh",
+            body: "Canonical changes 会刷新 host projections。覆盖前必须报告 drift。",
+            nodes: ["mnemon", "projection", "native", "host", "reports"],
+            lines: ["line-mnemon-projection", "line-projection-native", "line-host-native", "line-runner-reports"],
+            steps: [
+              ["Canonical changed", "Curator、install 或 skill promotion 更新 .mnemon。"],
+              ["计算 projection", "使用 active binding mode 和 checksum。"],
+              ["检测 drift", "Projected files 中的手动编辑会进入 reports。"],
+              ["刷新", "重新生成 managed blocks 或 projected skill copies。"]
+            ]
+          }
+        },
+        hosts: {
+          claude: {
+            buttonTitle: "Claude Code",
+            buttonSubtitle: "CLAUDE.md + skills + hooks",
+            title: "Claude Code",
+            summary: "最佳 L2/L3 host：CLAUDE.md 承载短 managed block，.claude/skills 可 symlink/copy .mnemon skills，Stop/SessionEnd hooks 可运行 reflection。",
+            columns: [
+              ["Instruction", ["CLAUDE.md managed block", ".claude/CLAUDE.md pointer", "不要把长 memory 复制进 instruction"]],
+              ["Skills", [".claude/skills symlink_or_copy", "core skills from .mnemon/skills/core", "generated skills 只有 promotion 后才激活"]],
+              ["Hooks", ["SessionStart/UserPromptSubmit -> recall", "PreToolUse/PostToolUse -> observe", "Stop/SessionEnd -> reflect"]]
+            ]
+          },
+          codex: {
+            buttonTitle: "Codex",
+            buttonSubtitle: "AGENTS.md + manual skills",
+            title: "Codex",
+            summary: "偏 L1 host：AGENTS.md 适合 repo instruction 和 pointer block。若无稳定 hooks，则 reflect/curate 走手动 skill 或 queued job。",
+            columns: [
+              ["Instruction", ["AGENTS.md pointer block", "保留 project rules 的 host-owned 属性", "Managed marker 记录 .mnemon 位置"]],
+              ["Skills", ["docs/agent-skills pointer", "manual skill discovery", "proposal-first updates"]],
+              ["Fallback", ["manual recall", "manual reflect", "默认 external cron 或 no runner"]]
+            ]
+          },
+          hermes: {
+            buttonTitle: "Hermes",
+            buttonSubtitle: "native skills + hooks + cron",
+            title: "Hermes",
+            summary: "能力最完整的参考 host：native skills、hooks、curator 和 cron 都可承载 Mnemon projection，但 .mnemon 仍是 canonical root。",
+            columns: [
+              ["Instruction", ["Hermes context pointer", "bounded MEMORY/USER pattern informs Prompt Memory", "native import 默认 protected"]],
+              ["Skills", ["~/.hermes/skills native_import_or_symlink", "SKILL.md frontmatter validation", "usage sidecar stays in .mnemon"]],
+              ["Maintenance", ["post-turn review maps to reflect", "curator maps to L3 maintenance", "cron maps to runner tick semantics"]]
+            ]
+          },
+          generic: {
+            buttonTitle: "Generic",
+            buttonSubtitle: "Markdown-only fallback",
+            title: "Generic Agent",
+            summary: "最低可用路径：只要能读 Markdown，就能通过 INSTALL.md 和 GUIDELINE.md 手动安装 L0/L1。",
+            columns: [
+              ["Instruction", [".agent-instructions.md or README pointer", "无自动 mutation", "需要 manual review"]],
+              ["Skills", ["手动读取 .mnemon/skills/core", "reports/proposals only", "不假设 native skill system"]],
+              ["Fallback", ["manual recall", "manual reflect", "manual curate", "native-only install 可以作为 L0 fallback"]]
+            ]
+          }
+        },
+        memoryLabels: {
+          contains: "承载",
+          reads: "读取",
+          writes: "写入",
+          safety: "边界"
+        },
+        memoryNodes: {
+          interaction: {
+            kicker: "Signal",
+            title: "Interaction",
+            summary: "用户指令、工具结果、错误和修正。",
+            body: "Memory loop 的入口不是数据库写入，而是交互信号：用户明确要求记住、工具结果、失败、修正和任务结束摘要。",
+            contains: ["user correction", "tool output", "failure", "turn summary"],
+            reads: ["host lifecycle event", "bounded transcript"],
+            writes: ["evidence event", "Prompt Memory request"],
+            safety: "前台只捕获信号，不直接做复杂 semantic write。"
+          },
+          working: {
+            kicker: "Working Memory",
+            title: "Prompt Memory",
+            summary: "bounded Markdown，直接进入 prompt。",
+            body: "类似 Hermes / Claude Code 的 Markdown memory：MEMORY.md、USER.md、project.md。它小、稳定、高置信，并在 prompt snapshot 中全量加载。",
+            contains: ["stable preference", "project fact", "compact constraint"],
+            reads: ["user confirmation", "promotion proposal"],
+            writes: ["budgeted Markdown entry", "compact patch"],
+            safety: "不是 transcript cache；超预算进入 consolidation。"
+          },
+          evidence: {
+            kicker: "Episodic",
+            title: "Evidence Log",
+            summary: "低成本 append-only 情景证据。",
+            body: "即使日常不写 Mnemon semantic memory，也必须保存低成本 evidence/event log。否则 dreaming 后续会失去原始材料。",
+            contains: ["transcript ref", "tool evidence", "decision", "failure"],
+            reads: ["observe hook", "session summary"],
+            writes: ["memory/longterm/episodic/**"],
+            safety: "可脱敏、可摘要；raw transcript 不直接注入模型。"
+          },
+          consolidation: {
+            kicker: "Consolidation",
+            title: "Dreaming Jobs",
+            summary: "compact / archive / extract / promote / skill-candidate。",
+            body: "Dreaming 是记忆巩固模块，不是自有 agent runtime。它用 scoped jobs 整理 Prompt Memory，并处理 Working 与 Long-Term 的升级/降级。",
+            contains: ["candidates", "promotions", "demotions", "decisions"],
+            reads: ["Prompt Memory", "evidence log", "recall hits", "usage signals"],
+            writes: ["semantic proposal", "prompt patch proposal", "skill candidate"],
+            safety: "默认 proposal-first；apply 需要 allowlist、backup 和 report。"
+          },
+          store: {
+            kicker: "Long-Term",
+            title: "Mnemon Store",
+            summary: "episodic + semantic 长时记忆。",
+            body: "Mnemon Store 承载情景记忆和语义记忆：证据、事件、事实、偏好、主题摘要和索引。召回时必须先排序、总结并附 evidence。",
+            contains: ["episodic evidence", "semantic facts", "summaries", "indexes"],
+            reads: ["consolidation output", "recall query"],
+            writes: ["semantic memory", "archive", "index metadata"],
+            safety: "召回内容先进入 context 或 candidate，不自动永久写回 Prompt Memory。"
+          },
+          skills: {
+            kicker: "Procedural",
+            title: "Skills",
+            summary: "程序性记忆，不塞进 Markdown。",
+            body: "重复流程、工具策略和操作习惯属于 procedural memory，由 skill 自进化承载。MVP 只生成 skill candidate report，不自动安装。",
+            contains: ["workflow", "tool tactic", "failure recovery", "habit"],
+            reads: ["repeated evidence", "usage sidecar", "human review"],
+            writes: ["skills/generated/candidates/**"],
+            safety: "自动生成 skill 风险最高，必须先候选化和审阅。"
+          }
+        },
+        memoryFlows: {
+          write: {
+            chip: "日常写入",
+            title: "Daily Write Path",
+            body: "前台 agent 不直接做复杂 Mnemon semantic write。它维护 Prompt Memory，并 append 低成本 evidence/event log。",
+            nodes: ["interaction", "working", "evidence"],
+            paths: ["memory-path-write-prompt", "memory-path-write-evidence"],
+            steps: [
+              ["捕获信号", "用户确认、工具输出、错误和任务摘要进入 memory loop。"],
+              ["维护 Prompt Memory", "只有明确、稳定、高置信的信息进入 bounded Markdown。"],
+              ["保存 evidence", "事件和证据 append 到 long-term episodic 区。"]
+            ]
+          },
+          consolidate: {
+            chip: "记忆巩固",
+            title: "Dreaming Consolidation",
+            body: "Dreaming Jobs 在 quota、task-end、failure、schedule 或重要事件触发时运行，完成整理、抽取和迁移。",
+            nodes: ["working", "evidence", "consolidation", "store", "skills"],
+            paths: ["memory-path-prompt-consolidation", "memory-path-evidence-consolidation", "memory-path-consolidation-store", "memory-path-consolidation-skills"],
+            steps: [
+              ["compact", "压缩或替换 Prompt Memory，避免无限增长。"],
+              ["archive/extract", "把证据和被降级内容写入 Mnemon Store。"],
+              ["skill-candidate", "把重复流程转成可审阅 skill 候选。"]
+            ]
+          },
+          recall: {
+            chip: "召回与晋升",
+            title: "Recall / Promotion",
+            body: "Long-Term Memory 不直接污染 prompt。召回先 ranking、summary、source/confidence，再进入 context 或生成 promotion candidate。",
+            nodes: ["store", "consolidation", "working"],
+            paths: ["memory-path-store-prompt", "memory-path-consolidation-store"],
+            steps: [
+              ["检索", "Mnemon Store 根据任务线索召回 episodic/semantic。"],
+              ["过滤", "按 relevance、confidence、risk 和 budget 生成摘要。"],
+              ["晋升", "反复有用且高置信时，生成 Prompt Memory promotion。"]
+            ]
+          },
+          demote: {
+            chip: "降级归档",
+            title: "Prompt Demotion",
+            body: "Prompt Memory 过长、过细、过时或更适合 skill 时，Dreaming 生成 demotion/archive proposal。",
+            nodes: ["working", "consolidation", "store"],
+            paths: ["memory-path-prompt-consolidation", "memory-path-prompt-archive", "memory-path-consolidation-store"],
+            steps: [
+              ["检测压力", "quota、staleness、conflict 或 low-use 触发。"],
+              ["保留证据", "默认 archive over delete，保存原始 entry 和来源。"],
+              ["写回提示", "必要时保留短 pointer，详细内容由 Long-Term recall。"]
+            ]
+          },
+          procedural: {
+            chip: "技能化",
+            title: "Experience -> Skill",
+            body: "程序性记忆不进入 Prompt Memory。重复 workflow 由 Dreaming 生成 skill candidate，经 review 后再激活。",
+            nodes: ["evidence", "consolidation", "skills"],
+            paths: ["memory-path-evidence-consolidation", "memory-path-consolidation-skills"],
+            steps: [
+              ["发现模式", "跨任务重复出现的流程、失败恢复或工具策略。"],
+              ["候选化", "生成 skill candidate 和 report，不默认安装。"],
+              ["审阅激活", "人类确认、重复使用或 eval 通过后进入 active skills。"]
+            ]
+          }
+        },
+        levels: [
+          { number: "L0", title: "Skill-only", body: "只读 Markdown 和手动调用。可以安装 guideline 与 manual reflect/curate。", accent: "var(--cyan)" },
+          { number: "L1", title: "Instruction + Skill", body: "通过 CLAUDE.md、AGENTS.md 或 native skill index 发现 .mnemon。", accent: "var(--blue)" },
+          { number: "L2", title: "Lifecycle Hooks", body: "自动 recall、observe、reflect。写入能力受 allowlist 和 host permission 限制。", accent: "var(--green)" },
+          { number: "L3", title: "Scheduled / Idle", body: "curator、dreaming、index jobs 可由 host scheduler、cron 或 runner tick 执行。", accent: "var(--orange)" },
+          { number: "L4", title: "Eval / CI", body: "高风险修改走 constraints、dataset、PR proposal 和 human approval。", accent: "var(--red)" }
+        ]
+      },
+      en: {
+        lang: "en",
+        ui: {
+          brand: "Mnemon Harness Map",
+          navAria: "Page sections",
+          nav: {
+            map: "Architecture",
+            pipelines: "Pipelines",
+            memory: "Memory Loop",
+            projection: "Host Mounts",
+            levels: "Capability Levels"
+          },
+          hero: {
+            eyebrow: "Agent-agnostic self-evolution harness",
+            title: "A self-evolution exoskeleton without its own agent runtime",
+            lead: "Mnemon keeps canonical state in <strong>.mnemon</strong> and mounts it into Claude Code, Codex, Hermes, or generic agents through host projections. The host still owns the LLM loop, tools, permissions, and UI; the harness provides skills, memory, hooks, reports, governance, and an optional maintenance runner.",
+            actions: {
+              map: "Open Architecture Map",
+              projection: "Inspect Mount Strategy",
+              pipelines: "Trace Evolution Paths"
+            },
+            visualAria: "Architecture summary",
+            visualTitle: "Core Shape",
+            visualSubtitle: "canonical filesystem + host projection",
+            cells: {
+              mnemon: {
+                title: ".mnemon",
+                body: "The source of truth for memory, skills, state, reports, and runner jobs."
+              },
+              projection: {
+                title: "Host Projection",
+                body: "Managed blocks, pointers, symlinks/copies, and native imports."
+              },
+              loop: {
+                title: "Self-Evolution Loop",
+                body: "After work is delivered, reflection proposes skill or memory updates; curator and dreaming govern long-term growth; eval gates high-risk changes."
+              }
+            }
+          },
+          sections: {
+            map: {
+              title: "Interactive Architecture Map",
+              body: "Select a pipeline to highlight capability flow; select a node to inspect ownership, read/write boundaries, and risk controls.",
+              toolbarAria: "Flow selector",
+              canvasAria: "Mnemon architecture nodes"
+            },
+            pipelines: {
+              title: "Capability Pipelines And Self-Evolution Paths",
+              body: "Each pipeline can be triggered by host hooks, manual skills, external cron, or the optional runner. Available behavior depends on the host capability level."
+            },
+            memory: {
+              title: "Working Memory / Long-Term Memory Consolidation",
+              body: "Working Memory is prompt-loaded Markdown; Long-Term Memory is carried by Mnemon Store and Skills; Dreaming Jobs consolidate, demote, promote, and propose skill candidates.",
+              loopAria: "Memory loop diagram",
+              flowAria: "Memory flow selector"
+            },
+            projection: {
+              title: "Host Projection Explorer",
+              body: ".mnemon is canonical; host-native files are projections. Choose a host to inspect install surfaces, mount modes, and fallbacks.",
+              selectorAria: "Host projection selector"
+            },
+            levels: {
+              title: "Capability Levels",
+              body: "The harness must not assume host capabilities. The installer detects the host and chooses the highest safe install level."
+            }
+          },
+          detailLabels: {
+            owns: "Owns",
+            reads: "Reads",
+            writes: "Writes",
+            risk: "Risk Boundary",
+            activeNodes: "Active Nodes",
+            defaultSafety: "Default Safety",
+            defaultSafetyBody: "proposal-first; apply only inside allowlists; write a report for every durable mutation"
+          },
+          highlight: "Highlight",
+          footer: "Source docs: docs/design/self-evolution-harness. This page is a standalone interactive visualization of the current design."
+        },
+        nodes: {
+          host: {
+            kicker: "Host Agent",
+            mapTitle: "LLM loop / tools / UI",
+            summary: "Owns runtime, permissions, and the live user session.",
+            title: "Host Agent",
+            body: "The host owns the LLM loop, prompt assembly, tools, permissions, UI, and live conversation state. The harness never intercepts those surfaces.",
+            owns: ["LLM calls", "tool routing", "permission model", "session lifecycle"],
+            reads: ["managed block", ".mnemon guideline", "recall output"],
+            writes: ["host-native config only after approval"],
+            risk: "The harness must not become a prompt assembler or tool router."
+          },
+          native: {
+            kicker: "Host Native",
+            mapTitle: "CLAUDE.md / AGENTS.md / native skills",
+            summary: "Mounted through managed blocks or projections.",
+            title: "Host-Native Surfaces",
+            body: "CLAUDE.md, AGENTS.md, native skill folders, hook configs, and scheduler definitions are projection targets, not canonical state.",
+            owns: ["host instruction files", "native skill loader", "hook config"],
+            reads: [".mnemon pointers", "managed block", "generated skill projection"],
+            writes: ["only inside managed markers or projection targets"],
+            risk: "Host-owned content outside markers is read-only by default."
+          },
+          mnemon: {
+            kicker: "Canonical FS",
+            mapTitle: ".mnemon",
+            summary: "The source of truth for memory, skills, state, and reports.",
+            title: ".mnemon Canonical Filesystem",
+            body: "The canonical source of truth for memory, skills, schemas, reports, state, projection metadata, and optional runner jobs.",
+            owns: ["memory", "skills", "state", "reports", "bindings", "runner jobs"],
+            reads: ["host inventory", "evidence", "usage sidecar"],
+            writes: ["canonical files with reports and provenance"],
+            risk: "Canonical files are durable; projected copies are regenerable."
+          },
+          hooks: {
+            kicker: "Semantic Hooks",
+            mapTitle: "recall / observe / reflect / curate",
+            summary: "Triggered by host lifecycle events and degrade safely.",
+            title: "Semantic Hooks",
+            body: "Host lifecycle events map to recall, observe, reflect, and curate. Hooks have idempotency keys, latency budgets, and proposal-only fallbacks.",
+            owns: ["hook templates", "hook IO schema", "fallback rules"],
+            reads: ["event payload", "current cwd", "budgets"],
+            writes: ["bounded outputs", "reports", "episodic evidence if allowed"],
+            risk: "If the host cannot enforce write-target allowlists, hook mutations must become proposal-only."
+          },
+          skills: {
+            kicker: "Skill Pack",
+            mapTitle: "install / recall / reflect / curate",
+            summary: "The behavior asset layer and evolution surface.",
+            title: "Skill Pack",
+            body: "Skills are behavior assets. They encode reusable procedures and operational knowledge; facts and preferences stay in memory.",
+            owns: ["install", "recall", "observe", "reflect", "curate", "research"],
+            reads: ["guideline", "memory", "reports", "usage sidecar"],
+            writes: ["skill proposals", "skill patches", "reports"],
+            risk: "Patch existing class-level skills before creating new ones."
+          },
+          prompt: {
+            kicker: "Prompt Memory",
+            mapTitle: "MEMORY / USER / project",
+            summary: "The engineering implementation of Working Memory.",
+            title: "Prompt Memory",
+            body: "Working Memory implemented as bounded Markdown: MEMORY.md, USER.md, and project.md. It is small, stable, high-confidence, and fully loaded in each prompt snapshot.",
+            owns: ["stable facts", "preferences", "short project context"],
+            reads: ["promotion proposals", "user confirmations"],
+            writes: ["budgeted prompt entries"],
+            risk: "Prompt Memory is not a transcript cache; overflow creates consolidation proposals."
+          },
+          consolidation: {
+            kicker: "Consolidation",
+            mapTitle: "dreaming jobs / decisions",
+            summary: "Consolidation, demotion, promotion, and skill candidates.",
+            title: "Memory Consolidation",
+            body: "Implemented by Dreaming Jobs: compact, archive, extract, promote, and skill-candidate. It is a movement protocol, not a third memory layer.",
+            owns: ["candidates", "summaries", "promotion proposals", "demotion proposals"],
+            reads: ["episodic evidence", "prompt budget", "reflection reports"],
+            writes: ["consolidation decisions", "promotion candidates", "demotion plans"],
+            risk: "Consolidation artifacts are protocol state, not a new memory tier."
+          },
+          longterm: {
+            kicker: "Long-Term Memory",
+            mapTitle: "Mnemon Store / Skills",
+            summary: "Episodic, semantic, and procedural memory.",
+            title: "Long-Term Memory",
+            body: "Mnemon Store carries episodic and semantic memory; Skills carry procedural memory. Recall must be ranked, summarized, and evidence-linked.",
+            owns: ["episodic evidence", "semantic summaries", "procedural skills", "indexes"],
+            reads: ["observe hook", "imports", "tool results"],
+            writes: ["evidence files", "semantic memory", "skill candidates", "index metadata"],
+            risk: "Raw transcripts never become prompt context without summarization and relevance gating."
+          },
+          sidecar: {
+            kicker: "Sidecar",
+            mapTitle: "usage / pins / lineage",
+            summary: "Governance metadata kept out of Markdown.",
+            title: "Usage / Provenance Sidecar",
+            body: "Engineering metadata for governance: created_by, provenance, pinned, state, lineage, use counts, and patch counts.",
+            owns: ["usage.json", "pins.json", "lineage.json"],
+            reads: ["skill usage", "projection state", "curator reports"],
+            writes: ["state transitions", "quarantine/active/archive states"],
+            risk: "Model-facing Markdown should not be polluted with governance metadata."
+          },
+          runner: {
+            kicker: "Optional Runner",
+            mapTitle: "cron + lease + ledger",
+            summary: "Runs maintenance jobs without taking over the agent loop.",
+            title: "Optional Maintenance Runner",
+            body: "A bounded maintenance executor. It is cron + lease + ledger, not an agent loop.",
+            owns: ["runner jobs", "leases", "budgets", "ledger"],
+            reads: ["state", "reports", "long-term memory", "consolidation artifacts", "usage sidecar"],
+            writes: ["reports", "proposals", "allowlisted low-risk patches"],
+            risk: "One job step maps to one scoped LLM call and one schema-validated response."
+          },
+          reports: {
+            kicker: "Reports",
+            mapTitle: "install / reflection / curator / dreaming",
+            summary: "The audit surface for every durable change.",
+            title: "Reports",
+            body: "The human-readable audit surface for install, reflection, curator, dreaming, projection drift, and eval proposals.",
+            owns: ["install reports", "reflection reports", "curator reports", "dreaming reports", "projection reports"],
+            reads: ["all proposed or applied durable changes"],
+            writes: ["Markdown reports", "machine-readable metadata"],
+            risk: "Durable changes without reports are architecture violations."
+          },
+          eval: {
+            kicker: "Eval Gate",
+            mapTitle: "constraints / tests / PR",
+            summary: "Prompts, hooks, and guidelines move through PR-style evaluation.",
+            title: "Eval Gate",
+            body: "Higher-risk changes are evaluated through constraints, held-out tasks, regression checks, and PR-style proposals.",
+            owns: ["constraints", "datasets", "PR templates"],
+            reads: ["candidate changes", "reports", "schemas"],
+            writes: ["eval reports", "PR proposals"],
+            risk: "Eval constraints are protected and cannot be weakened by self-evolution."
+          },
+          projection: {
+            kicker: "Projection State",
+            mapTitle: "bindings / inventory / drift",
+            summary: "Tracks mounts, checksums, and conflict reports.",
+            title: "Projection Metadata",
+            body: "Records how .mnemon is mounted into host-native surfaces. Tracks checksum, mode, target, and drift.",
+            owns: ["bindings/active.json", "inventory.json", "projection reports"],
+            reads: ["host-native templates", "canonical source checksums"],
+            writes: ["managed blocks", "symlinks/copies", "drift reports"],
+            risk: "Projected copies are not canonical and should not be edited directly."
+          },
+          human: {
+            kicker: "Human Gate",
+            mapTitle: "approval / review / merge",
+            summary: "High-risk changes require explicit human approval.",
+            title: "Human Approval",
+            body: "Human review gates high-risk changes: guidelines, install maps, hooks, safety policy, user-created content, and eval constraints.",
+            owns: ["approval decisions", "merge decisions"],
+            reads: ["reports", "diffs", "eval output"],
+            writes: ["approved apply", "rejection", "manual override"],
+            risk: "Self-evolution must never rewrite its own safety boundary silently."
+          }
+        },
+        flows: {
+          install: {
+            chip: "Install",
+            title: "Install & Mount",
+            body: "Detect the host, sense existing templates, create .mnemon, then project into host-native surfaces.",
+            nodes: ["host", "native", "mnemon", "projection", "human"],
+            lines: ["line-host-native", "line-native-mnemon", "line-mnemon-projection", "line-projection-native", "line-human-host"],
+            steps: [
+              ["Detect host", "Find CLAUDE.md, AGENTS.md, native skill directories, or Hermes config."],
+              ["Create .mnemon", "Initialize canonical memory, skills, schemas, state, and reports."],
+              ["Plan projection", "Choose managed block, pointer, symlink/copy, or native import."],
+              ["Ask approval", "Write only marked blocks and generated projections."],
+              ["Record binding", "Store active projection and drift metadata."]
+            ]
+          },
+          task: {
+            chip: "Recall",
+            title: "Task-Time Recall",
+            body: "Before or during a model turn, the host calls recall. Recall may return NONE when memory is irrelevant.",
+            nodes: ["host", "hooks", "skills", "prompt", "consolidation", "longterm"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-prompt", "line-prompt-consolidation", "line-consolidation-longterm"],
+            steps: [
+              ["Event", "session_start, pre_llm_call, or manual recall."],
+              ["Rank candidates", "Use relevance, recency, frequency, confidence, scope, and risk."],
+              ["Summarize context", "Long-term hits are summarized with evidence links."],
+              ["Inject or NONE", "The host receives bounded context or a successful empty result."]
+            ]
+          },
+          observe: {
+            chip: "Observe",
+            title: "Observe Evidence",
+            body: "Tool outputs, user corrections, and errors become episodic evidence and usage signals, not immediate semantic memory.",
+            nodes: ["host", "hooks", "skills", "longterm", "consolidation", "sidecar"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-sidecar", "line-consolidation-longterm"],
+            steps: [
+              ["Capture", "pre_tool_call, post_tool_call, or approval response."],
+              ["Redact", "Discard or redact secrets before persistence."],
+              ["Store evidence", "Write episodic evidence and optional consolidation summaries."],
+              ["Update sidecar", "Record usage and provenance signals when allowed."]
+            ]
+          },
+          reflect: {
+            chip: "Reflect",
+            title: "Post-Turn Reflection",
+            body: "After the answer is delivered, reflection classifies insights into memory, skill, session summary, or report-only proposals.",
+            nodes: ["host", "hooks", "skills", "prompt", "consolidation", "sidecar", "reports", "human"],
+            lines: ["line-host-hooks", "line-hooks-skills", "line-skills-prompt", "line-skills-sidecar", "line-prompt-consolidation", "line-reports-human"],
+            steps: [
+              ["Summarize turn", "Use a bounded transcript or session summary."],
+              ["Classify insight", "facts/preferences -> Prompt Memory; workflows -> skill; raw logs -> episodic evidence."],
+              ["Patch before create", "Prefer updating existing class-level skills."],
+              ["Apply or propose", "Apply only low-risk allowlisted writes; otherwise write a report."]
+            ]
+          },
+          maintenance: {
+            chip: "Curate/Dream",
+            title: "Curator / Dreaming",
+            body: "Periodic maintenance consolidates self-authored assets, manages memory overflow, and proposes promotion/demotion.",
+            nodes: ["runner", "sidecar", "consolidation", "longterm", "skills", "reports", "human", "mnemon"],
+            lines: ["line-sidecar-runner", "line-runner-reports", "line-runner-skills", "line-skills-sidecar", "line-consolidation-longterm", "line-reports-human"],
+            steps: [
+              ["Acquire lease", "Runner or host scheduler checks budgets and kill switches."],
+              ["Dream", "Light/REM/Deep stages extract candidates and themes."],
+              ["Curate", "Skip pinned/user/package/imported assets; consolidate self-authored assets."],
+              ["Report first", "Default to dry-run/proposal; apply only after backup and validation."]
+            ]
+          },
+          eval: {
+            chip: "Eval",
+            title: "Eval-Gated Evolution",
+            body: "High-risk changes go through constraints, tests, and PR-style reports instead of silent mutation.",
+            nodes: ["eval", "reports", "human", "runner", "mnemon"],
+            lines: ["line-eval-reports", "line-runner-reports", "line-reports-human", "line-human-host"],
+            steps: [
+              ["Candidate change", "Skill prompt, hook prompt, guideline, or install-map proposal."],
+              ["Validate", "Run schema checks, regression cases, and held-out tasks."],
+              ["Report", "Write eval results and a PR template."],
+              ["Human merge", "Protected targets require approval."]
+            ]
+          },
+          projection: {
+            chip: "Projection",
+            title: "Projection Refresh",
+            body: "Canonical changes refresh host projections. Drift is reported before overwrite.",
+            nodes: ["mnemon", "projection", "native", "host", "reports"],
+            lines: ["line-mnemon-projection", "line-projection-native", "line-host-native", "line-runner-reports"],
+            steps: [
+              ["Canonical changed", "Curator, install, or skill promotion updates .mnemon."],
+              ["Compute projection", "Use the active binding mode and checksum."],
+              ["Detect drift", "Manual edits in projected files become reports."],
+              ["Refresh", "Regenerate managed blocks or projected skill copies."]
+            ]
+          }
+        },
+        hosts: {
+          claude: {
+            buttonTitle: "Claude Code",
+            buttonSubtitle: "CLAUDE.md + skills + hooks",
+            title: "Claude Code",
+            summary: "The strongest L2/L3 host: CLAUDE.md carries a short managed block, .claude/skills can symlink or copy .mnemon skills, and Stop/SessionEnd hooks can run reflection.",
+            columns: [
+              ["Instruction", ["CLAUDE.md managed block", ".claude/CLAUDE.md pointer", "Do not copy long memory into instructions"]],
+              ["Skills", [".claude/skills symlink_or_copy", "core skills from .mnemon/skills/core", "generated skills activate only after promotion"]],
+              ["Hooks", ["SessionStart/UserPromptSubmit -> recall", "PreToolUse/PostToolUse -> observe", "Stop/SessionEnd -> reflect"]]
+            ]
+          },
+          codex: {
+            buttonTitle: "Codex",
+            buttonSubtitle: "AGENTS.md + manual skills",
+            title: "Codex",
+            summary: "Primarily an L1 host: AGENTS.md is a good repository instruction and pointer surface. Without stable hooks, reflect and curate run through manual skills or queued jobs.",
+            columns: [
+              ["Instruction", ["AGENTS.md pointer block", "Keep project rules host-owned", "Managed marker records the .mnemon location"]],
+              ["Skills", ["docs/agent-skills pointer", "manual skill discovery", "proposal-first updates"]],
+              ["Fallback", ["manual recall", "manual reflect", "external cron or no runner by default"]]
+            ]
+          },
+          hermes: {
+            buttonTitle: "Hermes",
+            buttonSubtitle: "native skills + hooks + cron",
+            title: "Hermes",
+            summary: "The fullest reference host: native skills, hooks, curator, and cron can all carry Mnemon projections, while .mnemon remains the canonical root.",
+            columns: [
+              ["Instruction", ["Hermes context pointer", "bounded MEMORY/USER pattern informs Prompt Memory", "native import is protected by default"]],
+              ["Skills", ["~/.hermes/skills native_import_or_symlink", "SKILL.md frontmatter validation", "usage sidecar stays in .mnemon"]],
+              ["Maintenance", ["post-turn review maps to reflect", "curator maps to L3 maintenance", "cron maps to runner tick semantics"]]
+            ]
+          },
+          generic: {
+            buttonTitle: "Generic",
+            buttonSubtitle: "Markdown-only fallback",
+            title: "Generic Agent",
+            summary: "The lowest viable path: any agent that can read Markdown can manually install L0/L1 through INSTALL.md and GUIDELINE.md.",
+            columns: [
+              ["Instruction", [".agent-instructions.md or README pointer", "No automatic mutation", "Manual review required"]],
+              ["Skills", ["read .mnemon/skills/core manually", "reports/proposals only", "no native skill assumption"]],
+              ["Fallback", ["manual recall", "manual reflect", "manual curate", "native-only install is allowed as an L0 fallback"]]
+            ]
+          }
+        },
+        memoryLabels: {
+          contains: "Contains",
+          reads: "Reads",
+          writes: "Writes",
+          safety: "Boundary"
+        },
+        memoryNodes: {
+          interaction: {
+            kicker: "Signal",
+            title: "Interaction",
+            summary: "User instructions, tool results, errors, and corrections.",
+            body: "The memory loop begins with interaction signals, not database writes: explicit remember requests, tool results, failures, corrections, and end-of-task summaries.",
+            contains: ["user correction", "tool output", "failure", "turn summary"],
+            reads: ["host lifecycle event", "bounded transcript"],
+            writes: ["evidence event", "Prompt Memory request"],
+            safety: "Foreground work captures signals without making complex semantic writes."
+          },
+          working: {
+            kicker: "Working Memory",
+            title: "Prompt Memory",
+            summary: "Bounded Markdown loaded directly into the prompt.",
+            body: "Hermes / Claude Code-style Markdown memory: MEMORY.md, USER.md, and project.md. It is small, stable, high-confidence, and fully loaded in the prompt snapshot.",
+            contains: ["stable preference", "project fact", "compact constraint"],
+            reads: ["user confirmation", "promotion proposal"],
+            writes: ["budgeted Markdown entry", "compact patch"],
+            safety: "Not a transcript cache; quota pressure enters consolidation."
+          },
+          evidence: {
+            kicker: "Episodic",
+            title: "Evidence Log",
+            summary: "Low-cost append-only episodic evidence.",
+            body: "Even when daily work does not write semantic Mnemon memory, it must save low-cost evidence/event logs. Otherwise dreaming loses source material.",
+            contains: ["transcript ref", "tool evidence", "decision", "failure"],
+            reads: ["observe hook", "session summary"],
+            writes: ["memory/longterm/episodic/**"],
+            safety: "Can be redacted and summarized; raw transcripts are never injected directly."
+          },
+          consolidation: {
+            kicker: "Consolidation",
+            title: "Dreaming Jobs",
+            summary: "compact / archive / extract / promote / skill-candidate.",
+            body: "Dreaming is the memory consolidation module, not a harness-owned agent runtime. Scoped jobs maintain Prompt Memory and move information between Working and Long-Term Memory.",
+            contains: ["candidates", "promotions", "demotions", "decisions"],
+            reads: ["Prompt Memory", "evidence log", "recall hits", "usage signals"],
+            writes: ["semantic proposal", "prompt patch proposal", "skill candidate"],
+            safety: "Proposal-first by default; apply requires allowlist, backup, and report."
+          },
+          store: {
+            kicker: "Long-Term",
+            title: "Mnemon Store",
+            summary: "Episodic + semantic long-term memory.",
+            body: "Mnemon Store carries episodic and semantic memory: evidence, events, facts, preferences, topic summaries, and indexes. Recall must be ranked, summarized, and evidence-linked.",
+            contains: ["episodic evidence", "semantic facts", "summaries", "indexes"],
+            reads: ["consolidation output", "recall query"],
+            writes: ["semantic memory", "archive", "index metadata"],
+            safety: "Recall enters context or candidates first; it is not automatically persisted back into Prompt Memory."
+          },
+          skills: {
+            kicker: "Procedural",
+            title: "Skills",
+            summary: "Procedural memory outside Markdown memory.",
+            body: "Repeated workflows, tool tactics, and operational habits are procedural memory carried by skill evolution. MVP generates skill candidate reports before activation.",
+            contains: ["workflow", "tool tactic", "failure recovery", "habit"],
+            reads: ["repeated evidence", "usage sidecar", "human review"],
+            writes: ["skills/generated/candidates/**"],
+            safety: "Auto-generated skills carry the highest behavioral risk, so they start as reviewable candidates."
+          }
+        },
+        memoryFlows: {
+          write: {
+            chip: "Daily Write",
+            title: "Daily Write Path",
+            body: "Foreground agents do not make complex semantic Mnemon writes. They maintain Prompt Memory and append low-cost evidence/event logs.",
+            nodes: ["interaction", "working", "evidence"],
+            paths: ["memory-path-write-prompt", "memory-path-write-evidence"],
+            steps: [
+              ["Capture signal", "User confirmations, tool outputs, errors, and task summaries enter the loop."],
+              ["Maintain Prompt Memory", "Only explicit, stable, high-confidence information enters bounded Markdown."],
+              ["Save evidence", "Events and evidence append to long-term episodic storage."]
+            ]
+          },
+          consolidate: {
+            chip: "Consolidate",
+            title: "Dreaming Consolidation",
+            body: "Dreaming Jobs run on quota, task-end, failure, schedule, or important-event triggers to compact, extract, and move memory.",
+            nodes: ["working", "evidence", "consolidation", "store", "skills"],
+            paths: ["memory-path-prompt-consolidation", "memory-path-evidence-consolidation", "memory-path-consolidation-store", "memory-path-consolidation-skills"],
+            steps: [
+              ["compact", "Compress or replace Prompt Memory to prevent unbounded growth."],
+              ["archive/extract", "Write evidence and demoted content into Mnemon Store."],
+              ["skill-candidate", "Convert repeated procedures into reviewable skill candidates."]
+            ]
+          },
+          recall: {
+            chip: "Recall",
+            title: "Recall / Promotion",
+            body: "Long-Term Memory never directly pollutes the prompt. Recall is ranked, summarized, sourced, and confidence-scored before context injection or promotion.",
+            nodes: ["store", "consolidation", "working"],
+            paths: ["memory-path-store-prompt", "memory-path-consolidation-store"],
+            steps: [
+              ["Retrieve", "Mnemon Store recalls episodic/semantic memory from task cues."],
+              ["Filter", "Summaries are gated by relevance, confidence, risk, and budget."],
+              ["Promote", "Repeated useful, high-confidence recalls become Prompt Memory promotion proposals."]
+            ]
+          },
+          demote: {
+            chip: "Demote",
+            title: "Prompt Demotion",
+            body: "When Prompt Memory is too long, too detailed, stale, or better represented as a skill, Dreaming creates a demotion/archive proposal.",
+            nodes: ["working", "consolidation", "store"],
+            paths: ["memory-path-prompt-consolidation", "memory-path-prompt-archive", "memory-path-consolidation-store"],
+            steps: [
+              ["Detect pressure", "Quota, staleness, conflict, or low-use triggers demotion review."],
+              ["Preserve evidence", "Archive over delete, preserving the original entry and source."],
+              ["Leave pointer", "A short pointer may remain; details are recalled from Long-Term Memory."]
+            ]
+          },
+          procedural: {
+            chip: "Proceduralize",
+            title: "Experience -> Skill",
+            body: "Procedural memory does not belong in Prompt Memory. Repeated workflows become skill candidates, reviewed before activation.",
+            nodes: ["evidence", "consolidation", "skills"],
+            paths: ["memory-path-evidence-consolidation", "memory-path-consolidation-skills"],
+            steps: [
+              ["Find pattern", "Repeated workflows, failure recovery, or tool strategies across tasks."],
+              ["Create candidate", "Generate a skill candidate and report, without default installation."],
+              ["Review activate", "Activate after human approval, repeated use, or an eval pass."]
+            ]
+          }
+        },
+        levels: [
+          { number: "L0", title: "Skill-only", body: "Read-only Markdown and manual invocation. Installs guidelines plus manual reflect/curate.", accent: "var(--cyan)" },
+          { number: "L1", title: "Instruction + Skill", body: "Discover .mnemon through CLAUDE.md, AGENTS.md, or a native skill index.", accent: "var(--blue)" },
+          { number: "L2", title: "Lifecycle Hooks", body: "Automatic recall, observe, and reflect. Writes are limited by allowlists and host permissions.", accent: "var(--green)" },
+          { number: "L3", title: "Scheduled / Idle", body: "Curator, dreaming, and index jobs run through host scheduler, cron, or runner tick.", accent: "var(--orange)" },
+          { number: "L4", title: "Eval / CI", body: "High-risk changes go through constraints, datasets, PR proposals, and human approval.", accent: "var(--red)" }
+        ]
+      }
+    };
+
+    const LANGUAGE_STORAGE_KEY = "mnemon-harness-language";
+    const requestedLanguage = new URLSearchParams(window.location.search).get("lang");
+    let currentLanguage = requestedLanguage || localStorage.getItem(LANGUAGE_STORAGE_KEY) || "zh";
+    let activeFlow = "install";
+    let activeHost = "claude";
+    let activeNode = null;
+    let activeMemoryFlow = "write";
+    let activeMemoryNode = "working";
+
+    function cloneData(value) {
+      return JSON.parse(JSON.stringify(value));
+    }
+
+    function locale() {
+      return locales[currentLanguage] || locales.zh;
+    }
+
+    function syncObject(target, source) {
+      Object.keys(target).forEach((key) => delete target[key]);
+      Object.assign(target, cloneData(source));
+    }
+
+    function resolvePath(source, path) {
+      return path.split(".").reduce((acc, key) => (acc && acc[key] !== undefined ? acc[key] : undefined), source);
+    }
+
+    function applyStaticTranslations() {
+      const ui = locale().ui;
+      document.documentElement.lang = locale().lang;
+      document.querySelectorAll("[data-i18n]").forEach((el) => {
+        const value = resolvePath(ui, el.dataset.i18n);
+        if (value !== undefined) el.textContent = value;
+      });
+      document.querySelectorAll("[data-i18n-html]").forEach((el) => {
+        const value = resolvePath(ui, el.dataset.i18nHtml);
+        if (value !== undefined) el.innerHTML = value;
+      });
+      document.querySelectorAll("[data-i18n-aria]").forEach((el) => {
+        const value = resolvePath(ui, el.dataset.i18nAria);
+        if (value !== undefined) el.setAttribute("aria-label", value);
+      });
+      document.querySelectorAll("[data-lang]").forEach((button) => {
+        button.classList.toggle("active", button.dataset.lang === currentLanguage);
+        button.setAttribute("aria-pressed", button.dataset.lang === currentLanguage ? "true" : "false");
+      });
+    }
+
+    function renderMapNodes() {
+      document.querySelectorAll("[data-node]").forEach((button) => {
+        const node = nodes[button.dataset.node];
+        if (!node) return;
+        button.innerHTML = `
+          <span class="kicker">${node.kicker}</span>
+          <strong>${node.mapTitle}</strong>
+          <span>${node.summary}</span>
+        `;
+      });
+    }
+
+    function renderFlowChips() {
+      document.querySelectorAll("[data-flow]").forEach((button) => {
+        const flow = flows[button.dataset.flow];
+        if (flow) button.textContent = flow.chip;
+      });
+    }
+
+    function renderHostButtons() {
+      document.querySelectorAll("[data-host]").forEach((button) => {
+        const host = hosts[button.dataset.host];
+        if (!host) return;
+        button.innerHTML = `<strong>${host.buttonTitle}</strong><span>${host.buttonSubtitle}</span>`;
+      });
+    }
+
+    function renderMemoryContent() {
+      const data = locale();
+      document.querySelectorAll("[data-memory-node]").forEach((button) => {
+        const node = data.memoryNodes[button.dataset.memoryNode];
+        if (!node) return;
+        button.innerHTML = `
+          <span class="kicker">${node.kicker}</span>
+          <strong>${node.title}</strong>
+          <span>${node.summary}</span>
+        `;
+      });
+      document.getElementById("memory-flow-tabs").innerHTML = Object.entries(data.memoryFlows).map(([key, flow]) => `
+        <button class="memory-flow-tab" type="button" data-memory-flow="${key}" role="tab">${flow.chip}</button>
+      `).join("");
+      renderMemoryFlow(activeMemoryFlow);
+      renderMemoryNodeDetail(activeMemoryNode);
+    }
+
+    function renderMemoryNodeDetail(nodeKey) {
+      activeMemoryNode = nodeKey;
+      const data = locale();
+      const node = data.memoryNodes[nodeKey];
+      if (!node) return;
+      const labels = data.memoryLabels;
+      document.querySelectorAll("[data-memory-node]").forEach((button) => {
+        const selected = button.dataset.memoryNode === nodeKey;
+        button.classList.toggle("selected", selected);
+        if (selected) button.classList.remove("dim");
+      });
+      document.getElementById("memory-detail-title").textContent = node.title;
+      document.getElementById("memory-detail-body").textContent = node.body;
+      document.getElementById("memory-detail-grid").innerHTML = ["contains", "reads", "writes"].map((key) => `
+        <div class="memory-detail-item"><b>${labels[key]}</b><ul>${node[key].map((item) => `<li>${item}</li>`).join("")}</ul></div>
+      `).join("") + `<div class="memory-detail-item"><b>${labels.safety}</b><ul><li>${node.safety}</li></ul></div>`;
+    }
+
+    function renderMemoryFlow(flowKey) {
+      const data = locale();
+      const flow = data.memoryFlows[flowKey] || data.memoryFlows.write;
+      activeMemoryFlow = flowKey in data.memoryFlows ? flowKey : "write";
+      document.querySelectorAll(".memory-flow-tab").forEach((button) => {
+        button.classList.toggle("active", button.dataset.memoryFlow === activeMemoryFlow);
+        button.setAttribute("aria-selected", button.dataset.memoryFlow === activeMemoryFlow ? "true" : "false");
+      });
+      document.querySelectorAll(".memory-path").forEach((path) => {
+        path.classList.toggle("active", flow.paths.includes(path.id));
+      });
+      document.querySelectorAll("[data-memory-node]").forEach((button) => {
+        const active = flow.nodes.includes(button.dataset.memoryNode);
+        button.classList.toggle("active", active);
+        button.classList.toggle("dim", !active);
+      });
+      document.getElementById("memory-flow-stage").innerHTML = `
+        <article class="memory-flow-copy">
+          <h3>${flow.title}</h3>
+          <p>${flow.body}</p>
+        </article>
+        <div class="memory-step-list">
+          ${flow.steps.map(([title, body]) => `<div class="memory-step"><div><strong>${title}</strong><span>${body}</span></div></div>`).join("")}
+        </div>
+      `;
+    }
+
+    function renderLevels() {
+      document.getElementById("levels-list").innerHTML = locale().levels.map((level) => `
+        <article class="level" style="--accent: ${level.accent}">
+          <span class="number">${level.number}</span>
+          <h3>${level.title}</h3>
+          <p>${level.body}</p>
+        </article>
+      `).join("");
+    }
+
+    function setLanguage(language) {
+      currentLanguage = locales[language] ? language : "zh";
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, currentLanguage);
+      syncObject(nodes, locale().nodes);
+      syncObject(flows, locale().flows);
+      syncObject(hosts, locale().hosts);
+      applyStaticTranslations();
+      renderMapNodes();
+      renderFlowChips();
+      renderHostButtons();
+      renderPipelines();
+      renderMemoryContent();
+      renderLevels();
+      renderHost(activeHost);
+      if (activeNode) {
+        renderDetail(activeNode);
+      } else {
+        renderFlow(activeFlow);
+      }
+    }
+
     function renderDetail(nodeKey) {
+      activeNode = nodeKey;
       const node = nodes[nodeKey];
       if (!node) return;
+      const labels = locale().ui.detailLabels;
       document.querySelectorAll(".node").forEach((el) => el.classList.toggle("selected", el.dataset.node === nodeKey));
       document.getElementById("detail-title").textContent = node.title;
       document.getElementById("detail-body").textContent = node.body;
       const grid = document.getElementById("detail-grid");
       grid.innerHTML = ["owns", "reads", "writes"].map((key) => {
-        const label = key === "owns" ? "Owns" : key === "reads" ? "Reads" : "Writes";
+        const label = labels[key];
         return `<div class="detail-item"><b>${label}</b><ul>${node[key].map((item) => `<li>${item}</li>`).join("")}</ul></div>`;
-      }).join("") + `<div class="detail-item"><b>Risk Boundary</b><div>${node.risk}</div></div>`;
+      }).join("") + `<div class="detail-item"><b>${labels.risk}</b><div>${node.risk}</div></div>`;
     }
 
     function renderFlow(flowKey) {
+      activeFlow = flowKey;
+      activeNode = null;
       const flow = flows[flowKey];
       if (!flow) return;
+      const labels = locale().ui.detailLabels;
       document.querySelectorAll(".chip").forEach((el) => el.classList.toggle("active", el.dataset.flow === flowKey));
       document.querySelectorAll(".flow-line").forEach((el) => el.classList.toggle("active", flow.lines.includes(el.id)));
       document.querySelectorAll(".node").forEach((el) => {
@@ -1434,13 +2917,14 @@
         `<div class="step"><div><strong>${title}</strong><span>${body}</span></div></div>`
       )).join("");
       document.getElementById("detail-grid").innerHTML = `
-        <div class="detail-item"><b>Active Nodes</b><div>${flow.nodes.map((key) => nodes[key].title).join(" -> ")}</div></div>
-        <div class="detail-item"><b>Default Safety</b><div>proposal-first, allowlist apply only, report every durable mutation</div></div>
+        <div class="detail-item"><b>${labels.activeNodes}</b><div>${flow.nodes.map((key) => nodes[key].title).join(" -> ")}</div></div>
+        <div class="detail-item"><b>${labels.defaultSafety}</b><div>${labels.defaultSafetyBody}</div></div>
       `;
     }
 
     function renderPipelines() {
       const container = document.getElementById("pipeline-list");
+      const highlight = locale().ui.highlight;
       container.innerHTML = Object.entries(flows).map(([key, flow]) => {
         const pills = flow.steps.map(([title], index) => (
           `${index > 0 ? '<span class="arrow">-></span>' : ''}<span class="pill">${title}</span>`
@@ -1449,13 +2933,14 @@
           <div class="pipeline-row">
             <div><h3>${flow.title}</h3><p>${flow.body}</p></div>
             <div class="pipeline-track">${pills}</div>
-            <button type="button" data-jump-flow="${key}">Highlight</button>
+            <button type="button" data-jump-flow="${key}">${highlight}</button>
           </div>
         `;
       }).join("");
     }
 
     function renderHost(hostKey) {
+      activeHost = hostKey;
       const host = hosts[hostKey];
       if (!host) return;
       document.querySelectorAll(".host-button").forEach((el) => el.classList.toggle("active", el.dataset.host === hostKey));
@@ -1477,11 +2962,23 @@
       button.addEventListener("click", () => renderDetail(button.dataset.node));
     });
 
+    document.querySelectorAll("[data-lang]").forEach((button) => {
+      button.addEventListener("click", () => setLanguage(button.dataset.lang));
+    });
+
     document.addEventListener("click", (event) => {
       const jump = event.target.closest("[data-jump-flow]");
       if (jump) {
         renderFlow(jump.dataset.jumpFlow);
         document.getElementById("map").scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      const memoryFlow = event.target.closest("[data-memory-flow]");
+      if (memoryFlow) {
+        renderMemoryFlow(memoryFlow.dataset.memoryFlow);
+      }
+      const memoryNode = event.target.closest("[data-memory-node]");
+      if (memoryNode) {
+        renderMemoryNodeDetail(memoryNode.dataset.memoryNode);
       }
     });
 
@@ -1489,9 +2986,7 @@
       button.addEventListener("click", () => renderHost(button.dataset.host));
     });
 
-    renderPipelines();
-    renderHost("claude");
-    renderFlow("install");
+    setLanguage(currentLanguage);
   </script>
 </body>
 </html>

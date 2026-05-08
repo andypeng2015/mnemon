@@ -21,7 +21,7 @@ turn_delivered
 
 1. **Memory 是事实层，skill 是行为层，system prompt 是热路径预算。**
 2. **自进化主对象应是可读、可 diff、可 patch、可 archive 的 Markdown artifact。**
-3. **Markdown 不是容量层。** 长期容量需要 filesystem、index、传统 memory model 和 hot/warm/cold 更替。
+3. **Markdown 是热存，不是容量层。** 长期容量需要 filesystem、index、传统 memory model 和 hot/cold exchange。
 4. **Hook 是触发底座。** 没有 recall/observe/reflect/curate 事件，自进化只能靠模型偶尔想起。
 5. **Provenance 是安全边界。** 自动治理只能处理明确 self-authored / agent-created 的资产。
 6. **Curator 必须 dry-run/report/backup/archive-first。** 高风险演化必须走 eval 和 PR gate。
@@ -51,7 +51,7 @@ Harness 的交付物应是：
   bindings/           # active host bindings 与 projection metadata
   skills/             # recall / observe / reflect / curate / research
   hooks/              # 四阶段语义 hook 的脚本或 prompt 模板
-  memory/             # hot / warm / cold 的文件布局
+  memory/             # hot / cold 与 exchange artifact 的文件布局
   state/              # usage/provenance/pins/curator state
   reports/            # review/curator/eval 输出
   schemas/            # hook IO、proposal、report schema
@@ -125,7 +125,7 @@ evolution/core/constraints.py
 
 社区/生态参考包括 Hermes 官方文档、Claude Code memory/skills/hooks、OpenAI Codex AGENTS.md、Cursor rules、Continue rules、OpenClaw skills/dreaming、MemGPT/Letta 记忆分层。公开文档与源码有少量漂移；涉及 Hermes 行为时，本文以本地源码为准。
 
-Claude Code 也参与了多轮只读审阅。它的主要建议已合入本文：把 Hermes 的 after-turn reflection 主链路前置；把方案从 runtime object 改成 artifacts、schemas、prompt templates、hook scripts 和 install maps；把 INSTALL/GUIDELINE、hot/warm/cold、dry-run 权限、no mandatory agent runtime 边界和源码数字锚点补齐。
+Claude Code 也参与了多轮只读审阅。它的主要建议已合入本文：把 Hermes 的 after-turn reflection 主链路前置；把方案从 runtime object 改成 artifacts、schemas、prompt templates、hook scripts 和 install maps；把 INSTALL/GUIDELINE、hot/cold exchange、dry-run 权限、no mandatory agent runtime 边界和源码数字锚点补齐。
 
 ## 1. 自进化是系统工程
 
@@ -549,15 +549,16 @@ candidate -> active -> stale -> archived
 - pinned / user / package / imported 默认不自动改。
 - 所有合并输出 report。
 
-## 5. Hot / Warm / Cold 记忆分层
+## 5. Hot / Cold 记忆与交换协议
 
-单个 Markdown 文件短期有效，长期会遇到容量、质量和控制问题。建议 harness 使用三层：
+单个 Markdown 文件短期有效，长期会遇到容量、质量和控制问题。建议 harness 使用两层主模型：
 
 | 层 | 内容 | 是否直接进 prompt |
 |---|---|---|
 | Hot | `MEMORY.md`、`USER.md`、当前 guideline、当前任务相关 skill 摘要 | 是，严格短预算 |
-| Warm | topic capsule、project capsule、近期 reflection、promotion candidate、active skill support | 通常不直接进，按任务 recall 后少量注入 |
-| Cold | raw evidence、session transcript、历史 report、archive、index、usage events | 不直接进，只作为检索和 dreaming 输入 |
+| Cold | Mnemon/RAG/DB/FTS/vector、raw evidence、session transcript、历史 report、archive、index、usage events | 不直接进，只作为检索、recall 和 dreaming 输入 |
+
+中间的 topic capsule、session summary、promotion candidate 应属于 `memory/exchange/`，是冷热切换协议状态，不是第三层主 memory。
 
 Filesystem 是可审查真相层，数据库/向量/FTS 是召回加速层。重要事实最终应能落到可读 artifact 上，而不是只存在 embedding 里。
 
@@ -572,15 +573,18 @@ self-evolution/
       MEMORY.md
       USER.md
       project.md
-    warm/
-      topics/
-      sessions/
-      capsules/
     cold/
       evidence/
       transcripts/
+      summaries/
+      topics/
       archive/
       index/
+    exchange/
+      candidates/
+      promotions/
+      demotions/
+      decisions/
   skills/
   state/
     usage.json
@@ -610,8 +614,9 @@ Demotion：
 
 ```text
 hot/project.md 删除过细条目
-warm/topics/build.md 保留详细说明
+cold/archive/hot/... 保留原条目
 cold/evidence/... 保留原始来源
+exchange/demotions/... 记录 demotion proposal
 reports/curator/... 记录迁移原因
 ```
 

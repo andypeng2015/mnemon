@@ -7,7 +7,7 @@ The harness treats skill as the primary unit of self-evolution. Memory stores st
 ```text
 facts / preferences / stable project context -> memory
 procedures / workflows / repeated tactics -> skill
-raw evidence / transcript / failed attempts -> cold memory
+raw evidence / transcript / failed attempts -> episodic long-term memory
 task continuity -> session summary
 ```
 
@@ -72,11 +72,11 @@ Reflection classification:
 
 | Insight | Destination | Example |
 |---|---|---|
-| stable user preference | hot memory | "User prefers concise technical summaries." |
-| project fact | hot/warm memory | "This repo uses pnpm." |
+| stable user preference | Prompt Memory | "User prefers concise technical summaries." |
+| project fact | Prompt Memory or semantic summary | "This repo uses pnpm." |
 | reusable workflow | skill | "How to recover from Vite port collision." |
 | one-off task progress | session summary | "PR review stopped at file X." |
-| raw log/error | cold evidence | command output, stack trace |
+| raw log/error | episodic evidence | command output, stack trace |
 | uncertain inference | report only | "Likely cause was cache issue." |
 
 Post-turn review can be implemented in three ways:
@@ -105,8 +105,8 @@ Inputs:
 - `state/usage.json`;
 - reflection reports;
 - curator reports;
-- warm candidates;
-- cold evidence index;
+- memory consolidation candidates;
+- long-term evidence index;
 - active skills;
 - pins and protection rules.
 
@@ -115,8 +115,8 @@ Outputs:
 - umbrella skill proposals;
 - duplicated skill consolidation;
 - stale skill archive proposal;
-- hot-to-warm demotion;
-- warm-to-hot promotion;
+- Prompt Memory demotion into Long-Term Memory;
+- Long-Term Memory promotion into Prompt Memory;
 - eval/PR proposal for high-risk changes.
 
 This is where dreaming matters. Dreaming turns accumulated low-level evidence into candidates and theme reports. Curator then applies deterministic governance and writes bounded proposals.
@@ -204,7 +204,7 @@ state: candidate|quarantined|active|stale|archived
 lineage:
   created_from:
     - reports/reflection/2026-05-08.md
-    - memory/cold/evidence/...
+    - memory/longterm/episodic/evidence/...
   replaces: []
   absorbed_from: []
   absorbed_into: null
@@ -244,7 +244,7 @@ report:
   risk: low|medium|high
   evidence:
     - reports/reflection/...
-    - memory/cold/evidence/...
+    - memory/longterm/episodic/evidence/...
   why_skill_not_memory: string
   existing_skill_search:
     searched: true

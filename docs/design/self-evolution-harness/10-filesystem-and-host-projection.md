@@ -18,7 +18,7 @@ Hermes is worth referencing for filesystem design, not for product shape.
 
 | Hermes pattern | Harness abstraction |
 |---|---|
-| Small bounded `MEMORY.md` / `USER.md` | canonical hot memory files with strict budgets |
+| Small bounded `MEMORY.md` / `USER.md` | canonical Prompt Memory files with strict budgets |
 | `skills/<name>/SKILL.md` with frontmatter | directory-based skill artifacts and schema validation |
 | usage/provenance sidecar | engineering metadata outside model-facing Markdown |
 | curator reports and backups | report-first maintenance and rollback |
@@ -73,20 +73,28 @@ Recommended repo-local install:
       candidates/
     archive/
   memory/
-    hot/
+    prompt/
       MEMORY.md
       USER.md
       project.md
-    warm/
-      topics/
-      sessions/
-      candidates/
-    cold/
-      evidence/
-      transcripts/
+    longterm/
+      episodic/
+        evidence/
+        transcripts/
+        events/
+      semantic/
+        facts/
+        summaries/
+        topics/
+        index/
       imports/
       archive/
-      index/
+        prompt/
+    consolidation/
+      candidates/
+      promotions/
+      demotions/
+      decisions/
   hooks/
     templates/
     installed/
@@ -171,7 +179,7 @@ The installer should produce an install plan before modifying anything.
 
 | Mode | Use case | Behavior |
 |---|---|---|
-| `pointer` | host can read referenced files | native file points to `.mnemon/GUIDELINE.md`, hot memory, skill index |
+| `pointer` | host can read referenced files | native file points to `.mnemon/GUIDELINE.md`, Prompt Memory, skill index |
 | `managed_block` | instruction file supports plain Markdown | insert a small marked block, keep user content untouched |
 | `symlink` | host skill loader follows symlinks | symlink active `.mnemon` skill dirs into native skill dir |
 | `copy` | host requires physical files | copy generated projections with checksum and source pointer |
@@ -190,7 +198,7 @@ Mnemon self-evolution harness is installed for this project.
 
 Read `.mnemon/GUIDELINE.md` before applying durable memory or skill changes.
 Use `.mnemon/skills/core/recall/SKILL.md` for recall, `.mnemon/skills/core/reflect/SKILL.md` after completed work, and `.mnemon/skills/core/curate/SKILL.md` for maintenance.
-Hot memory lives under `.mnemon/memory/hot/`; reports live under `.mnemon/reports/`.
+Prompt Memory lives under `.mnemon/memory/prompt/`; reports live under `.mnemon/reports/`.
 Do not edit generated projections directly; update `.mnemon` canonical files.
 <!-- mnemon:end -->
 ```
@@ -301,9 +309,9 @@ protected:
   - schemas/**
   - hooks/**
 canonical:
-  memory_hot: memory/hot
-  memory_warm: memory/warm
-  memory_cold: memory/cold
+  memory_prompt: memory/prompt
+  memory_longterm: memory/longterm
+  memory_consolidation: memory/consolidation
   skills_active:
     - skills/core
     - skills/project
@@ -329,7 +337,7 @@ Canonical `.mnemon` is better because it gives the harness:
 
 1. one place for usage/provenance/lineage;
 2. host-independent backup, rollback, and reports;
-3. stable hot/warm/cold memory layout;
+3. stable Prompt/Long-Term Memory layout and explicit consolidation artifacts;
 4. safe curator/dreaming over self-authored assets;
 5. clean uninstall and upgrade;
 6. multi-host portability.

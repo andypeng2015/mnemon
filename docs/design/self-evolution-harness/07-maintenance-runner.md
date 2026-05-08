@@ -43,10 +43,10 @@ Some self-evolution tasks are bad foreground work:
 
 | Workload | Why foreground is poor | Runner value |
 |---|---|---|
-| Dreaming | large cold evidence, long context, weak relevance to current user turn | run when idle, summarize, propose promotion |
+| Dreaming | large long-term evidence, long context, weak relevance to current user turn | run when idle, summarize, propose promotion |
 | Curator | scans many skills/memory files, requires snapshots | controlled dry-run/apply loop |
 | Post-turn review fallback | some hosts cannot run immediate `Stop` hooks | process queued session summaries later |
-| Cold index rebuild | deterministic but potentially expensive | rebuild outside conversation |
+| Long-term index rebuild | deterministic but potentially expensive | rebuild outside conversation |
 | Eval batch | needs repeated checks and held-out examples | write PR-style proposal |
 | Backup rotation | unrelated to active task | bounded housekeeping |
 
@@ -106,16 +106,17 @@ job:
     min_idle_minutes: 30
   mode: dry-run
   inputs:
-    - memory/warm/**
-    - memory/cold/evidence/**
+    - memory/longterm/episodic/evidence/**
+    - memory/longterm/semantic/summaries/**
+    - memory/consolidation/**
     - state/usage.json
     - state/pins.json
   outputs:
     - reports/dreaming/**
-    - memory/warm/candidates/**
+    - memory/consolidation/candidates/**
   write_allowlist:
     - reports/dreaming/**
-    - memory/warm/candidates/**
+    - memory/consolidation/**
     - state/jobs/**
   budgets:
     max_runtime_seconds: 1800
@@ -139,14 +140,14 @@ job:
 | `reflect.deferred` | yes | proposal | `reports/reflection/*`, optional proposal patch |
 | `curator.transitions` | no | apply to state only | usage state transitions, stale markers |
 | `curator.review` | yes | dry-run/proposal | consolidation/archive proposal |
-| `dreaming.light` | no/optional | warm candidate write | candidate extraction from recent evidence |
+| `dreaming.light` | no/optional | consolidation candidate write | candidate extraction from recent evidence |
 | `dreaming.rem` | yes | report-only | theme report |
 | `dreaming.deep` | yes | proposal | promotion/demotion proposals |
-| `cold.index.incremental` | no | apply to index only | FTS/vector metadata |
-| `cold.index.rebuild` | no | apply to index only | rebuilt index |
+| `longterm.index.incremental` | no | apply to index only | FTS/vector metadata |
+| `longterm.index.rebuild` | no | apply to index only | rebuilt index |
 | `eval.batch` | yes/optional | proposal | eval report / PR text |
 | `snapshot.rotate` | no | apply | backup manifest cleanup |
-| `archive.compress` | no | apply to archive only | cold archive compaction |
+| `archive.compress` | no | apply to archive only | long-term archive compaction |
 
 LLM jobs are always optional. If the host does not expose an approved LLM invocation command, LLM jobs stay manual or proposal-only.
 
@@ -219,13 +220,13 @@ Queued reflection job:
   "session_id": "abc",
   "created_at": "2026-05-08T00:00:00Z",
   "cwd": "/repo",
-  "summary_ref": "memory/warm/sessions/abc.md",
-  "allowed_targets": ["memory/hot/**", "skills/**", "reports/**"],
+  "summary_ref": "memory/longterm/semantic/summaries/sessions/abc.md",
+  "allowed_targets": ["memory/prompt/**", "skills/**", "reports/**"],
   "mode": "proposal"
 }
 ```
 
-The queue stores summaries and references, not raw unbounded transcripts. Raw transcripts remain cold evidence and are summarized before LLM use.
+The queue stores summaries and references, not raw unbounded transcripts. Raw transcripts remain episodic evidence and are summarized before LLM use.
 
 ## Lease And Locking
 
@@ -336,7 +337,7 @@ Every attempt writes a machine-readable ledger entry:
   "mode": "dry-run",
   "started_at": "2026-05-08T00:00:00Z",
   "finished_at": "2026-05-08T00:12:00Z",
-  "inputs": ["memory/warm/**", "memory/cold/evidence/**"],
+  "inputs": ["memory/longterm/semantic/summaries/**", "memory/longterm/episodic/evidence/**", "memory/consolidation/**"],
   "outputs": ["reports/dreaming/2026-05-08.md"],
   "budgets": {
     "llm_calls": 3,
@@ -356,9 +357,9 @@ Dreaming is the strongest runner use case because it is not a foreground capabil
 
 ```text
 Light:
-  recent cold evidence + warm sessions
+  recent long-term evidence + semantic summaries
     -> candidate facts/workflows/topics
-    -> memory/warm/candidates/*
+    -> memory/consolidation/candidates/*
 
 REM:
   candidates + usage + recent reports
@@ -374,10 +375,10 @@ Deep:
 Dreaming promotion rules:
 
 - raw evidence is never promoted directly;
-- every proposed hot-memory entry links evidence;
+- every proposed Prompt Memory entry links evidence;
 - procedures become skill proposals, not memory;
 - high-risk guideline/hook/install changes are proposal-only;
-- hot memory writes require explicit apply or human approval.
+- Prompt Memory writes require explicit apply or human approval.
 
 ## Review-Agent Skill Creation Through Runner
 

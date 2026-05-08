@@ -66,7 +66,7 @@ Deliverables:
 Acceptance:
 
 - Recall can return `NONE`.
-- Observe writes cold evidence only.
+- Observe writes episodic evidence only.
 - Reflect writes proposal reports when allowlist cannot be enforced.
 - Low-risk direct patch only happens with enforced allowlist.
 
@@ -121,26 +121,30 @@ Acceptance:
 - Resident daemon and cron invocation have equivalent semantics.
 - Foreground host activity can defer expensive maintenance jobs.
 
-## Phase 4: Cold Memory Protocol
+## Phase 4: Working/Long-Term Memory Consolidation
 
-Goal: support high-capacity memory without replacing Markdown control plane.
+Goal: connect bounded Prompt Memory with Mnemon-backed episodic/semantic memory and skill-backed procedural memory through audited Dreaming Jobs.
 
 Deliverables:
 
-- `schemas/cold-memory-prefetch.schema.json`
-- `schemas/cold-memory-sync.schema.json`
+- `schemas/longterm-memory-prefetch.schema.json`
+- `schemas/longterm-memory-sync.schema.json`
+- `schemas/memory-consolidation.schema.json`
 - `prompts/promotion.md`
-- warm/cold directory conventions
+- Prompt Memory directory conventions
+- `memory/longterm/` conventions
+- `memory/consolidation/` conventions
 - recall ranking fields
-- cold index descriptor
+- long-term index descriptor
 - explicit `NONE` gate for irrelevant memory
 
 Acceptance:
 
-- Cold memory never injects raw transcripts directly.
+- Long-term memory never injects raw transcripts directly.
 - Recall output stays within budget.
 - Promotion proposal links evidence.
-- Demotion preserves source in warm/cold.
+- Demotion preserves source in long-term archive.
+- Consolidation artifacts are candidate/proposal state, not a third memory layer.
 
 ## Phase 5: Eval-Driven Evolution
 
@@ -158,7 +162,7 @@ Acceptance:
 - Skill prompt changes run schema + sample eval.
 - Hook prompt changes run regression cases.
 - Guideline/install map changes require human approval.
-- Eval output is proposal/PR, not hot mutation.
+- Eval output is proposal/PR, not prompt mutation.
 
 ## Initial File Tree
 
@@ -203,7 +207,7 @@ Do not start by writing a daemon, server, SDK, database adapter, or universal ag
 | Schema format | JSON Schema vs YAML docs | JSON Schema for machine contracts, Markdown for explanation |
 | Direct apply | never vs low-risk allowlisted | allow low-risk only when host enforces write target |
 | Host maps | built-in vs community contributed | built-in core maps, allow community maps |
-| Cold index | none vs SQLite/FTS/vector | protocol first, implementation later |
+| Long-term index | none vs SQLite/FTS/vector | protocol first, implementation later |
 | Runner packaging | no runner vs CLI tick vs resident process | CLI tick first; resident process only as equivalent wrapper |
 | LLM maintenance | embedded SDK vs host command | host command only; missing command means proposal/manual |
 | Projection mode | pointer vs symlink vs copy | pointer first, symlink/copy only for native skill loaders |
@@ -214,12 +218,12 @@ Do not start by writing a daemon, server, SDK, database adapter, or universal ag
 |---|---|
 | Harness becomes hidden agent runtime | no mandatory agent runtime; optional runner is cron/lease/ledger only |
 | Host cannot enforce write limits | proposal-only fallback |
-| Hot memory grows too much | budget + demotion proposal |
+| Prompt Memory grows too much | budget + demotion proposal |
+| Long-term recall injects stale/noisy context | ranking + `NONE` gate + evidence-linked summaries |
 | Skill explosion | class-first guideline + curator |
 | User-created artifacts mutated | provenance and created_by gates |
 | Install corrupts host config | dry-run, markers, backup, uninstall |
 | Host-native files drift from `.mnemon` | projection checksums, drift reports, explicit import |
-| Cold recall injects noise | ranking + `NONE` gate + budget |
 | Evaluation becomes theater | explicit constraints and held-out cases |
 | Runner competes with foreground task | foreground activity signal, leases, budget, deferral |
 
