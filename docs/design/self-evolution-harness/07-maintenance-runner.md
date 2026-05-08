@@ -110,7 +110,6 @@ job:
     - memory/longterm/semantic/summaries/**
     - memory/consolidation/**
     - state/usage.json
-    - state/pins.json
   outputs:
     - reports/dreaming/**
     - memory/consolidation/candidates/**

@@ -83,9 +83,8 @@ Deliverables:
 - `scripts/snapshot`
 - `scripts/rollback`
 - `state/curator_state.json`
-- `state/pins.json`
 - `reports/templates/curator.md`
-- quarantine/lineage fields in `state/usage.json`
+- Hermes-style lifecycle fields in `state/usage.json`
 
 Acceptance:
 

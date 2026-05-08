@@ -44,9 +44,6 @@ Self-Evolution Harness 应满足：
       research/
     project/
     generated/
-      active/
-      quarantine/
-      candidates/
     archive/
   hooks/
     recall/
@@ -82,8 +79,6 @@ Self-Evolution Harness 应满足：
     install.json
     usage.json
     curator_state.json
-    pins.json
-    lineage.json
   reports/
     install/
     reflection/
@@ -111,7 +106,7 @@ Self-Evolution Harness 应满足：
 | [05-memory-curation-eval.md](05-memory-curation-eval.md) | Working Memory、Long-Term Memory、Dreaming consolidation、curator、eval gate |
 | [06-implementation-roadmap.md](06-implementation-roadmap.md) | MVP、阶段计划、验收标准 |
 | [07-maintenance-runner.md](07-maintenance-runner.md) | 可选 daemon/runner 的边界、jobs、状态、锁、预算 |
-| [08-skill-production-paths.md](08-skill-production-paths.md) | user-declared、agent-offered、background review 三个 skill 生产入口，以及 curator governance |
+| [08-skill-production-paths.md](08-skill-production-paths.md) | 抽离 Hermes 的 skill index/manage、三种生产入口、usage sidecar、curator governance |
 | [09-anti-patterns.md](09-anti-patterns.md) | 防止 harness 滑成 agent framework 的反模式清单 |
 | [10-filesystem-and-host-projection.md](10-filesystem-and-host-projection.md) | `.mnemon` canonical filesystem、host template sensing、projection/mount 策略 |
 | [architecture-site.html](architecture-site.html) | 交互式 HTML 架构地图、管道流、host projection explorer，支持中文/英文切换 |

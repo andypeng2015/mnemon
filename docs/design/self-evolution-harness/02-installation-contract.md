@@ -88,7 +88,6 @@ upgrade:
   preserve:
     - memory/**
     - state/usage.json
-    - state/pins.json
     - reports/**
     - archive/**
   migration_report: reports/install/
@@ -313,7 +312,7 @@ Rules:
 - If user changed generated block, preserve and write conflict report.
 - Projection writes are recorded in `bindings/active.json`.
 - Drift in projected files writes `reports/projection/` before overwrite.
-- Never delete `memory/`, `reports/`, `archive/`, `state/usage.json`, `state/pins.json`.
+- Never delete `memory/`, `reports/`, `archive/`, or `state/usage.json`.
 - Upgrade may migrate schemas, but must write `reports/install/<timestamp>.md`.
 - Uninstall removes host bindings and generated skill/hook copies only; user data stays.
 

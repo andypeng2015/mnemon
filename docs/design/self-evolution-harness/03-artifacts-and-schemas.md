@@ -23,8 +23,8 @@ canonical:
   skills_active:
     - skills/core
     - skills/project
-    - skills/generated/active
-  skills_quarantine: skills/generated/quarantine
+    - skills/generated
+  skills_archive: skills/archive
   reports: reports
 projection:
   managed_marker: mnemon
@@ -78,8 +78,7 @@ Recommended categories:
 
 - `skills/core/`: harness-provided package skills.
 - `skills/project/`: user/project-authored skills, protected by default.
-- `skills/generated/active/`: promoted agent-authored skills.
-- `skills/generated/quarantine/`: candidate or auto-written skills not yet active.
+- `skills/generated/`: agent-authored skills; lifecycle state lives in `state/usage.json`.
 - `skills/archive/`: archived skill artifacts.
 
 `SKILL.md` frontmatter：
@@ -88,11 +87,6 @@ Recommended categories:
 ---
 name: reflect
 description: Review completed work and propose durable memory or skill updates.
-scope: harness
-risk: medium
-created_by: harness
-provenance: package
-version: 0.1.0
 ---
 ```
 
@@ -102,12 +96,9 @@ version: 0.1.0
 |---|---:|---|
 | `name` | yes | stable skill id |
 | `description` | yes | discovery text |
-| `scope` | yes | `harness` / `project` / `user` |
-| `risk` | yes | `low` / `medium` / `high` |
-| `created_by` | yes | `harness` / `agent` / `user` / `package` / `imported` |
-| `provenance` | yes | source class |
 | `version` | no | package version |
-| `pinned` | no | prevent curator archive |
+
+Governance fields such as `created_by`, `provenance`, `state`, and `pinned` belong in `state/usage.json`, following the Hermes sidecar pattern.
 
 Rules:
 
@@ -169,13 +160,6 @@ Rules:
       "provenance": "package",
       "state": "active",
       "pinned": true,
-      "lineage": {
-        "created_from": [],
-        "replaces": [],
-        "absorbed_from": [],
-        "absorbed_into": null,
-        "promoted_by": null
-      },
       "view_count": 0,
       "use_count": 0,
       "patch_count": 0,
@@ -193,9 +177,9 @@ Auto-curation eligibility:
 
 ```text
 created_by == "agent"
-AND provenance in {"reflection", "curator", "dreaming"}
+AND provenance in {"background_review", "curator"}
 AND pinned != true
-AND state in {"candidate", "quarantined", "active", "stale"}
+AND state in {"active", "stale"}
 AND target not protected
 ```
 
@@ -512,7 +496,6 @@ Backup before mutating:
 - `memory/prompt/**`
 - `memory/consolidation/**`
 - `state/usage.json`
-- `state/pins.json`
 
 Backup manifest:
 

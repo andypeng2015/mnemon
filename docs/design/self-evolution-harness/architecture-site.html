@@ -1607,7 +1607,7 @@
 
             <button class="node" data-node="sidecar" style="--accent: var(--green); left: 84%; top: 41%; --w: 170px;">
               <span class="kicker">Sidecar</span>
-              <strong>usage / pins / lineage</strong>
+              <strong>usage / pinned / state</strong>
               <span>治理元数据，不污染 Markdown。</span>
             </button>
 
@@ -1818,7 +1818,7 @@
       },
       consolidation: {
         title: "Memory Consolidation",
-        body: "Dreaming Jobs compact Prompt Memory, archive evidence, extract semantic memory, propose promotion, and create skill candidates.",
+        body: "Dreaming Jobs compact Prompt Memory, archive evidence, extract semantic memory, and surface repeated workflow signals to the Hermes-style skill path.",
         owns: ["candidates", "summaries", "promotion proposals", "demotion proposals"],
         reads: ["episodic evidence", "prompt budget", "reflection reports"],
         writes: ["consolidation decisions", "promotion candidates", "demotion plans"],
@@ -1829,15 +1829,15 @@
         body: "Mnemon Store carries episodic and semantic memory; Skills carry procedural memory. Recall is ranked, summarized, and evidence-linked.",
         owns: ["episodic evidence", "semantic summaries", "procedural skills", "indexes"],
         reads: ["observe hook", "imports", "tool results"],
-        writes: ["evidence files", "semantic memory", "skill candidates", "index metadata"],
+        writes: ["evidence files", "semantic memory", "skill review signals", "index metadata"],
         risk: "Raw transcripts never become prompt context without summarization and relevance gate."
       },
       sidecar: {
         title: "Usage / Provenance Sidecar",
-        body: "Engineering metadata for governance: created_by, provenance, pinned, state, lineage, use counts and patch counts.",
-        owns: ["usage.json", "pins.json", "lineage.json"],
+        body: "Engineering metadata for governance: created_by, provenance, pinned, state, absorbed_into, use counts and patch counts.",
+        owns: ["usage.json", "pinned flag", "absorbed_into metadata"],
         reads: ["skill usage", "projection state", "curator reports"],
-        writes: ["state transitions", "quarantine/active/archive states"],
+        writes: ["active/stale/archived state", "pinned flag", "absorbed_into metadata"],
         risk: "Model-facing Markdown should not be polluted with governance metadata."
       },
       runner: {
@@ -1940,7 +1940,7 @@
         steps: [
           ["User-declared", "User explicitly asks to save or update a procedure."],
           ["Agent-offered", "Foreground agent asks after difficult work; user confirmation protects the result."],
-          ["Background review", "Post-turn reflect job patches or creates self-authored skill candidates."],
+          ["Background review", "Post-turn reflect job patches existing skills or creates self-authored skills."],
           ["Curator governance", "Scheduled maintenance consolidates umbrellas, archives stale self-authored skills, and reports first."]
         ]
       },
@@ -2179,7 +2179,7 @@
             mapTitle: "dreaming jobs / decisions",
             summary: "巩固、降级、晋升与技能候选。",
             title: "Memory Consolidation",
-            body: "由 Dreaming Jobs 实现：compact、archive、extract、promote 和 skill-candidate。它不是第三层 memory，而是记忆迁移协议。",
+              body: "由 Dreaming Jobs 实现：compact、archive、extract、promote，并把重复 workflow 信号送入 Hermes 风格的 skill 路径。",
             owns: ["candidates", "summaries", "promotion proposals", "demotion proposals"],
             reads: ["episodic evidence", "prompt budget", "reflection reports"],
             writes: ["consolidation decisions", "promotion candidates", "demotion plans"],
@@ -2193,18 +2193,18 @@
             body: "Mnemon Store 承载 episodic 与 semantic memory；Skills 承载 procedural memory。召回必须先排序、总结并附带证据。",
             owns: ["episodic evidence", "semantic summaries", "procedural skills", "indexes"],
             reads: ["observe hook", "imports", "tool results"],
-            writes: ["evidence files", "semantic memory", "skill candidates", "index metadata"],
+            writes: ["evidence files", "semantic memory", "skill review signals", "index metadata"],
             risk: "Raw transcripts 只有在总结并通过相关性门控后才能成为上下文。"
           },
           sidecar: {
             kicker: "Sidecar",
-            mapTitle: "usage / pins / lineage",
+            mapTitle: "usage / pinned / state",
             summary: "治理元数据，不污染 Markdown。",
             title: "Usage / Provenance Sidecar",
-            body: "治理元数据：created_by、provenance、pinned、state、lineage、use counts 和 patch counts。",
-            owns: ["usage.json", "pins.json", "lineage.json"],
+            body: "治理元数据：created_by、provenance、pinned、state、absorbed_into、use counts 和 patch counts。",
+            owns: ["usage.json", "pinned flag", "absorbed_into metadata"],
             reads: ["skill usage", "projection state", "curator reports"],
-            writes: ["state transitions", "quarantine/active/archive states"],
+            writes: ["active/stale/archived state", "pinned flag", "absorbed_into metadata"],
             risk: "Model-facing Markdown 不应混入治理元数据。"
           },
           runner: {
@@ -2326,7 +2326,7 @@
             steps: [
               ["用户声明", "用户明确要求保存或更新某个 procedure。"],
               ["Agent 询问确认", "困难任务后由前台 agent 询问；用户确认后写入并默认保护。"],
-              ["后台 review", "turn-end reflect job patch 现有 skill，或生成 self-authored skill candidate。"],
+              ["后台 review", "turn-end reflect job patch 现有 skill，或创建 self-authored skill。"],
               ["Curator 治理", "定期维护合并 umbrella、归档 stale self-authored skills，并坚持 report-first。"]
             ]
           },
@@ -2456,11 +2456,11 @@
           consolidation: {
             kicker: "Consolidation",
             title: "Dreaming Jobs",
-            summary: "compact / archive / extract / promote / skill-candidate。",
+            summary: "compact / archive / extract / promote / skill signal。",
             body: "Dreaming 是记忆巩固模块，不是自有 agent runtime。它用 scoped jobs 整理 Prompt Memory，并处理 Working 与 Long-Term 的升级/降级。",
             contains: ["candidates", "promotions", "demotions", "decisions"],
             reads: ["Prompt Memory", "evidence log", "recall hits", "usage signals"],
-            writes: ["semantic proposal", "prompt patch proposal", "skill candidate"],
+            writes: ["semantic proposal", "prompt patch proposal", "skill review signal"],
             safety: "默认 proposal-first；apply 需要 allowlist、backup 和 report。"
           },
           store: {
@@ -2477,10 +2477,10 @@
             kicker: "Procedural",
             title: "Skills",
             summary: "程序性记忆，不塞进 Markdown。",
-            body: "重复流程、工具策略和操作习惯属于 procedural memory，由 skill 自进化承载。MVP 只生成 skill candidate report，不自动安装。",
+            body: "重复流程、工具策略和操作习惯属于 procedural memory，由 Hermes 风格的 skill review 和 curator 承载。",
             contains: ["workflow", "tool tactic", "failure recovery", "habit"],
             reads: ["repeated evidence", "usage sidecar", "human review"],
-            writes: ["skills/generated/candidates/**"],
+            writes: ["skills/generated/**", "state/usage.json"],
             safety: "自动生成 skill 风险最高，必须先候选化和审阅。"
           }
         },
@@ -2506,7 +2506,7 @@
             steps: [
               ["compact", "压缩或替换 Prompt Memory，避免无限增长。"],
               ["archive/extract", "把证据和被降级内容写入 Mnemon Store。"],
-              ["skill-candidate", "把重复流程转成可审阅 skill 候选。"]
+              ["skill signal", "把重复流程送入同一条 skill_manage 路径。"]
             ]
           },
           recall: {
@@ -2536,13 +2536,13 @@
           procedural: {
             chip: "技能化",
             title: "Experience -> Skill",
-            body: "程序性记忆不进入 Prompt Memory。重复 workflow 由 Dreaming 生成 skill candidate，经 review 后再激活。",
+            body: "程序性记忆不进入 Prompt Memory。重复 workflow 由 Dreaming 送入同一条 skill review/curator 路径。",
             nodes: ["evidence", "consolidation", "skills"],
             paths: ["memory-path-evidence-consolidation", "memory-path-consolidation-skills"],
             steps: [
               ["发现模式", "跨任务重复出现的流程、失败恢复或工具策略。"],
-              ["候选化", "生成 skill candidate 和 report，不默认安装。"],
-              ["审阅激活", "人类确认、重复使用或 eval 通过后进入 active skills。"]
+              ["复用路径", "通过 skill_manage patch/create/write_file，而不是建立第二套 skill lifecycle。"],
+              ["记录治理状态", "写入 usage sidecar，使用 active/stale/archived 与 pinned。"]
             ]
           }
         },
@@ -2570,17 +2570,17 @@
             body: "当前台任务出现复杂修复、用户纠正、重复流程或重要工具策略时，agent 可以询问用户是否保存为 skill。",
             contains: ["difficult task", "workflow correction", "non-trivial recovery"],
             reads: ["turn outcome", "loaded skills", "user response"],
-            writes: ["foreground_confirmed skill", "manual-review provenance"],
+            writes: ["foreground skill", "protected provenance"],
             safety: "没有确认就不写 durable skill。"
           },
           review: {
             kicker: "入口 C",
             title: "后台 Review",
-            summary: "turn-end reflect job 生产 self-authored skill candidate。",
+            summary: "turn-end reflect job 生产 self-authored skill。",
             body: "任务交付后，受限 review agent 或 reflect hook 检查本轮经验，并决定是 memory、skill、session note、evidence 还是 report-only。",
             contains: ["turn summary", "tool outcome", "user correction", "loaded skill context"],
             reads: ["bounded transcript", "skill index", "write allowlist"],
-            writes: ["skill patch", "candidate skill", "reflection report"],
+            writes: ["skill patch", "generated skill", "reflection report"],
             safety: "只能写 allowlisted targets；不能强制时 proposal-only。"
           },
           manager: {
@@ -2600,18 +2600,18 @@
             body: "Skill 是 procedural memory。SKILL.md 写触发条件、步骤、坑点和验证；细节、模板和脚本放支持目录。",
             contains: ["SKILL.md", "references/", "templates/", "scripts/", "assets/"],
             reads: ["host skill loader", "review/curator jobs"],
-            writes: ["project skills", "generated candidates", "active generated skills"],
-            safety: "新 generated skill 先 candidate/quarantine，再 promotion。"
+            writes: ["project skills", "generated skills", "archive moves"],
+            safety: "新 generated skill 默认 active；后续由 usage sidecar 标记 stale/archived。"
           },
           sidecar: {
             kicker: "治理元数据",
-            title: "Usage / Lineage",
-            summary: "created_by、provenance、state、pins。",
+            title: "Usage / Provenance",
+            summary: "created_by、provenance、state、pinned。",
             body: "Sidecar 承载工程治理状态，不污染 SKILL.md。它决定哪些 skill 可被 curator 自动治理。",
-            contains: ["usage.json", "lineage.json", "pins.json"],
+            contains: ["usage.json", "pinned flag", "absorbed_into metadata"],
             reads: ["skill view/use/patch signals", "projection drift"],
-            writes: ["candidate/active/stale/archive state", "absorbed_into lineage"],
-            safety: "自动治理只允许 agent+reflection/curator/dreaming 且未 pinned 的目标。"
+            writes: ["active/stale/archived state", "pinned flag", "absorbed_into metadata"],
+            safety: "自动治理只允许未 pinned 的 agent+background_review/curator 目标。"
           },
           curator: {
             kicker: "治理路径",
@@ -2619,7 +2619,7 @@
             summary: "跨时间维护 skill library shape。",
             body: "Curator 不是单轮生产入口。它治理 self-authored sediment：合并 umbrella、归档 stale、把窄内容降级到 support file。",
             contains: ["cluster review", "umbrella synthesis", "archive decision"],
-            reads: ["usage sidecar", "lineage", "reflection reports", "active candidates"],
+            reads: ["usage sidecar", "reflection reports", "generated skills"],
             writes: ["curator report", "umbrella patch", "archive decision"],
             safety: "默认 dry-run；跳过 user/package/imported/protected/pinned。"
           },
@@ -2668,7 +2668,7 @@
               ["发现信号", "复杂修复、错误恢复、用户纠正或重复 workflow。"],
               ["询问用户", "简单 one-off 不问；无确认不写 durable skill。"],
               ["Patch first", "有 umbrella 就 patch；细节写 references/。"],
-              ["标记来源", "写入 foreground_confirmed，默认 manual-review。"]
+              ["标记来源", "写入 foreground provenance，默认 protected。"]
             ]
           },
           background: {
@@ -2680,8 +2680,8 @@
             steps: [
               ["收集上下文", "bounded transcript、tool outcome、用户修正、loaded skills。"],
               ["分类", "facts/preferences -> memory；procedures/workflows -> skill。"],
-              ["优先 patch", "先 loaded skill，再 existing umbrella，再 support file，最后 new candidate。"],
-              ["候选化", "self-authored skill 带 reflection provenance，进入 candidate/quarantine。"]
+              ["优先 patch", "先 loaded skill，再 existing umbrella，再 support file，最后 new class-level skill。"],
+              ["记录 sidecar", "self-authored skill 带 background_review provenance，进入 active/stale/archived 生命周期。"]
             ]
           },
           curator: {
@@ -2691,7 +2691,7 @@
             nodes: ["sidecar", "curator", "artifacts", "reports", "projection"],
             lines: ["skill-line-sidecar-curator", "skill-line-curator-artifacts", "skill-line-curator-reports", "skill-line-artifacts-projection"],
             steps: [
-              ["读取治理状态", "usage、lineage、pins、reflection reports。"],
+              ["读取治理状态", "usage、pinned、state、reflection reports。"],
               ["跳过保护对象", "user/package/imported/protected/pinned 不自动改。"],
               ["合并 umbrella", "把窄 skill 吸收到 class-level skill 或 support file。"],
               ["报告优先", "默认 dry-run；apply 前 snapshot，archive over delete。"]
@@ -2759,7 +2759,7 @@
             },
             memory: {
               title: "Working Memory / Long-Term Memory Consolidation",
-              body: "Working Memory is prompt-loaded Markdown; Long-Term Memory is carried by Mnemon Store and Skills; Dreaming Jobs consolidate, demote, promote, and propose skill candidates.",
+              body: "Working Memory is prompt-loaded Markdown; Long-Term Memory is carried by Mnemon Store and Skills; Dreaming Jobs consolidate, demote, promote, and surface repeated workflow signals to skills.",
               loopAria: "Memory loop diagram",
               flowAria: "Memory flow selector"
             },
@@ -2861,9 +2861,9 @@
           consolidation: {
             kicker: "Consolidation",
             mapTitle: "dreaming jobs / decisions",
-            summary: "Consolidation, demotion, promotion, and skill candidates.",
+            summary: "Consolidation, demotion, promotion, and skill review signals.",
             title: "Memory Consolidation",
-            body: "Implemented by Dreaming Jobs: compact, archive, extract, promote, and skill-candidate. It is a movement protocol, not a third memory layer.",
+            body: "Implemented by Dreaming Jobs: compact, archive, extract, promote, and skill signals. It is a movement protocol, not a third memory layer.",
             owns: ["candidates", "summaries", "promotion proposals", "demotion proposals"],
             reads: ["episodic evidence", "prompt budget", "reflection reports"],
             writes: ["consolidation decisions", "promotion candidates", "demotion plans"],
@@ -2877,18 +2877,18 @@
             body: "Mnemon Store carries episodic and semantic memory; Skills carry procedural memory. Recall must be ranked, summarized, and evidence-linked.",
             owns: ["episodic evidence", "semantic summaries", "procedural skills", "indexes"],
             reads: ["observe hook", "imports", "tool results"],
-            writes: ["evidence files", "semantic memory", "skill candidates", "index metadata"],
+            writes: ["evidence files", "semantic memory", "skill review signals", "index metadata"],
             risk: "Raw transcripts never become prompt context without summarization and relevance gating."
           },
           sidecar: {
             kicker: "Sidecar",
-            mapTitle: "usage / pins / lineage",
+            mapTitle: "usage / pinned / state",
             summary: "Governance metadata kept out of Markdown.",
             title: "Usage / Provenance Sidecar",
-            body: "Engineering metadata for governance: created_by, provenance, pinned, state, lineage, use counts, and patch counts.",
-            owns: ["usage.json", "pins.json", "lineage.json"],
+            body: "Engineering metadata for governance: created_by, provenance, pinned, state, absorbed_into, use counts, and patch counts.",
+            owns: ["usage.json", "pinned flag", "absorbed_into metadata"],
             reads: ["skill usage", "projection state", "curator reports"],
-            writes: ["state transitions", "quarantine/active/archive states"],
+            writes: ["active/stale/archived state", "pinned flag", "absorbed_into metadata"],
             risk: "Model-facing Markdown should not be polluted with governance metadata."
           },
           runner: {
@@ -3010,7 +3010,7 @@
             steps: [
               ["User-declared", "The user explicitly asks to save or update a procedure."],
               ["Agent-offered", "The foreground agent asks after difficult work; confirmed writes are protected by default."],
-              ["Background review", "A turn-end reflect job patches existing skills or creates self-authored skill candidates."],
+              ["Background review", "A turn-end reflect job patches existing skills or creates self-authored skills."],
               ["Curator governance", "Scheduled maintenance builds umbrellas, archives stale self-authored skills, and reports first."]
             ]
           },
@@ -3140,11 +3140,11 @@
           consolidation: {
             kicker: "Consolidation",
             title: "Dreaming Jobs",
-            summary: "compact / archive / extract / promote / skill-candidate.",
+            summary: "compact / archive / extract / promote / skill signal.",
             body: "Dreaming is the memory consolidation module, not a harness-owned agent runtime. Scoped jobs maintain Prompt Memory and move information between Working and Long-Term Memory.",
             contains: ["candidates", "promotions", "demotions", "decisions"],
             reads: ["Prompt Memory", "evidence log", "recall hits", "usage signals"],
-            writes: ["semantic proposal", "prompt patch proposal", "skill candidate"],
+            writes: ["semantic proposal", "prompt patch proposal", "skill review signal"],
             safety: "Proposal-first by default; apply requires allowlist, backup, and report."
           },
           store: {
@@ -3161,11 +3161,11 @@
             kicker: "Procedural",
             title: "Skills",
             summary: "Procedural memory outside Markdown memory.",
-            body: "Repeated workflows, tool tactics, and operational habits are procedural memory carried by skill evolution. MVP generates skill candidate reports before activation.",
+            body: "Repeated workflows, tool tactics, and operational habits are procedural memory carried by Hermes-style skill review and curator governance.",
             contains: ["workflow", "tool tactic", "failure recovery", "habit"],
             reads: ["repeated evidence", "usage sidecar", "human review"],
-            writes: ["skills/generated/candidates/**"],
-            safety: "Auto-generated skills carry the highest behavioral risk, so they start as reviewable candidates."
+            writes: ["skills/generated/**", "state/usage.json"],
+            safety: "Auto-generated skills are governed by usage sidecar state and curator, not by a separate candidate lifecycle."
           }
         },
         memoryFlows: {
@@ -3190,7 +3190,7 @@
             steps: [
               ["compact", "Compress or replace Prompt Memory to prevent unbounded growth."],
               ["archive/extract", "Write evidence and demoted content into Mnemon Store."],
-              ["skill-candidate", "Convert repeated procedures into reviewable skill candidates."]
+              ["skill signal", "Feed repeated procedures into the same skill_manage path."]
             ]
           },
           recall: {
@@ -3220,13 +3220,13 @@
           procedural: {
             chip: "Proceduralize",
             title: "Experience -> Skill",
-            body: "Procedural memory does not belong in Prompt Memory. Repeated workflows become skill candidates, reviewed before activation.",
+            body: "Procedural memory does not belong in Prompt Memory. Repeated workflows feed the same skill review/curator path.",
             nodes: ["evidence", "consolidation", "skills"],
             paths: ["memory-path-evidence-consolidation", "memory-path-consolidation-skills"],
             steps: [
               ["Find pattern", "Repeated workflows, failure recovery, or tool strategies across tasks."],
-              ["Create candidate", "Generate a skill candidate and report, without default installation."],
-              ["Review activate", "Activate after human approval, repeated use, or an eval pass."]
+              ["Reuse path", "Use skill_manage patch/create/write_file instead of a second skill lifecycle."],
+              ["Record governance", "Write usage sidecar state with active/stale/archived and pinned."]
             ]
           }
         },
@@ -3254,17 +3254,17 @@
             body: "When foreground work reveals a complex fix, user workflow correction, recurring procedure, or important tool tactic, the agent may ask whether to save it as a skill.",
             contains: ["difficult task", "workflow correction", "non-trivial recovery"],
             reads: ["turn outcome", "loaded skills", "user response"],
-            writes: ["foreground_confirmed skill", "manual-review provenance"],
+            writes: ["foreground skill", "protected provenance"],
             safety: "No confirmation means no durable skill write."
           },
           review: {
             kicker: "Entrance C",
             title: "Background Review",
-            summary: "A turn-end reflect job produces self-authored skill candidates.",
+            summary: "A turn-end reflect job produces self-authored skills.",
             body: "After delivery, a restricted review agent or reflect hook inspects the turn and decides whether the learning is memory, skill, session note, evidence, or report-only.",
             contains: ["turn summary", "tool outcome", "user correction", "loaded skill context"],
             reads: ["bounded transcript", "skill index", "write allowlist"],
-            writes: ["skill patch", "candidate skill", "reflection report"],
+            writes: ["skill patch", "generated skill", "reflection report"],
             safety: "Writes only allowlisted targets; otherwise proposal-only."
           },
           manager: {
@@ -3284,18 +3284,18 @@
             body: "Skills are procedural memory. SKILL.md holds triggers, steps, pitfalls, and verification; details, templates, and scripts live in support directories.",
             contains: ["SKILL.md", "references/", "templates/", "scripts/", "assets/"],
             reads: ["host skill loader", "review/curator jobs"],
-            writes: ["project skills", "generated candidates", "active generated skills"],
-            safety: "New generated skills start as candidates or quarantine before promotion."
+            writes: ["project skills", "generated skills", "archive moves"],
+            safety: "New generated skills are active by default; usage sidecar later marks stale/archived."
           },
           sidecar: {
             kicker: "Governance Metadata",
-            title: "Usage / Lineage",
-            summary: "created_by, provenance, state, and pins.",
+            title: "Usage / Provenance",
+            summary: "created_by, provenance, state, and pinned.",
             body: "The sidecar carries governance state outside SKILL.md. It decides which skills are eligible for automatic curator governance.",
-            contains: ["usage.json", "lineage.json", "pins.json"],
+            contains: ["usage.json", "pinned flag", "absorbed_into metadata"],
             reads: ["skill view/use/patch signals", "projection drift"],
-            writes: ["candidate/active/stale/archive state", "absorbed_into lineage"],
-            safety: "Automatic governance only applies to unpinned agent+reflection/curator/dreaming targets."
+            writes: ["active/stale/archived state", "pinned flag", "absorbed_into metadata"],
+            safety: "Automatic governance only applies to unpinned agent+background_review/curator targets."
           },
           curator: {
             kicker: "Governance Path",
@@ -3303,7 +3303,7 @@
             summary: "Maintains skill library shape across time.",
             body: "Curator is not a per-turn production entrance. It governs self-authored sediment by building umbrellas, archiving stale skills, and demoting narrow detail into support files.",
             contains: ["cluster review", "umbrella synthesis", "archive decision"],
-            reads: ["usage sidecar", "lineage", "reflection reports", "active candidates"],
+            reads: ["usage sidecar", "reflection reports", "generated skills"],
             writes: ["curator report", "umbrella patch", "archive decision"],
             safety: "Dry-run by default; skips user/package/imported/protected/pinned skills."
           },
@@ -3352,7 +3352,7 @@
               ["Detect signal", "Complex fix, error recovery, user correction, or repeated workflow."],
               ["Ask user", "Skip simple one-offs; no confirmation means no durable skill write."],
               ["Patch first", "Patch an umbrella if one fits; put detail in references/."],
-              ["Mark origin", "Record foreground_confirmed provenance and manual-review policy."]
+              ["Mark origin", "Record foreground provenance and protected policy."]
             ]
           },
           background: {
@@ -3364,8 +3364,8 @@
             steps: [
               ["Collect context", "Bounded transcript, tool outcome, user corrections, and loaded skills."],
               ["Classify", "facts/preferences -> memory; procedures/workflows -> skill."],
-              ["Patch first", "Loaded skill, existing umbrella, support file, then new candidate last."],
-              ["Candidate first", "Self-authored skills carry reflection provenance and enter candidate/quarantine."]
+              ["Patch first", "Loaded skill, existing umbrella, support file, then new class-level skill last."],
+              ["Record sidecar", "Self-authored skills carry background_review provenance and enter active/stale/archived lifecycle."]
             ]
           },
           curator: {
@@ -3375,7 +3375,7 @@
             nodes: ["sidecar", "curator", "artifacts", "reports", "projection"],
             lines: ["skill-line-sidecar-curator", "skill-line-curator-artifacts", "skill-line-curator-reports", "skill-line-artifacts-projection"],
             steps: [
-              ["Read governance state", "Usage, lineage, pins, and reflection reports."],
+              ["Read governance state", "Usage, pinned, state, and reflection reports."],
               ["Skip protected assets", "Do not auto-mutate user/package/imported/protected/pinned skills."],
               ["Build umbrellas", "Absorb narrow skills into class-level skills or support files."],
               ["Report first", "Dry-run by default; snapshot before apply; archive over delete."]

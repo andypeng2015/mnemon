@@ -9,16 +9,17 @@ Harness recognizes three skill production entrances and one governance path. The
 | Path | Trigger | Output | Provenance | Auto-curation |
 |---|---|---|---|---|
 | User-declared production | User explicitly asks to save or update a procedure | protected patch/create skill or proposal | `user` / `foreground` | no by default |
-| Agent-offered production | Agent asks after a difficult task; user confirms | protected patch/create skill or proposal | `agent` + `foreground_confirmed` | manual-review by default |
-| Background review production | `turn_delivered` / `Stop` / `SessionEnd` reflection | self-authored patch, candidate skill, support file, or report | `agent` + `reflection` | yes, if self-authored and not pinned |
-| Curator governance | curator/dreaming runner or scheduled job | umbrella skill, consolidation, archive/demotion proposal | `agent` + `curator` / `dreaming` | yes, within allowlist |
+| Agent-offered production | Agent asks after a difficult task; user confirms | protected patch/create skill or proposal | `agent` + `foreground` | no by default |
+| Background review production | `turn_delivered` / `Stop` / `SessionEnd` reflection | self-authored patch/create/support file or report | `agent` + `background_review` | yes, if self-authored and not pinned |
+| Curator governance | curator/dreaming runner or scheduled job | umbrella skill, consolidation, archive/demotion proposal | `agent` + `curator` | yes, within allowlist |
 
 Rules:
 
 - Foreground user-created and user-confirmed skills belong to the user and must not be silently curated.
 - Post-turn review may create or patch skills only when host can enforce write targets; otherwise it writes proposal reports.
-- Curator/dreaming governs library shape across time; it is not a per-turn production entrance.
-- Curator/dreaming should prefer umbrella skills and support files over one-session skills.
+- Curator governs library shape across time; it is not a per-turn production entrance.
+- Dreaming may surface repeated workflow signals, but writes still go through the same skill_manage path.
+- Curator should prefer umbrella skills and support files over one-session skills.
 - Every path writes usage/provenance metadata.
 - High-risk skills, policy skills, install maps, and hooks require human approval.
 

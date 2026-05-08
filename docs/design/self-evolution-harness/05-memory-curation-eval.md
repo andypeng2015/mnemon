@@ -117,9 +117,6 @@ skills/
   core/
   project/
   generated/
-    active/
-    quarantine/
-    candidates/
   archive/
 ```
 
@@ -183,7 +180,7 @@ Dreaming job types:
 | `archive` | prompt entries, evidence events | `memory/longterm/archive/prompt/**` | preserve demoted prompt memory |
 | `extract` | evidence, transcripts, summaries | semantic memory proposal | turn evidence into facts/preferences/summaries |
 | `promote` | semantic memory, recall hits, user confirmations | prompt patch proposal | reactivate durable facts into Working Memory |
-| `skill-candidate` | repeated workflows, failures, tool traces | `skills/generated/candidates/**` | turn procedures into reviewable skills |
+| `skill-review-signal` | repeated workflows, failures, tool traces | reflection/curator report or `skills/generated/**` via skill_manage | feed procedures into the Hermes-style skill path |
 
 Triggers:
 
@@ -203,7 +200,7 @@ Movement protocol:
 | G2 Compact | prompt -> prompt proposal | quota pressure/staleness/conflict | compact patch proposal | apply or report |
 | G3 Extract | episodic -> semantic | dreaming detects stable fact | semantic proposal | store, reject, or ask review |
 | G4 Promote | semantic -> prompt | high confidence/frequency/scope match | prompt patch proposal | apply or report |
-| G5 Proceduralize | repeated experience -> skill | repeated workflow or tool tactic | skill candidate | review, activate, or archive |
+| G5 Proceduralize | repeated experience -> skill | repeated workflow or tool tactic | skill_manage patch/create/write_file proposal | apply through review/curator or report |
 
 The consolidation buffer lives under:
 
@@ -376,7 +373,7 @@ workflow / procedure / tool tactic -> Skill
 uncertain inference -> report only
 ```
 
-If evidence shows a repeated workflow, Dreaming should create a skill candidate, not a Prompt Memory entry.
+If evidence shows a repeated workflow, Dreaming should feed the same skill review path, not create a separate memory entry or separate skill lifecycle.
 
 ## Curator Modes
 
@@ -397,7 +394,6 @@ Inputs:
 - long-term recall/index summaries
 - `memory/consolidation/**`
 - `state/usage.json`
-- `state/pins.json`
 - reports
 
 Outputs:

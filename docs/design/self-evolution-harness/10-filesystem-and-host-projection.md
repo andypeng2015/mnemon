@@ -68,9 +68,6 @@ Recommended repo-local install:
       curate/SKILL.md
     project/
     generated/
-      active/
-      quarantine/
-      candidates/
     archive/
   memory/
     prompt/
@@ -104,8 +101,6 @@ Recommended repo-local install:
   state/
     install.json
     usage.json
-    pins.json
-    lineage.json
     host_activity.json
     jobs/
     locks/
@@ -128,7 +123,7 @@ Recommended repo-local install:
 
 | Tier | Authority | Examples |
 |---|---|---|
-| Canonical harness state | `.mnemon` | memory, skills, usage, lineage, reports, runner jobs |
+| Canonical harness state | `.mnemon` | memory, skills, usage/provenance sidecar, reports, runner jobs |
 | Managed projections | generated from `.mnemon` | marked blocks in `CLAUDE.md`/`AGENTS.md`, copied skill folders, hook config |
 | Host-owned native content | host/user | existing instructions, user rules, native skills outside markers |
 
@@ -216,20 +211,20 @@ Rules:
 Canonical skill:
 
 ```text
-.mnemon/skills/generated/active/dev-server/SKILL.md
+.mnemon/skills/generated/dev-server/SKILL.md
 ```
 
 Projection:
 
 ```text
-.claude/skills/dev-server/SKILL.md -> .mnemon/skills/generated/active/dev-server/SKILL.md
+.claude/skills/dev-server/SKILL.md -> .mnemon/skills/generated/dev-server/SKILL.md
 ```
 
 If symlink is not supported, copy with projection metadata:
 
 ```yaml
 projection:
-  source: .mnemon/skills/generated/active/dev-server/SKILL.md
+  source: .mnemon/skills/generated/dev-server/SKILL.md
   target: .claude/skills/dev-server/SKILL.md
   checksum: sha256:...
   mode: copy
@@ -315,8 +310,8 @@ canonical:
   skills_active:
     - skills/core
     - skills/project
-    - skills/generated/active
-  skills_quarantine: skills/generated/quarantine
+    - skills/generated
+  skills_archive: skills/archive
   reports: reports
 projection:
   managed_marker: mnemon
@@ -335,7 +330,7 @@ drift:
 
 Canonical `.mnemon` is better because it gives the harness:
 
-1. one place for usage/provenance/lineage;
+1. one place for usage/provenance state;
 2. host-independent backup, rollback, and reports;
 3. stable Prompt/Long-Term Memory layout and explicit consolidation artifacts;
 4. safe curator/dreaming over self-authored assets;

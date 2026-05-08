@@ -137,7 +137,7 @@ Harness 的核心不是对象方法，而是 artifacts：
 | `schemas/*.json` | IO、state、report、proposal、allowlist contracts |
 | `scripts/*` | host 可选调用的薄脚本 |
 | `memory/` | Prompt Memory、Long-Term Memory 与 consolidation artifacts |
-| `state/` | install、usage、pins、curator state |
+| `state/` | install、usage/provenance sidecar、curator state |
 | `reports/` | install、reflection、curator、eval reports |
 | `runner/` | optional job descriptors、locks、budgets |
 | `eval/` | constraints、datasets、PR templates |
