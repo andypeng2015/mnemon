@@ -59,6 +59,16 @@ appears only once in passing, leave working memory unchanged.
 Merge by default. Same topic, same preference, or same decision should replace
 or refine an existing entry instead of appending a near-duplicate.
 
+## Dreaming
+
+Run `mnemon-dreaming` only when:
+
+- `MEMORY.md` exceeds `MNEMON_MEMORY_LOOP_MAX_NON_EMPTY_LINES`
+- context compaction is about to happen and working memory should be consolidated
+- the user or HostAgent explicitly asks for memory consolidation
+
+Do not run dreaming for ordinary online memory updates.
+
 ## Confidence
 
 Only preserve information that is clear enough to use later. If the agent is
