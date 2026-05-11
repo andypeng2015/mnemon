@@ -3,14 +3,16 @@ set -euo pipefail
 
 HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_DIR="$(cd "${HOOK_DIR}/../.." && pwd)"
-if [[ -f "${HOOK_DIR}/env.sh" ]]; then
+ENV_PATH="${MNEMON_MEMORY_LOOP_ENV:-${CONFIG_DIR}/mnemon-memory-loop/env.sh}"
+if [[ -f "${ENV_PATH}" ]]; then
   # shellcheck source=/dev/null
-  source "${HOOK_DIR}/env.sh"
+  source "${ENV_PATH}"
 fi
 ASSET_DIR="${MNEMON_MEMORY_LOOP_DIR:-${CONFIG_DIR}/mnemon-memory-loop}"
 
 echo "[mnemon-memory-loop] Prime"
 echo
+echo "MNEMON_MEMORY_LOOP_ENV=${ENV_PATH}"
 echo "MNEMON_MEMORY_LOOP_DIR=${ASSET_DIR}"
 echo "Working memory path: ${ASSET_DIR}/MEMORY.md"
 echo "Guide path: ${ASSET_DIR}/GUIDE.md"

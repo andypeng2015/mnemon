@@ -40,11 +40,10 @@ provided by the caller. Do not fall back to `~/.mnemon/MEMORY.md`.
 
 Spawn this subagent when:
 
-- `MEMORY.md` exceeds its practical prompt budget
-- working memory contains repeated, stale, or superseded entries
-- a manual maintenance command asks for dreaming
-- a high-risk context compaction is about to happen
-- periodic maintenance is due
+- `MEMORY.md` exceeds `MNEMON_MEMORY_LOOP_MAX_NON_EMPTY_LINES` non-empty lines
+  (default: 200)
+- before context compaction when working memory should be consolidated
+- the user or HostAgent explicitly asks to run `mnemon-dreaming`
 
 ## Procedure
 

@@ -9,6 +9,7 @@ the loop into its own runtime without a custom adapter.
 ```text
 harness/memory-loop/
 ├── README.md
+├── env.sh
 ├── GUIDE.md
 ├── MEMORY.md
 ├── hooks/
@@ -46,6 +47,7 @@ harness/memory-loop/
 
 | Asset | Purpose |
 | --- | --- |
+| `env.sh` | Runtime config: memory directory, env path, and dreaming threshold. |
 | `GUIDE.md` | Policy: when to read memory, when to write memory, and what is worth keeping. |
 | `hooks/*.md` | Four lifecycle reminders: Prime, Remind, Nudge, and Compact. |
 | `skills/memory_get.md` | Online long-term recall skill backed by `mnemon recall`. |
@@ -56,24 +58,30 @@ harness/memory-loop/
 ## Runtime Directory Protocol
 
 All reusable assets resolve their runtime files through one environment
-variable:
-
-```bash
-MNEMON_MEMORY_LOOP_DIR=<host-agent-config>/mnemon-memory-loop
-```
-
-The directory must contain:
+config file and environment variables:
 
 ```text
 $MNEMON_MEMORY_LOOP_DIR/
+├── env.sh
 ├── GUIDE.md
 └── MEMORY.md
+```
+
+`env.sh` defines:
+
+```bash
+MNEMON_MEMORY_LOOP_ENV=<host-agent-config>/mnemon-memory-loop/env.sh
+MNEMON_MEMORY_LOOP_DIR=<host-agent-config>/mnemon-memory-loop
+MNEMON_MEMORY_LOOP_MAX_NON_EMPTY_LINES=200
 ```
 
 `memory_set.md`, `memory_get.md`, and `dreaming.md` should never hard-code a
 Claude Code path. They should use `$MNEMON_MEMORY_LOOP_DIR` when it is available.
 If the host runtime cannot pass environment variables to skills, the Prime hook
 must inject the resolved path into the HostAgent context.
+
+`MNEMON_MEMORY_LOOP_MAX_NON_EMPTY_LINES` controls when hooks should suggest
+`mnemon-dreaming` for an oversized `MEMORY.md`.
 
 ## Boundary
 

@@ -27,6 +27,9 @@ Consider reading memory when the current task may depend on:
 Skip reading memory when the task is trivial, purely local, already fully
 covered by visible context, or unlikely to benefit from prior experience.
 
+Cheap skip examples: tiny one-off questions, pure file listing or status checks,
+direct follow-ups already fully in context, and explicit no-memory requests.
+
 ## Write Memory
 
 Consider writing memory when the session produces durable information:
@@ -49,6 +52,12 @@ Skip writing memory for:
 - facts already obvious from source files
 - noisy implementation details unlikely to matter again
 - one-off command output with no future value
+
+Defer unstable memories. If the user is still revising wording or a preference
+appears only once in passing, leave working memory unchanged.
+
+Merge by default. Same topic, same preference, or same decision should replace
+or refine an existing entry instead of appending a near-duplicate.
 
 ## Confidence
 

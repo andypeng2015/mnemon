@@ -35,7 +35,11 @@ runtime-specific default unless the HostAgent has explicitly provided that path.
    - replace stale or superseded wording;
    - remove obsolete or unsafe content.
 5. Prefer one clear sentence over a transcript excerpt.
-6. Keep the file compact. If the file is becoming long or repetitive, trigger
+6. Merge by default: same topic, same preference, or same decision should update
+   the existing entry instead of appending a new one.
+7. Defer unstable memories. If the user is still negotiating wording or making a
+   first passing mention, leave `MEMORY.md` unchanged.
+8. Keep the file compact. If the file is becoming long or repetitive, trigger
    or recommend dreaming instead of appending more text.
 
 ## Entry Style

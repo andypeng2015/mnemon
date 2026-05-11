@@ -646,7 +646,7 @@
           { kind: "arrow", from: "capability", to: "working", y: 252, label: "compact / evict MEMORY.md" }
         ],
         details: [
-          ["触发", "手动、quota 超限、周期性或压缩前"],
+          ["触发", "MEMORY.md 超长、compact 前、主动要求"],
           ["执行", "spawn 专用 dreaming subagent"],
           ["边界", "负责巩固和清理，不参与每次在线读写判断"]
         ]
@@ -657,6 +657,7 @@
       ["HostAgent", "Core", "运行任务，接收 hook，决定是否加载 skill 或 subagent。", "不拥有记忆存储协议，只执行被安装的能力。", "var(--host)"],
       ["MEMORY.md", "Core", "作为 working memory 直接进入 system prompt。", "由 memory_set.md 和 dreaming subagent 维护。", "var(--working)"],
       ["Mnemon", "Core", "作为 long-term memory store 提供 recall 和 write。", "由 mnemon binary + store 承载。", "var(--longterm)"],
+      ["env.sh", "Config", "定义 MNEMON_MEMORY_LOOP_ENV、MNEMON_MEMORY_LOOP_DIR 和 memory 阈值。", "作为运行配置入口，由 setup 安装并可手动调整。", "var(--guide)"],
       ["GUIDE.md", "Manual", "说明何时读写记忆、什么值得保留。", "只定义判断原则，不绑定存储目标。", "var(--guide)"],
       ["setup/claude-code", "Setup", "把四个 hook、两个 skill、dreaming subagent 和 memory 文件安装到 Claude Code。", "只负责挂载，并设置 MNEMON_MEMORY_LOOP_DIR。", "var(--guide)"],
       ["memory_get.md", "Skill", "读记忆能力入口。", "绑定 Mnemon recall 协议，尊重 MNEMON_MEMORY_LOOP_DIR。", "var(--capability)"],

@@ -94,6 +94,9 @@ install_file() {
 }
 
 install_file "${HARNESS_DIR}/GUIDE.md" "${CONFIG_DIR}/mnemon-memory-loop/GUIDE.md" 0644
+if [[ ! -f "${CONFIG_DIR}/mnemon-memory-loop/env.sh" ]]; then
+  install_file "${HARNESS_DIR}/env.sh" "${CONFIG_DIR}/mnemon-memory-loop/env.sh" 0755
+fi
 if [[ ! -f "${CONFIG_DIR}/mnemon-memory-loop/MEMORY.md" ]]; then
   install_file "${HARNESS_DIR}/MEMORY.md" "${CONFIG_DIR}/mnemon-memory-loop/MEMORY.md" 0644
 fi
@@ -106,12 +109,6 @@ install_file "${SCRIPT_DIR}/hooks/prime.sh" "${CONFIG_DIR}/hooks/mnemon-memory-l
 install_file "${SCRIPT_DIR}/hooks/remind.sh" "${CONFIG_DIR}/hooks/mnemon-memory-loop/remind.sh" 0755
 install_file "${SCRIPT_DIR}/hooks/nudge.sh" "${CONFIG_DIR}/hooks/mnemon-memory-loop/nudge.sh" 0755
 install_file "${SCRIPT_DIR}/hooks/compact.sh" "${CONFIG_DIR}/hooks/mnemon-memory-loop/compact.sh" 0755
-
-cat > "${CONFIG_DIR}/hooks/mnemon-memory-loop/env.sh" <<EOF
-#!/usr/bin/env bash
-export MNEMON_MEMORY_LOOP_DIR="${CONFIG_DIR}/mnemon-memory-loop"
-EOF
-chmod 0755 "${CONFIG_DIR}/hooks/mnemon-memory-loop/env.sh"
 
 python3 "${SCRIPT_DIR}/scripts/update_settings.py" install \
   --config-dir "${CONFIG_DIR}" \
@@ -143,7 +140,7 @@ Installed Mnemon memory loop for Claude Code.
 Config:  ${CONFIG_DIR}
 Memory:  ${CONFIG_DIR}/mnemon-memory-loop/MEMORY.md
 Guide:   ${CONFIG_DIR}/mnemon-memory-loop/GUIDE.md
-Env:     MNEMON_MEMORY_LOOP_DIR=${CONFIG_DIR}/mnemon-memory-loop
+Env:     ${CONFIG_DIR}/mnemon-memory-loop/env.sh
 Skills:  ${CONFIG_DIR}/skills/memory_get/SKILL.md
          ${CONFIG_DIR}/skills/memory_set/SKILL.md
 Agent:   ${CONFIG_DIR}/agents/mnemon-dreaming.md

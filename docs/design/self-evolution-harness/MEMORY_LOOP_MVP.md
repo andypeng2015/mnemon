@@ -24,6 +24,7 @@ The first version should maintain the following assets:
 
 | Asset | Kind | Purpose |
 | --- | --- | --- |
+| `env.sh` | Config | Defines `MNEMON_MEMORY_LOOP_ENV`, `MNEMON_MEMORY_LOOP_DIR`, and memory-size threshold variables. |
 | `GUIDE.md` | Manual | Describes when to read memory, when to write memory, and what kind of information is worth keeping. |
 | Claude Code setup scripts | Setup | First concrete installation path. It installs project/user Claude Code hooks, skills, subagent, and memory files. |
 | Prime hook | Hook | Loads `MEMORY.md` and `GUIDE.md` into the system prompt. |
@@ -136,10 +137,9 @@ Flow:
 
 Possible triggers:
 
-- Manual command.
 - `MEMORY.md` exceeds quota.
-- Periodic maintenance.
-- Before a high-risk compaction boundary.
+- Before context compaction.
+- Manual user or HostAgent request.
 
 Boundary:
 
