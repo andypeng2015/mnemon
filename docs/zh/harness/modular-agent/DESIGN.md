@@ -214,6 +214,29 @@ Skill Loop 产生 skill proposal
 module 可以 review、scan、approve 或 record。宿主 agent 仍然是决定何时调用
 这些能力的 runtime。
 
+## 长程 Goal Modules
+
+未来的 `mnemon-goal` module 可以基于这个架构支持长程 agent 工作，但它本身
+不成为任务 runtime。
+
+`mnemon-goal` 会维护 objective state、milestones、blockers、decisions、
+handoffs 和 progress reports。围绕一个长期目标，它可以多次协调其他 harness
+modules：
+
+- Memory Loop 在任务开始时 recall context，并在 milestone 后保存 durable
+  decisions。
+- Skill Loop 观察重复 workflow，并提出可复用 skill。
+- Eval Loop 通过 tests、benchmarks 或 checklists 检查 milestone 质量。
+- Risk Loop 在危险变更执行或应用前进行扫描。
+- Review Loop 对关键 proposal 或高影响步骤请求 approval。
+- Audit Loop 记录 triggers、decisions、changes 和 outcomes。
+- Policy Loop 持续暴露项目约束和用户偏好。
+- `mnemon-daemon` 可以发现 stale、blocked 或 due goals，并调度维护任务。
+
+这使 `mnemon-goal` 成为一个 orchestrating harness module：它围绕 durable
+objective 协调 memory、skills、evaluation、risk、review、audit 和 policy，
+而实际任务执行仍然由宿主 agent 完成。
+
 ## 非目标
 
 - 不替换宿主 agent runtime。

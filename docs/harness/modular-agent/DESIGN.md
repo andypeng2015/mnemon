@@ -225,6 +225,30 @@ failures, or host setup changes. A module may create evidence or a proposal;
 another module may review, scan, approve, or record it. The host agent remains
 the runtime that decides when to invoke these capabilities.
 
+## Long-Horizon Goal Modules
+
+A future `mnemon-goal` module can use this architecture to support long-horizon
+agent work without becoming a task runtime itself.
+
+`mnemon-goal` would maintain objective state, milestones, blockers, decisions,
+handoffs, and progress reports. Around a long-running goal, it can repeatedly
+coordinate other harness modules:
+
+- Memory Loop recalls context at the start and preserves durable decisions after
+  milestones.
+- Skill Loop observes repeated workflows and proposes reusable skills.
+- Eval Loop checks milestone quality with tests, benchmarks, or checklists.
+- Risk Loop scans dangerous changes before execution or application.
+- Review Loop requests approval for key proposals or high-impact steps.
+- Audit Loop records triggers, decisions, changes, and outcomes.
+- Policy Loop keeps project constraints and user preferences visible.
+- `mnemon-daemon` can detect stale, blocked, or due goals and schedule
+  maintenance jobs.
+
+This makes `mnemon-goal` an orchestrating harness module: it coordinates
+memory, skills, evaluation, risk, review, audit, and policy around a durable
+objective while the host agent continues to execute the actual work.
+
 ## Non-Goals
 
 - Do not replace the host agent runtime.
