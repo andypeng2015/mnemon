@@ -1,5 +1,7 @@
 # Modular Agent Harness Design
 
+Chinese version: [DESIGN.md](../../zh/harness/modular-agent/DESIGN.md)
+
 Mnemon's main advantage is the modular agent model: self-evolution should be an
 external harness that can attach to existing agents, not a new agent framework
 that replaces them.

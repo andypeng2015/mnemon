@@ -1,5 +1,7 @@
 # Modular Agent Harness 设计
 
+英文版本：[DESIGN.md](../../../harness/modular-agent/DESIGN.md)
+
 Mnemon 的核心优势是 modular agent 模型：自进化能力应该作为外置
 harness 挂载到已有 agent 上，而不是重新实现一个 agent framework。
 

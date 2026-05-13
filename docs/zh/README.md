@@ -229,7 +229,7 @@ make help           # 显示所有目标
 
 ## 文档
 
-- [Modular Self-Evolution Harness](../harness/README.md) — modular agent、memory loop 与 skill loop 的正式 harness 文档
+- [Modular Self-Evolution Harness](harness/README.md) — modular agent、memory loop 与 skill loop 的正式 harness 文档
 - [Memory Loop Harness](../../harness/memory-loop/README.md) — 可安装 memory loop 资产
 - [Skill Loop Harness](../../harness/skill-loop/README.md) — 可安装 skill loop 资产
 - [设计与架构](DESIGN.md) — 当前 engine architecture、核心概念、算法、集成设计

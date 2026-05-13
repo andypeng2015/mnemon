@@ -11,9 +11,9 @@ skills, subagents, filesystem assets, and environment configuration.
 
 | Topic | Design |
 | --- | --- |
-| Modular Agent Harness | [EN](modular-agent/DESIGN.md) / [中文](modular-agent/DESIGN.zh.md) |
-| Memory Loop | [EN](memory-loop/DESIGN.md) / [中文](memory-loop/DESIGN.zh.md) / [site](memory-loop/site/index.html) |
-| Skill Loop | [EN](skill-loop/DESIGN.md) / [中文](skill-loop/DESIGN.zh.md) / [site](skill-loop/site/index.html) |
+| Modular Agent Harness | [EN](modular-agent/DESIGN.md) / [中文](../zh/harness/modular-agent/DESIGN.md) |
+| Memory Loop | [EN](memory-loop/DESIGN.md) / [中文](../zh/harness/memory-loop/DESIGN.md) / [site](../site/memory-loop/site.html) |
+| Skill Loop | [EN](skill-loop/DESIGN.md) / [中文](../zh/harness/skill-loop/DESIGN.md) / [site](../site/skill-loop/site.html) |
 
 ## Installable Assets
 
