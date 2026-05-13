@@ -3,6 +3,10 @@
 Mnemon Harness is the formal documentation entry for Mnemon's modular
 self-evolution harness.
 
+Mnemon is built around a memory-driven principle: durable agents should turn
+experience into governed long-term state, then use that state to improve future
+behavior.
+
 Mnemon is not trying to replace an agent runtime. It attaches external evolution
 loops to an existing host agent through standard extension points such as hooks,
 skills, subagents, filesystem assets, and environment configuration.

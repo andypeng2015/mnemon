@@ -9,6 +9,11 @@ fixed release schedule.
 The principle is simple: build one loop at a time, keep each module useful on
 its own, and avoid turning Mnemon into a replacement agent runtime.
 
+The roadmap is memory-driven rather than module-driven. Memory is the continuity
+point that lets agent experience become durable state. Other loops should
+strengthen, govern, or operate around that state instead of becoming isolated
+features.
+
 ## Current MVP Loops
 
 Mnemon already has two installable MVP harness loops.

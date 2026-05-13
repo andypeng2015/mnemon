@@ -2,6 +2,9 @@
 
 Mnemon Harness 是 Mnemon modular self-evolution harness 的正式中文文档入口。
 
+Mnemon 建立在 memory-driven 原则之上：持久 agent 应该把经验转化为可治理的
+长期状态，并用这些状态改进未来行为。
+
 Mnemon 不替换宿主 agent runtime，而是通过 hooks、skills、subagents、文件系统资产和环境配置，把外置 evolution loop 挂载到已有 agent 上。
 
 这里的核心判断是：当宿主已经拥有 ReAct loop 和可读扩展面时，大量行为层面的

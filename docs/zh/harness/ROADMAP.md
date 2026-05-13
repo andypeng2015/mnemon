@@ -8,6 +8,10 @@ modular-agent governance layer。它是方向性路线图，不是固定 release
 核心原则很简单：一次做好一个 loop，让每个 module 都能独立产生价值，同时不把
 Mnemon 做成替代宿主的 agent runtime。
 
+这份路线图是 memory-driven 的，而不是 module-driven 的。Memory 是让 agent
+经验变成持久状态的连续性中心。其他 loop 应该围绕这些状态进行增强、治理或
+运行，而不是变成彼此割裂的功能。
+
 ## 当前 MVP Loops
 
 Mnemon 已经有两个可安装的 MVP harness loops。

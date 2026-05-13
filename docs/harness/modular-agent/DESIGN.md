@@ -80,6 +80,31 @@ multiple modules need to cooperate. Mnemon needs its own substrate for:
 This substrate is still not an agent runtime. It does not own the ReAct loop,
 talk to users, or replace host tool routing.
 
+## Memory-Centered Harness Layer
+
+Mnemon's harness model is memory-driven. Durable agents should not only call
+tools or follow prompts; they should turn experience into governed long-term
+state and use that state to improve future behavior.
+
+This separates Mnemon from a pure tool connectivity layer. Tool protocols help
+agents reach external tools, data sources, and services. Mnemon organizes the
+memory-centered governance layer around the host runtime:
+
+```text
+experience -> memory -> skills -> goals -> eval / risk / review / audit
+```
+
+Memory is the continuity point. Skill evolution depends on remembered evidence
+and repeated workflows. Goal modules depend on durable objective state. Eval,
+risk, review, and audit loops depend on records of decisions, changes, and
+outcomes. Backup and replication protect that memory-centered harness state.
+
+This does not mean every fact should be forced into memory. The distinction is
+that memory stores agent-specific experience, preferences, decisions, failures,
+skills, and long-running state. External knowledge bases, web search, and tool
+retrieval remain retrieval surfaces unless their results become durable agent
+state.
+
 ## Host And Harness Split
 
 | Layer | Owner | Responsibility |

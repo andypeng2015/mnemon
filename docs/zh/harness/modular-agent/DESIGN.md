@@ -77,6 +77,28 @@ Mnemon 需要自己的 substrate 来处理：
 这个 substrate 仍然不是 agent runtime。它不拥有 ReAct loop，不和用户对话，
 也不替代宿主的 tool routing。
 
+## Memory-Centered Harness Layer
+
+Mnemon 的 harness 模型是 memory-driven 的。持久 agent 不应该只是调用工具或
+遵循 prompt；它应该把经验转化为可治理的长期状态，并用这些状态改进未来行为。
+
+这让 Mnemon 区别于纯工具连接层。工具协议帮助 agent 连接外部工具、数据源和
+服务；Mnemon 则围绕宿主 runtime 组织 memory-centered governance layer：
+
+```text
+experience -> memory -> skills -> goals -> eval / risk / review / audit
+```
+
+Memory 是连续性的中心。Skill evolution 依赖被记住的 evidence 和重复
+workflows。Goal module 依赖 durable objective state。Eval、risk、review 和
+audit loops 依赖 decisions、changes 和 outcomes 的记录。Backup 和 replication
+保护的也是这组以 memory 为中心的 harness state。
+
+这不意味着所有事实都应该被强行写入 memory。这里的区别是：memory 保存
+agent-specific experience、preferences、decisions、failures、skills 和
+long-running state。外部知识库、web search 和 tool retrieval 仍然是 retrieval
+surfaces，除非它们的结果被沉淀为持久 agent state。
+
 ## 宿主与 Harness 分工
 
 | 层 | 所属 | 职责 |
