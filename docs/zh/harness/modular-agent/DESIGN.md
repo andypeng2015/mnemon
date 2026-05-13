@@ -5,6 +5,10 @@
 Mnemon 的核心优势是 modular agent 模型：自进化能力应该作为外置
 harness 挂载到已有 agent 上，而不是重新实现一个 agent framework。
 
+Mnemon 不拥有 agent runtime，但它拥有 harness runtime substrate。这个
+substrate 是让独立 harness modules 能被安装、组合、调度、审计，并安全地与
+宿主 agent 协作的系统层。
+
 ## 核心判断
 
 任何支持标准扩展点的宿主 agent，都可以通过安装 Mnemon harness module
@@ -24,6 +28,55 @@ Skill Loop：重复 workflow -> evidence -> proposal -> skill lifecycle
 Future Loops：evaluation、risk review、safety checks、benchmark feedback
 ```
 
+关键区分是：
+
+```text
+Host Agent = execution runtime
+Mnemon     = harness runtime substrate
+Modules    = memory / skill / eval / risk / review / audit / policy
+```
+
+## 外置化的 Agent 能力
+
+一个重要设计 insight 是：很多被称为高级 agent 特性的能力，并不一定需要新的
+runtime。如果宿主已经拥有 ReAct loop，那么围绕这个 loop 的行为层通常可以用
+这些方式表达：
+
+- skills 或 protocol documents：定义可复用动作
+- hooks：定义生命周期时机
+- Markdown guides：定义 policy、判断规则和 procedure
+- filesystem state：保存持久 memory、proposal、report 和 index
+- subagents 或 daemon：执行较重的维护任务
+
+换句话说，很多行为层能力本质上是：
+
+```text
+ReAct loop + skill/protocol + hook timing + Markdown policy + durable state
+```
+
+宿主 runtime 仍然拥有底层执行：UI、permissions、tool routing、sandboxing、
+model calls 和 session management。Mnemon 聚焦的是可以挂载到这个 runtime
+外围的行为层。
+
+这也是为什么架构强调 harness modules，而不是新的 agent framework。目标是
+把高级 agent 行为变成可移植、可检查、可安装的模块。
+
+但是，当多个 module 需要协作时，仅有 skill、hook 和 Markdown 资产还不够。
+Mnemon 需要自己的 substrate 来处理：
+
+- module registry 和 versioning
+- canonical filesystem layout
+- environment 和 configuration resolution
+- hook binding 和 prompt injection boundaries
+- projection 到 host-native skill surfaces
+- proposal、report、audit 和 state schemas
+- locks、leases、queues 和 background job status
+- setup、uninstall、upgrade 和 recovery paths
+- cross-module protocols
+
+这个 substrate 仍然不是 agent runtime。它不拥有 ReAct loop，不和用户对话，
+也不替代宿主的 tool routing。
+
 ## 宿主与 Harness 分工
 
 | 层 | 所属 | 职责 |
@@ -34,9 +87,14 @@ Future Loops：evaluation、risk review、safety checks、benchmark feedback
 | Native skills | Host agent | 使用宿主自己的机制发现和调用 skill。 |
 | Evolution modules | Mnemon harness | 通过可挂载资产增加 memory、skill evolution、evaluation、review loop。 |
 | Canonical state | Mnemon harness | 保存持久记忆、skill lifecycle state、evidence、proposal 和 report。 |
+| Harness substrate | Mnemon harness | 提供 module registry、filesystem layout、environment、setup、projection、reports、proposals、locks、queues 和跨模块协议。 |
+| Maintenance runner | Mnemon harness | 可选地调度模块后台任务，但不成为 agent runtime。 |
 
 这个分工让 Mnemon 保持可移植。宿主可以只采用某一个 module，而不必更换
 runtime。
+
+它也避免另一个误解：Mnemon 不应被看作只是一堆 Markdown skills。Harness
+substrate 让 modules 可以协作，同时又不变成单体 agent framework。
 
 ## 标准接入面
 
@@ -45,11 +103,41 @@ runtime。
 | Hooks | 在 Prime、Remind、Nudge、Compact 或等价宿主事件上安装生命周期提醒。 |
 | Skills | 暴露 `memory_get`、`memory_set`、`skill_observe`、`skill_manage` 等 protocol 操作。 |
 | Subagents | 在在线任务路径之外运行 dreaming、curator review 等较重的维护任务。 |
+| Daemon | 可选地调度已安装 module 的后台维护任务。 |
 | Filesystem | 在可预测目录和 project/user scope 下保存 canonical module state。 |
 | Environment | 让 protocol skill 通过环境变量解析路径，而不是写死某个宿主 agent。 |
 
 最低要求是宿主具备 hook-like 生命周期机制。Skills 和 subagents 会让集成更
 自然，但有能力的 agent 也可以直接遵循 Markdown protocol。
+
+## Harness Daemon
+
+`mnemon-daemon` 是 proposed harness daemon：用于已安装 Mnemon modules 的后台
+maintenance runner。
+
+它有价值，是因为部分模块工作不适合放在在线 ReAct loop 中执行：
+
+- memory consolidation 的 dreaming
+- skill curator review
+- evaluation jobs
+- risk scans
+- audit 和 report 写入
+- leases、locks、queues 和 module status
+
+daemon 不是宿主 agent，也不是第二个 runtime。它不应和用户对话，不应接管
+任务执行，不应替宿主进行 tool routing，也不应绕过 proposal 和 approval
+policy。
+
+边界应保持为：
+
+```text
+Host Agent      -> 在线任务执行和用户交互
+mnemon-daemon   -> 离线 harness maintenance 和定时 module jobs
+Harness Modules -> memory、skills、eval、risk、review、audit、policy
+```
+
+在 MVP 阶段，module 仍然可以通过人工触发或 host hooks 运行。当多个 module
+需要共享 scheduling、logs、reports、locks 和 status 时，daemon 会变得重要。
 
 ## 当前 Module
 
@@ -57,6 +145,28 @@ runtime。
 | --- | --- | --- |
 | Memory Loop | 增加 working memory、long-term memory 和 dreaming consolidation。 | Claude Code setup 位于 `harness/memory-loop/setup/claude-code`。 |
 | Skill Loop | 增加 active/stale/archived skill lifecycle、evidence capture、curator proposal 和批准后的 lifecycle mutation。 | Claude Code setup 位于 `harness/skill-loop/setup/claude-code`。 |
+
+## 与 Skill Packs 的关系
+
+Mnemon 不是以 skill collection 为主要定位。
+
+Skill packs 为宿主 agent 提供任务或 workflow 能力。例如 coding skill pack 可以
+教 agent 进行 planning、debugging、testing、review、release 或 skill authoring。
+这些 skill 是面向宿主的实用能力。
+
+Mnemon 位于另一层：
+
+```text
+Host Agent
+  -> task/workflow skill packs
+  -> Mnemon harness modules
+```
+
+任务 skill 帮助 agent 做事。Mnemon harness modules 帮助 agent 管理围绕这些
+工作的 memory、skill lifecycle、evaluation、risk、audit、review 和 policy。
+
+这两层应当兼容。Mnemon 可以观察、评估、整理、归档、恢复或审计 skill
+collections，但不应被描述为仅仅另一个 skill pack。
 
 ## Memory 差异化
 
@@ -79,19 +189,53 @@ Memory module 使用冷热记忆模型：
 - Eval loop：收集结果、运行 benchmark，并把失败反馈为 proposal。
 - Risk loop：在 skill 或 memory 变更生效前进行扫描。
 - Review loop：协调人工审批、checkpoint 和 release gate。
+- Audit loop：记录哪个 module 因为什么行动，以及改变了什么。
 - Policy loop：维护宿主特定的安全与权限策略。
 
-每个 module 都应保持可独立安装。
+每个 module 都应保持可独立安装。Module 可以选择使用 `mnemon-daemon` 做后台
+调度，但 basic install path 不应强依赖 daemon。
+
+## 可组合 Module Flow
+
+Harness modules 应通过显式 state 和 proposal 边界组合，而不是静默互相调用。
+
+示例：
+
+```text
+Skill Loop 产生 skill proposal
+  -> Risk Loop 扫描 proposal
+  -> Review Loop 请求 approval
+  -> Audit Loop 记录决策
+  -> Skill Loop 应用已批准的变更
+```
+
+同样的模式也可以用于 memory consolidation、policy update、benchmark failure
+或 host setup change。一个 module 可以产生 evidence 或 proposal；另一个
+module 可以 review、scan、approve 或 record。宿主 agent 仍然是决定何时调用
+这些能力的 runtime。
 
 ## 非目标
 
 - 不替换宿主 agent runtime。
+- 不让 `mnemon-daemon` 变成 agent runtime。
+- 不把 Mnemon 降低为只是 skill pack 或 prompt collection。
 - 不要求唯一通用 skill 格式。
 - 不把所有 state 注入 prompt。
 - 不在缺少明确策略和 review 的情况下进行 self-modifying change。
 
 ## Reference Case
 
-Claude Code 是第一个 modular-agent case，因为它已经暴露 hooks、skills、
-subagents、filesystem config 和 project/user scope。Claude Code setup 能验证
-外挂模型，但 Mnemon 的目标是任何具备类似扩展点的宿主 agent。
+Claude Code 是第一个 modular-agent case，因为它目前暴露了相对完整的一组扩展
+能力：hooks、skills、subagents、filesystem config，以及 project/user scope。
+
+这让 Claude Code 很适合作为 Mnemon harness modules 的实验性挂载点：
+
+- hooks 可以承载 Prime、Remind、Nudge、Compact 和未来 module triggers
+- skills 可以暴露可移植的 protocol operations
+- subagents 可以运行 dreaming、curator review 和其他维护任务
+- project/user config 可以验证 local/global install scope
+- settings files 可以让 setup 和 uninstall 可重复执行
+
+Claude Code 是 reference host，不是唯一支持的 runtime。它的作用是验证
+harness attachment model。架构仍应保持可移植，面向任何具备类似扩展点的
+宿主 agent。
