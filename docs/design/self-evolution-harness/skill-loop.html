@@ -19,7 +19,6 @@
       --library: #2f66b0;
       --usage: #c46b2f;
       --curator: #0f8a8a;
-      --safety: #b74661;
       --shadow: 0 16px 38px rgba(28, 39, 57, 0.1);
       --radius: 8px;
     }
@@ -476,14 +475,14 @@
       <div>
         <div class="eyebrow">Mnemon Harness / Skill Loop</div>
         <h1>Skill Loop MVP</h1>
-        <p class="summary">第一版 skill loop 采用和 memory loop 相同的表达方式：先明确实体，再按阶段展示数据流。HostAgent 负责调用与判断，`.mnemon` 提供 canonical skill library，protocol skills 定义读写方法，curator subagent 负责低频治理。</p>
+        <p class="summary">第一版 skill loop 采用和 memory loop 相同的表达方式：GUIDE 放规则，hook 只给时机，protocol skill 做在线轻量写入，curator subagent 做后台 review 和提案。HostAgent 负责原生 skill 使用，`.mnemon` 提供 canonical skill library；没有单独的 refresh 阶段，可见面变化在下一次 Prime 生效。</p>
       </div>
       <aside class="reading" aria-label="阅读顺序">
         <h2>阅读顺序</h2>
         <ol>
-          <li>先看三大核心：HostAgent、Active Skill Index、Skill Library。</li>
-          <li>再看支撑资产：Protocol skills、Usage sidecar、Curator、Safety reports。</li>
-          <li>最后切换阶段，看在线使用和维护治理如何通过 active index 闭合。</li>
+          <li>先看三大核心：HostAgent、Host Skill Surface、Skill Library。</li>
+          <li>再看支撑资产：GUIDE、Protocol skills、Usage sidecar、Curator。</li>
+          <li>最后切换阶段，看 Prime、Nudge、Observe、Curator、Manage 如何闭合成 loop。</li>
         </ol>
       </aside>
     </div>
@@ -505,8 +504,8 @@
               <p>宿主 Agent 的执行引擎。它拥有 ReAct loop、hook bus、prompt assembly、tool routing 和原生 skill/subagent 调用。</p>
             </div>
             <div class="core" style="--color: var(--active);">
-              <b>Active Skill Index</b>
-              <p>当前可见行为面。Prime/Remind 只暴露 active skills 的轻量索引，不全量加载 skill library。</p>
+              <b>Host Skill Surface</b>
+              <p>HostAgent 原生 skill 发现面，例如 `.claude/skills`。Prime 将 `.mnemon/skills/active` 单向同步或挂载到这里。</p>
             </div>
             <div class="core" style="--color: var(--library);">
               <b>.mnemon Skill Library</b>
@@ -517,10 +516,14 @@
 
         <article class="panel" style="--color: var(--protocol);">
           <div class="panel-head">Maintained Assets</div>
-          <div class="asset-list">
+            <div class="asset-list">
+            <div class="asset" style="--color: var(--protocol);">
+              <b>GUIDE</b>
+              <p>定义什么算 skill usage evidence、reusable workflow signal、何时触发 review、何时只能 proposal。</p>
+            </div>
             <div class="asset" style="--color: var(--protocol);">
               <b>Protocol skills</b>
-              <p>`skill_list.md`、`skill_view.md`、`skill_manage.md`、`skill_curate.md` 定义跨 HostAgent 的读写协议。</p>
+              <p>`skill_observe.md`、`skill_manage.md`、`skill_curate.md` 定义记录 evidence、迁移状态和启动 review 的协议。</p>
             </div>
             <div class="asset" style="--color: var(--usage);">
               <b>Usage sidecar</b>
@@ -530,10 +533,6 @@
               <b>Curator subagent</b>
               <p>低频维护流程。可手动触发，也可由 HostAgent scheduler 或 compact/dreaming 边界触发。</p>
             </div>
-            <div class="asset" style="--color: var(--safety);">
-              <b>Safety reports</b>
-              <p>protected、pinned、dry-run、backup、restore、rollback 和 `reports/skills` 让治理可审计、可恢复。</p>
-            </div>
           </div>
         </article>
       </div>
@@ -542,15 +541,19 @@
     <section class="rules" aria-label="关键规则">
       <article class="rule" style="--color: var(--active);">
         <b>Active 才影响行为</b>
-        <p>stale 和 archived 默认不进入 prompt，也不主动参与 skill discovery。它们只在 review、restore 或人工查询时出现。</p>
+        <p>Prime 只同步 active skills。stale 和 archived 默认不进入 host-native skill surface，只在 review、restore 或人工查询时出现。</p>
       </article>
       <article class="rule" style="--color: var(--protocol);">
-        <b>Protocol 不写死 Host</b>
-        <p>所有 protocol skills 读写 `.mnemon` canonical layout；Claude Code、Codex 等 native skill 目录只是 projection。</p>
+        <b>Nudge 只提醒遵守 GUIDE</b>
+        <p>Nudge 是 stop hook 注入的一句话提醒。判断规则在 GUIDE 中，在线写入由 `skill_observe.md` 执行。</p>
       </article>
       <article class="rule" style="--color: var(--curator);">
         <b>Curator 是维护路径</b>
         <p>它不是每次任务都执行的在线步骤。没有 scheduler 时可以手动运行；不能安全写入时只产出 proposal/report。</p>
+      </article>
+      <article class="rule" style="--color: var(--library);">
+        <b>Manage 不直接刷新 Host</b>
+        <p>skill_manage 只更新 `.mnemon` canonical state。新的 active 集合要等下一次 Prime 再同步到 Host Skill Surface。</p>
       </article>
     </section>
 
@@ -582,8 +585,8 @@
   <script>
     const lanes = {
       host: { x: 100, title: "HostAgent", sub: "runtime owner", color: "#334155" },
-      protocol: { x: 300, title: "Protocol Skills", sub: "list / view / manage / curate", color: "#8a5fbf" },
-      index: { x: 515, title: "Active Index", sub: "visible skill surface", color: "#2f7d55" },
+      protocol: { x: 300, title: "Guide + Protocol", sub: "observe / manage / curate", color: "#8a5fbf" },
+      surface: { x: 515, title: "Host Skill Surface", sub: "native discovery", color: "#2f7d55" },
       library: { x: 735, title: ".mnemon Skills", sub: "active / stale / archived", color: "#2f66b0" },
       usage: { x: 950, title: "Usage Sidecar", sub: ".usage.json", color: "#c46b2f" },
       curator: { x: 1110, title: "Curator", sub: "subagent + reports", color: "#0f8a8a" }
@@ -592,111 +595,110 @@
     const phases = [
       {
         id: "prime",
-        title: "Prime / Index",
-        tag: "online path",
+        title: "Prime",
+        tag: "hook",
         color: "var(--active)",
-        summary: "Prime 只加载 skill guide 和 active skill index，让 HostAgent 知道有哪些 skill 可被发现，但不把全部 SKILL.md 加入 prompt。",
-        short: "active index -> HostAgent",
+        summary: "Prime 不把所有 skill 内容注入 prompt。它负责把 `.mnemon/skills/active` 单向同步或挂载到 HostAgent 的原生 skill 发现面，让 HostAgent 自己完成 skill discovery。",
+        short: "active skills -> host surface",
         events: [
-          { kind: "arrow", from: "library", to: "index", y: 94, label: "build active index" },
-          { kind: "arrow", from: "index", to: "host", y: 146, label: "visible skill list" },
-          { kind: "action", actor: "host", y: 210, label: "start with skill surface" }
+          { kind: "arrow", from: "library", to: "surface", y: 94, label: "sync active skills" },
+          { kind: "arrow", from: "surface", to: "host", y: 146, label: "native discovery surface" },
+          { kind: "action", actor: "host", y: 210, label: "discover skills natively" }
         ],
         details: [
-          ["输入", "`skills/active` + skill descriptions"],
-          ["执行", "只注入 active index / guide"],
-          ["边界", "不加载 stale / archived，不全量加载 skill 内容"]
+          ["输入", "`.mnemon/skills/active` + `bindings/active.json`"],
+          ["执行", "同步、挂载或生成 host-native skill files"],
+          ["边界", "`.mnemon` 是 source of truth；host-native 目录是 generated view"]
         ]
       },
       {
-        id: "use",
-        title: "Remind / Use",
-        tag: "online path",
-        color: "var(--protocol)",
-        summary: "Remind 提醒 HostAgent 判断当前任务是否需要 skill。如果需要，HostAgent 通过 skill_list / skill_view 读取具体 active skill。",
-        short: "skill_list -> skill_view -> action",
+        id: "nudge",
+        title: "Nudge",
+        tag: "hook",
+        color: "var(--usage)",
+        summary: "Nudge 是 agent loop stop 阶段的一句 hook prompt。它不写规则，只提醒 LLM 按 GUIDE 判断本轮是否产生 skill usage evidence 或 reusable workflow signal；如果有，应加载 skill_observe。",
+        short: "stop hook -> skill_observe",
         events: [
-          { kind: "arrow", from: "host", to: "protocol", y: 86, label: "load skill_list.md" },
-          { kind: "arrow", from: "protocol", to: "index", y: 134, label: "inspect active index" },
-          { kind: "arrow", from: "host", to: "protocol", y: 184, label: "load skill_view.md" },
-          { kind: "arrow", from: "protocol", to: "library", y: 232, label: "read active SKILL.md" },
-          { kind: "arrow", from: "library", to: "host", y: 280, label: "loaded skill context" }
+          { kind: "arrow", from: "surface", to: "host", y: 74, label: "native skill use outside harness" },
+          { kind: "arrow", from: "protocol", to: "host", y: 126, label: "nudge prompt + GUIDE" },
+          { kind: "arrow", from: "host", to: "protocol", y: 178, label: "decide to observe" },
+          { kind: "action", actor: "protocol", y: 236, label: "next: skill_observe" }
         ],
         details: [
-          ["触发", "Remind hook 或任务内主动判断"],
-          ["执行", "按需读取少量 active skill"],
-          ["边界", "protocol skills 读 `.mnemon`，不依赖 host-native 路径"]
+          ["触发", "agent loop stop 阶段的 Nudge hook"],
+          ["执行", "只提醒 LLM 按 GUIDE 判断是否需要记录 skill signal"],
+          ["边界", "Nudge 不写 sidecar、不生成 skill、不做 review"]
         ]
       },
       {
         id: "observe",
-        title: "Nudge / Observe",
-        tag: "online path",
+        title: "skill_observe",
+        tag: "skill",
         color: "var(--usage)",
-        summary: "Skill 被查看、加载、使用或修改后，HostAgent 通过 sidecar 记录 telemetry。这个记录是 curator 的主要输入。",
-        short: "use evidence -> .usage.json",
+        summary: "skill_observe 是在线轻量能力。它按照 GUIDE 和协议，把 skill view/use/patch evidence 或 reusable workflow signal 写入 usage sidecar 或 signal report。",
+        short: "write usage / signal",
         events: [
-          { kind: "action", actor: "host", y: 86, label: "execute with skill" },
-          { kind: "arrow", from: "host", to: "usage", y: 138, label: "view / use event" },
-          { kind: "arrow", from: "protocol", to: "usage", y: 190, label: "patch event" },
-          { kind: "action", actor: "usage", y: 242, label: "update counters" }
+          { kind: "arrow", from: "host", to: "protocol", y: 78, label: "load skill_observe.md" },
+          { kind: "arrow", from: "protocol", to: "usage", y: 132, label: "write view / use event" },
+          { kind: "arrow", from: "protocol", to: "usage", y: 184, label: "write workflow signal" },
+          { kind: "action", actor: "usage", y: 242, label: "update sidecar / report" }
         ],
         details: [
-          ["输入", "view/use/patch 事件、用户反馈、失败修复"],
-          ["执行", "更新 use_count、view_count、last_used_at、state、pinned"],
-          ["边界", "usage sidecar 是治理信号，不直接进入 prompt"]
+          ["输入", "view/use/patch 事件、用户反馈、失败修复、重复流程"],
+          ["执行", "写 `.mnemon/skills/.usage.json` 或 signal report"],
+          ["边界", "skill_observe 只记录 evidence，不判断是否生成 skill"]
         ]
       },
       {
         id: "curate",
-        title: "Curate / Review",
-        tag: "maintenance path",
+        title: "Curator",
+        tag: "subagent",
         color: "var(--curator)",
-        summary: "Curator 是低频维护路径。它读取 usage sidecar 和 skill library，做确定性迁移与 LLM review，默认可 dry-run/report-only。",
-        short: "usage + library -> curator",
+        summary: "Curator 是后台或手动维护入口。它读取 usage sidecar、signal reports 和 skill library，拉起 curator subagent 检查是否应 patch、consolidate、create、stale 或 archive，并默认生成 proposal/report。",
+        short: "evidence -> proposal",
         events: [
           { kind: "arrow", from: "host", to: "protocol", y: 78, label: "load skill_curate.md" },
-          { kind: "arrow", from: "protocol", to: "curator", y: 126, label: "spawn or manual run" },
+          { kind: "arrow", from: "protocol", to: "curator", y: 126, label: "spawn review subagent" },
           { kind: "arrow", from: "usage", to: "curator", y: 176, label: "usage telemetry" },
-          { kind: "arrow", from: "library", to: "curator", y: 224, label: "read active / stale" },
-          { kind: "action", actor: "curator", y: 276, label: "keep / patch / stale / archive" }
+          { kind: "arrow", from: "library", to: "curator", y: 224, label: "read active / stale / archived" },
+          { kind: "action", actor: "curator", y: 276, label: "draft proposal / report" }
         ],
         details: [
-          ["触发", "手动、compact/dreaming 边界、HostAgent scheduler"],
-          ["执行", "deterministic transition + curator subagent review"],
-          ["边界", "无安全写权限时只生成 proposal/report"]
+          ["触发", "手动、compact/dreaming 边界、HostAgent scheduler 或足够强的 signal"],
+          ["执行", "curator subagent 检查 evidence，生成 SKILL.md draft 或 patch proposal"],
+          ["边界", "默认 proposal-first，不直接启用 active skill"]
         ]
       },
       {
-        id: "refresh",
-        title: "Manage / Refresh",
-        tag: "maintenance path",
-        color: "var(--safety)",
-        summary: "被批准的迁移由 skill_manage 执行：patch、consolidate、active -> stale、stale -> archived、restore。完成后 active index 被刷新，影响下一轮 HostAgent 行为。",
-        short: "skill_manage -> active index",
+        id: "manage",
+        title: "skill_manage",
+        tag: "skill",
+        color: "var(--protocol)",
+        summary: "被批准的迁移由 skill_manage 执行：patch、consolidate、active -> stale、stale -> archived、restore。它只改 `.mnemon` canonical state，不直接刷新 HostAgent；新的可见 skill 集合会在下一次 Prime 同步到 host skill surface。",
+        short: "skill_manage -> next Prime",
         events: [
           { kind: "arrow", from: "curator", to: "protocol", y: 76, label: "approved proposal" },
           { kind: "arrow", from: "protocol", to: "library", y: 126, label: "patch / move state" },
           { kind: "arrow", from: "protocol", to: "usage", y: 176, label: "update metadata" },
-          { kind: "arrow", from: "library", to: "index", y: 226, label: "refresh active index" },
-          { kind: "arrow", from: "index", to: "host", y: 276, label: "next run behavior" }
+          { kind: "arrow", from: "library", to: "surface", y: 226, label: "next Prime syncs active" },
+          { kind: "arrow", from: "surface", to: "host", y: 276, label: "next run discovers new set" }
         ],
         details: [
           ["执行", "skill_manage 写 `.mnemon` canonical state"],
-          ["安全", "protected/pinned 跳过；backup、report、restore 保留"],
-          ["闭环", "active index 变化后，下一轮 skill discovery 变化"]
+          ["安全", "proposal-first；protected/pinned 跳过；archive over delete"],
+          ["闭环", "Manage 产生新的 canonical active set；Prime 负责把它投到 Host Skill Surface"]
         ]
       }
     ];
 
     const matrixRows = [
       ["HostAgent", "Runtime", "运行 ReAct loop，接收 hook，决定是否加载 protocol skill 或 curator subagent。", "不拥有 canonical skill state。", "var(--host)"],
-      ["Active Skill Index", "Prompt surface", "Prime/Remind 阶段暴露当前可发现 skill。", "只来自 `skills/active`，不包含 stale/archived 全文。", "var(--active)"],
-      [".mnemon Skill Library", "Filesystem", "保存 active/stale/archived skills。", "canonical source of truth，host-native 目录只是 projection。", "var(--library)"],
-      ["Protocol Skills", "Markdown protocol", "定义 list/view/manage/curate 的跨 HostAgent 操作方法。", "通过 `MNEMON_HARNESS_DIR` 定位 `.mnemon`。", "var(--protocol)"],
+      ["Host Skill Surface", "Host-native view", "HostAgent 原生 skill discovery 读取的位置。", "由 Prime 从 `.mnemon/skills/active` 单向同步或挂载生成。", "var(--active)"],
+      [".mnemon Skill Library", "Filesystem", "保存 active/stale/archived skills。", "canonical source of truth，host-native 目录只是 generated view。", "var(--library)"],
+      ["GUIDE", "Policy", "定义 skill evidence、review trigger、protected/pinned、proposal-first 等判断规则。", "Nudge 只提醒遵守 GUIDE，不承载详细规则。", "var(--protocol)"],
+      ["Protocol Skills", "Markdown protocol", "定义 observe/manage/curate 的跨 HostAgent 操作方法。", "通过 `MNEMON_HARNESS_DIR` 定位 `.mnemon`。", "var(--protocol)"],
       ["Usage Sidecar", "Telemetry", "记录 use/view/patch 计数和时间戳。", "治理输入，不直接注入 prompt。", "var(--usage)"],
-      ["Curator Subagent", "Maintenance", "低频审阅、合并、迁移和报告。", "可手动、dry-run 或 proposal-only。", "var(--curator)"],
-      ["Safety Reports", "Control", "记录 protected/pinned/backup/restore/rollback。", "防止不可逆自演化。", "var(--safety)"]
+      ["Curator Subagent", "Maintenance", "低频审阅、合并、迁移和报告。", "可手动、dry-run 或 proposal-only。", "var(--curator)"]
     ];
 
     let activeId = "prime";
