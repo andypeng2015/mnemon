@@ -1,0 +1,852 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Mnemon skill loop MVP entities and runtime data flow." />
+  <title>Mnemon Skill Loop MVP</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f8fb;
+      --ink: #151922;
+      --muted: #667085;
+      --line: #d9e0ea;
+      --panel: #ffffff;
+      --host: #334155;
+      --protocol: #8a5fbf;
+      --active: #2f7d55;
+      --library: #2f66b0;
+      --usage: #c46b2f;
+      --curator: #0f8a8a;
+      --safety: #b74661;
+      --shadow: 0 16px 38px rgba(28, 39, 57, 0.1);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      width: min(1320px, calc(100vw - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 30px 0 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(246, 248, 251, 0.96);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 26px;
+      align-items: start;
+    }
+
+    .eyebrow {
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 44px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      margin: 12px 0 0;
+      max-width: 900px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .reading {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .reading h2,
+    .section-title h2 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    .reading h2 {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--active);
+      background: #fbfcfe;
+    }
+
+    .reading ol {
+      margin: 0;
+      padding: 12px 16px 14px 32px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .reading li + li {
+      margin-top: 6px;
+    }
+
+    main {
+      padding: 22px 0 44px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin: 0 0 10px;
+    }
+
+    .section-title p {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .inventory-layout {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      padding: 13px 15px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+      color: var(--color);
+      font-size: 15px;
+      font-weight: 800;
+    }
+
+    .core-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .core {
+      min-height: 168px;
+      padding: 15px;
+      background: #ffffff;
+      border-top: 4px solid var(--color);
+      display: grid;
+      align-content: start;
+      gap: 9px;
+    }
+
+    .core b {
+      color: var(--color);
+      font-size: 16px;
+      line-height: 1.1;
+    }
+
+    .core p,
+    .asset p,
+    .rule p,
+    .detail p,
+    .matrix p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .asset-list {
+      display: grid;
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .asset {
+      display: grid;
+      grid-template-columns: 128px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 12px 14px;
+      background: #ffffff;
+      border-left: 4px solid var(--color);
+    }
+
+    .asset b {
+      color: var(--color);
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .rules {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .rule {
+      padding: 13px 14px;
+      border: 1px solid var(--line);
+      border-left: 4px solid var(--color);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .rule b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--color);
+      font-size: 14px;
+    }
+
+    .flow-layout {
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      gap: 16px;
+      align-items: start;
+      margin-bottom: 18px;
+    }
+
+    .phase-nav {
+      position: sticky;
+      top: 16px;
+      display: grid;
+      gap: 8px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+    }
+
+    .phase-nav button {
+      width: 100%;
+      border: 1px solid transparent;
+      border-left: 4px solid var(--color);
+      border-radius: 6px;
+      background: #fbfcfe;
+      padding: 10px;
+      text-align: left;
+      cursor: pointer;
+      display: grid;
+      gap: 4px;
+    }
+
+    .phase-nav button[aria-pressed="true"] {
+      border-color: var(--color);
+      background: color-mix(in srgb, var(--color) 9%, white);
+    }
+
+    .phase-nav strong {
+      font-size: 13px;
+      line-height: 1.15;
+    }
+
+    .phase-nav span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .phase-view {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .phase-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: start;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #fbfcfe;
+    }
+
+    .phase-head h2 {
+      margin: 0;
+      color: var(--color);
+      font-size: 24px;
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .phase-head p {
+      margin: 7px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border: 1px solid color-mix(in srgb, var(--color) 32%, var(--line));
+      border-radius: 999px;
+      background: color-mix(in srgb, var(--color) 9%, white);
+      color: var(--color);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .diagram-wrap {
+      overflow-x: auto;
+      background:
+        linear-gradient(#edf1f5 1px, transparent 1px),
+        linear-gradient(90deg, #edf1f5 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+
+    svg.diagram {
+      display: block;
+      width: 100%;
+      min-width: 1160px;
+      height: auto;
+    }
+
+    .details {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+      border-top: 1px solid var(--line);
+    }
+
+    .detail {
+      min-height: 86px;
+      padding: 13px 14px;
+      background: #fbfcfe;
+    }
+
+    .detail b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--color);
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .matrix {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .matrix-grid {
+      display: grid;
+      grid-template-columns: 160px 170px minmax(0, 1fr) minmax(0, 1fr);
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .matrix-cell {
+      min-height: 58px;
+      padding: 11px 13px;
+      background: #ffffff;
+    }
+
+    .matrix-cell.head {
+      background: #fbfcfe;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .matrix-cell b {
+      color: var(--color);
+      font-size: 13px;
+    }
+
+    .source-note {
+      margin: 14px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .source-note a {
+      color: var(--active);
+      font-weight: 800;
+      text-decoration: none;
+    }
+
+    @media (max-width: 1080px) {
+      .hero,
+      .inventory-layout,
+      .flow-layout,
+      .rules {
+        grid-template-columns: 1fr;
+      }
+
+      .section-title {
+        display: block;
+      }
+
+      .section-title p {
+        margin-top: 4px;
+        text-align: left;
+      }
+
+      .phase-nav {
+        position: static;
+        grid-template-columns: repeat(5, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100vw - 20px, 1320px);
+      }
+
+      h1 {
+        font-size: 34px;
+      }
+
+      .core-row,
+      .details,
+      .phase-nav,
+      .matrix-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .asset {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .phase-head {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell hero">
+      <div>
+        <div class="eyebrow">Mnemon Harness / Skill Loop</div>
+        <h1>Skill Loop MVP</h1>
+        <p class="summary">第一版 skill loop 采用和 memory loop 相同的表达方式：先明确实体，再按阶段展示数据流。HostAgent 负责调用与判断，`.mnemon` 提供 canonical skill library，protocol skills 定义读写方法，curator subagent 负责低频治理。</p>
+      </div>
+      <aside class="reading" aria-label="阅读顺序">
+        <h2>阅读顺序</h2>
+        <ol>
+          <li>先看三大核心：HostAgent、Active Skill Index、Skill Library。</li>
+          <li>再看支撑资产：Protocol skills、Usage sidecar、Curator、Safety reports。</li>
+          <li>最后切换阶段，看在线使用和维护治理如何通过 active index 闭合。</li>
+        </ol>
+      </aside>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section aria-label="系统组成">
+      <div class="section-title">
+        <h2>System Components</h2>
+        <p>Skill loop 的核心不是冷热存储，而是可见性治理：哪些 skill 当前可被发现、哪些进入维护、哪些仅保留历史。</p>
+      </div>
+
+      <div class="inventory-layout">
+        <article class="panel" style="--color: var(--host);">
+          <div class="panel-head">Three Core Parts</div>
+          <div class="core-row">
+            <div class="core" style="--color: var(--host);">
+              <b>HostAgent</b>
+              <p>宿主 Agent 的执行引擎。它拥有 ReAct loop、hook bus、prompt assembly、tool routing 和原生 skill/subagent 调用。</p>
+            </div>
+            <div class="core" style="--color: var(--active);">
+              <b>Active Skill Index</b>
+              <p>当前可见行为面。Prime/Remind 只暴露 active skills 的轻量索引，不全量加载 skill library。</p>
+            </div>
+            <div class="core" style="--color: var(--library);">
+              <b>.mnemon Skill Library</b>
+              <p>canonical filesystem：`skills/active`、`skills/stale`、`skills/archived`。所有真实状态都以它为准。</p>
+            </div>
+          </div>
+        </article>
+
+        <article class="panel" style="--color: var(--protocol);">
+          <div class="panel-head">Maintained Assets</div>
+          <div class="asset-list">
+            <div class="asset" style="--color: var(--protocol);">
+              <b>Protocol skills</b>
+              <p>`skill_list.md`、`skill_view.md`、`skill_manage.md`、`skill_curate.md` 定义跨 HostAgent 的读写协议。</p>
+            </div>
+            <div class="asset" style="--color: var(--usage);">
+              <b>Usage sidecar</b>
+              <p>`.mnemon/skills/.usage.json` 记录 view/use/patch 计数、时间戳、state、pinned 等治理信号。</p>
+            </div>
+            <div class="asset" style="--color: var(--curator);">
+              <b>Curator subagent</b>
+              <p>低频维护流程。可手动触发，也可由 HostAgent scheduler 或 compact/dreaming 边界触发。</p>
+            </div>
+            <div class="asset" style="--color: var(--safety);">
+              <b>Safety reports</b>
+              <p>protected、pinned、dry-run、backup、restore、rollback 和 `reports/skills` 让治理可审计、可恢复。</p>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="rules" aria-label="关键规则">
+      <article class="rule" style="--color: var(--active);">
+        <b>Active 才影响行为</b>
+        <p>stale 和 archived 默认不进入 prompt，也不主动参与 skill discovery。它们只在 review、restore 或人工查询时出现。</p>
+      </article>
+      <article class="rule" style="--color: var(--protocol);">
+        <b>Protocol 不写死 Host</b>
+        <p>所有 protocol skills 读写 `.mnemon` canonical layout；Claude Code、Codex 等 native skill 目录只是 projection。</p>
+      </article>
+      <article class="rule" style="--color: var(--curator);">
+        <b>Curator 是维护路径</b>
+        <p>它不是每次任务都执行的在线步骤。没有 scheduler 时可以手动运行；不能安全写入时只产出 proposal/report。</p>
+      </article>
+    </section>
+
+    <section aria-label="阶段数据流">
+      <div class="section-title">
+        <h2>Runtime Flow</h2>
+        <p>点击阶段，只显示当前阶段的数据流。上半段是在线使用路径，下半段是维护治理路径。</p>
+      </div>
+
+      <div class="flow-layout">
+        <nav class="phase-nav" aria-label="阶段导航" id="phase-nav"></nav>
+        <article class="phase-view" id="phase-view" aria-live="polite"></article>
+      </div>
+    </section>
+
+    <section class="matrix" aria-label="职责矩阵">
+      <div class="panel-head" style="--color: var(--host);">Responsibility Matrix</div>
+      <div class="matrix-grid" id="matrix"></div>
+    </section>
+
+    <p class="source-note">
+      Lifecycle reference:
+      <a href="https://hermes-agent.nousresearch.com/docs/user-guide/features/skills">Hermes Skills System</a>
+      and
+      <a href="https://hermes-agent.nousresearch.com/docs/user-guide/features/curator">Hermes Curator</a>.
+    </p>
+  </main>
+
+  <script>
+    const lanes = {
+      host: { x: 100, title: "HostAgent", sub: "runtime owner", color: "#334155" },
+      protocol: { x: 300, title: "Protocol Skills", sub: "list / view / manage / curate", color: "#8a5fbf" },
+      index: { x: 515, title: "Active Index", sub: "visible skill surface", color: "#2f7d55" },
+      library: { x: 735, title: ".mnemon Skills", sub: "active / stale / archived", color: "#2f66b0" },
+      usage: { x: 950, title: "Usage Sidecar", sub: ".usage.json", color: "#c46b2f" },
+      curator: { x: 1110, title: "Curator", sub: "subagent + reports", color: "#0f8a8a" }
+    };
+
+    const phases = [
+      {
+        id: "prime",
+        title: "Prime / Index",
+        tag: "online path",
+        color: "var(--active)",
+        summary: "Prime 只加载 skill guide 和 active skill index，让 HostAgent 知道有哪些 skill 可被发现，但不把全部 SKILL.md 加入 prompt。",
+        short: "active index -> HostAgent",
+        events: [
+          { kind: "arrow", from: "library", to: "index", y: 94, label: "build active index" },
+          { kind: "arrow", from: "index", to: "host", y: 146, label: "visible skill list" },
+          { kind: "action", actor: "host", y: 210, label: "start with skill surface" }
+        ],
+        details: [
+          ["输入", "`skills/active` + skill descriptions"],
+          ["执行", "只注入 active index / guide"],
+          ["边界", "不加载 stale / archived，不全量加载 skill 内容"]
+        ]
+      },
+      {
+        id: "use",
+        title: "Remind / Use",
+        tag: "online path",
+        color: "var(--protocol)",
+        summary: "Remind 提醒 HostAgent 判断当前任务是否需要 skill。如果需要，HostAgent 通过 skill_list / skill_view 读取具体 active skill。",
+        short: "skill_list -> skill_view -> action",
+        events: [
+          { kind: "arrow", from: "host", to: "protocol", y: 86, label: "load skill_list.md" },
+          { kind: "arrow", from: "protocol", to: "index", y: 134, label: "inspect active index" },
+          { kind: "arrow", from: "host", to: "protocol", y: 184, label: "load skill_view.md" },
+          { kind: "arrow", from: "protocol", to: "library", y: 232, label: "read active SKILL.md" },
+          { kind: "arrow", from: "library", to: "host", y: 280, label: "loaded skill context" }
+        ],
+        details: [
+          ["触发", "Remind hook 或任务内主动判断"],
+          ["执行", "按需读取少量 active skill"],
+          ["边界", "protocol skills 读 `.mnemon`，不依赖 host-native 路径"]
+        ]
+      },
+      {
+        id: "observe",
+        title: "Nudge / Observe",
+        tag: "online path",
+        color: "var(--usage)",
+        summary: "Skill 被查看、加载、使用或修改后，HostAgent 通过 sidecar 记录 telemetry。这个记录是 curator 的主要输入。",
+        short: "use evidence -> .usage.json",
+        events: [
+          { kind: "action", actor: "host", y: 86, label: "execute with skill" },
+          { kind: "arrow", from: "host", to: "usage", y: 138, label: "view / use event" },
+          { kind: "arrow", from: "protocol", to: "usage", y: 190, label: "patch event" },
+          { kind: "action", actor: "usage", y: 242, label: "update counters" }
+        ],
+        details: [
+          ["输入", "view/use/patch 事件、用户反馈、失败修复"],
+          ["执行", "更新 use_count、view_count、last_used_at、state、pinned"],
+          ["边界", "usage sidecar 是治理信号，不直接进入 prompt"]
+        ]
+      },
+      {
+        id: "curate",
+        title: "Curate / Review",
+        tag: "maintenance path",
+        color: "var(--curator)",
+        summary: "Curator 是低频维护路径。它读取 usage sidecar 和 skill library，做确定性迁移与 LLM review，默认可 dry-run/report-only。",
+        short: "usage + library -> curator",
+        events: [
+          { kind: "arrow", from: "host", to: "protocol", y: 78, label: "load skill_curate.md" },
+          { kind: "arrow", from: "protocol", to: "curator", y: 126, label: "spawn or manual run" },
+          { kind: "arrow", from: "usage", to: "curator", y: 176, label: "usage telemetry" },
+          { kind: "arrow", from: "library", to: "curator", y: 224, label: "read active / stale" },
+          { kind: "action", actor: "curator", y: 276, label: "keep / patch / stale / archive" }
+        ],
+        details: [
+          ["触发", "手动、compact/dreaming 边界、HostAgent scheduler"],
+          ["执行", "deterministic transition + curator subagent review"],
+          ["边界", "无安全写权限时只生成 proposal/report"]
+        ]
+      },
+      {
+        id: "refresh",
+        title: "Manage / Refresh",
+        tag: "maintenance path",
+        color: "var(--safety)",
+        summary: "被批准的迁移由 skill_manage 执行：patch、consolidate、active -> stale、stale -> archived、restore。完成后 active index 被刷新，影响下一轮 HostAgent 行为。",
+        short: "skill_manage -> active index",
+        events: [
+          { kind: "arrow", from: "curator", to: "protocol", y: 76, label: "approved proposal" },
+          { kind: "arrow", from: "protocol", to: "library", y: 126, label: "patch / move state" },
+          { kind: "arrow", from: "protocol", to: "usage", y: 176, label: "update metadata" },
+          { kind: "arrow", from: "library", to: "index", y: 226, label: "refresh active index" },
+          { kind: "arrow", from: "index", to: "host", y: 276, label: "next run behavior" }
+        ],
+        details: [
+          ["执行", "skill_manage 写 `.mnemon` canonical state"],
+          ["安全", "protected/pinned 跳过；backup、report、restore 保留"],
+          ["闭环", "active index 变化后，下一轮 skill discovery 变化"]
+        ]
+      }
+    ];
+
+    const matrixRows = [
+      ["HostAgent", "Runtime", "运行 ReAct loop，接收 hook，决定是否加载 protocol skill 或 curator subagent。", "不拥有 canonical skill state。", "var(--host)"],
+      ["Active Skill Index", "Prompt surface", "Prime/Remind 阶段暴露当前可发现 skill。", "只来自 `skills/active`，不包含 stale/archived 全文。", "var(--active)"],
+      [".mnemon Skill Library", "Filesystem", "保存 active/stale/archived skills。", "canonical source of truth，host-native 目录只是 projection。", "var(--library)"],
+      ["Protocol Skills", "Markdown protocol", "定义 list/view/manage/curate 的跨 HostAgent 操作方法。", "通过 `MNEMON_HARNESS_DIR` 定位 `.mnemon`。", "var(--protocol)"],
+      ["Usage Sidecar", "Telemetry", "记录 use/view/patch 计数和时间戳。", "治理输入，不直接注入 prompt。", "var(--usage)"],
+      ["Curator Subagent", "Maintenance", "低频审阅、合并、迁移和报告。", "可手动、dry-run 或 proposal-only。", "var(--curator)"],
+      ["Safety Reports", "Control", "记录 protected/pinned/backup/restore/rollback。", "防止不可逆自演化。", "var(--safety)"]
+    ];
+
+    let activeId = "prime";
+
+    function textLines(label, max = 20) {
+      if (label.length <= max) return [label];
+      const words = label.split(" ");
+      if (words.length > 1) {
+        const lines = [];
+        let line = "";
+        words.forEach((word) => {
+          const next = line ? `${line} ${word}` : word;
+          if (next.length > max && line) {
+            lines.push(line);
+            line = word;
+          } else {
+            line = next;
+          }
+        });
+        if (line) lines.push(line);
+        return lines.slice(0, 3);
+      }
+      const chunks = [];
+      let rest = label;
+      while (rest.length > max) {
+        chunks.push(rest.slice(0, max));
+        rest = rest.slice(max);
+      }
+      if (rest) chunks.push(rest);
+      return chunks.slice(0, 3);
+    }
+
+    function svgLabel(label, x, y, color, anchor = "middle", size = 13, weight = 700) {
+      const lines = textLines(label);
+      return `<text x="${x}" y="${y}" text-anchor="${anchor}" fill="${color}" font-size="${size}" font-weight="${weight}" font-family="Inter, system-ui, sans-serif">${lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : 16}">${line}</tspan>`).join("")}</text>`;
+    }
+
+    function drawArrow(event, markerId) {
+      const from = lanes[event.from];
+      const to = lanes[event.to];
+      const y = event.y;
+      const direction = from.x < to.x ? 1 : -1;
+      const x1 = from.x + direction * 66;
+      const x2 = to.x - direction * 66;
+      const mid = (x1 + x2) / 2;
+      const labelWidth = Math.min(210, Math.max(132, event.label.length * 7.5));
+      return `
+        <line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="#253040" stroke-width="2.5" marker-end="url(#${markerId})" />
+        <rect x="${mid - labelWidth / 2}" y="${y - 28}" width="${labelWidth}" height="25" rx="6" fill="#ffffff" stroke="#d9e0ea" />
+        ${svgLabel(event.label, mid, y - 11, "#253040", "middle", 12, 800)}
+      `;
+    }
+
+    function drawAction(event) {
+      const lane = lanes[event.actor];
+      const w = 184;
+      const h = 38;
+      const x = lane.x - w / 2;
+      const y = event.y - h / 2;
+      return `
+        <rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="#ffffff" stroke="${lane.color}" stroke-width="2" />
+        ${svgLabel(event.label, lane.x, event.y + 4, lane.color, "middle", 12, 800)}
+      `;
+    }
+
+    function drawDiagram(phase) {
+      const markerId = `arrow-${phase.id}`;
+      const laneGuides = Object.values(lanes).map((lane) => `
+        <rect x="${lane.x - 86}" y="16" width="172" height="302" rx="8" fill="${lane.color}" opacity="0.045" />
+        <line x1="${lane.x}" y1="66" x2="${lane.x}" y2="306" stroke="${lane.color}" stroke-width="1.3" stroke-dasharray="6 7" opacity="0.52" />
+        <rect x="${lane.x - 79}" y="20" width="158" height="38" rx="19" fill="#ffffff" stroke="${lane.color}" stroke-width="2" />
+        ${svgLabel(lane.title, lane.x, 39, lane.color, "middle", 12, 900)}
+        ${svgLabel(lane.sub, lane.x, 54, "#667085", "middle", 10, 700)}
+      `).join("");
+
+      const events = phase.events.map((event) => {
+        if (event.kind === "arrow") return drawArrow(event, markerId);
+        return drawAction(event);
+      }).join("");
+
+      return `
+        <svg class="diagram" viewBox="0 0 1210 335" role="img" aria-label="${phase.title} 数据流">
+          <defs>
+            <marker id="${markerId}" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#253040"></path>
+            </marker>
+          </defs>
+          <rect x="0" y="0" width="1210" height="335" fill="rgba(255,255,255,0.82)" />
+          ${laneGuides}
+          ${events}
+        </svg>
+      `;
+    }
+
+    function renderNav() {
+      const nav = document.getElementById("phase-nav");
+      nav.innerHTML = "";
+      phases.forEach((phase) => {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.style.setProperty("--color", phase.color);
+        button.setAttribute("aria-pressed", phase.id === activeId ? "true" : "false");
+        button.innerHTML = `<strong>${phase.title}</strong><span>${phase.short}</span>`;
+        button.addEventListener("click", () => {
+          activeId = phase.id;
+          renderNav();
+          renderPhase();
+        });
+        nav.appendChild(button);
+      });
+    }
+
+    function renderPhase() {
+      const phase = phases.find((item) => item.id === activeId);
+      const view = document.getElementById("phase-view");
+      view.style.setProperty("--color", phase.color);
+      view.innerHTML = `
+        <div class="phase-head">
+          <div>
+            <h2>${phase.title}</h2>
+            <p>${phase.summary}</p>
+          </div>
+          <span class="tag">${phase.tag}</span>
+        </div>
+        <div class="diagram-wrap">${drawDiagram(phase)}</div>
+        <div class="details">
+          ${phase.details.map(([label, text]) => `<div class="detail"><b>${label}</b><p>${text}</p></div>`).join("")}
+        </div>
+      `;
+    }
+
+    function renderMatrix() {
+      const matrix = document.getElementById("matrix");
+      matrix.innerHTML = `
+        <div class="matrix-cell head">Entity</div>
+        <div class="matrix-cell head">Type</div>
+        <div class="matrix-cell head">Runtime Role</div>
+        <div class="matrix-cell head">Boundary</div>
+        ${matrixRows.map(([entity, type, role, boundary, color]) => `
+          <div class="matrix-cell" style="--color: ${color};"><b>${entity}</b></div>
+          <div class="matrix-cell"><p>${type}</p></div>
+          <div class="matrix-cell"><p>${role}</p></div>
+          <div class="matrix-cell"><p>${boundary}</p></div>
+        `).join("")}
+      `;
+    }
+
+    renderNav();
+    renderPhase();
+    renderMatrix();
+  </script>
+</body>
+</html>
