@@ -1,6 +1,8 @@
 # Skill Loop MVP 设计
 
-相关可视化页面：[site/index.html](site/index.html)
+相关可视化页面：[site.html](../../../site/skill-loop/site.html)
+
+英文版本：[DESIGN.md](../../../harness/skill-loop/DESIGN.md)
 
 可安装 MVP 资产：[harness/skill-loop](../../../../harness/skill-loop/README.md)
 
