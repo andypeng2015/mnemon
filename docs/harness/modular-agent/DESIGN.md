@@ -100,6 +100,26 @@ It also prevents the opposite mistake: Mnemon should not be treated as only a
 pile of Markdown skills. The harness substrate is what lets modules coordinate
 without becoming a monolithic agent framework.
 
+## Execution Plane And Governance Loops
+
+The modular-agent model separates the host execution plane from harness
+governance loops.
+
+The host agent owns the execution plane: it runs the ReAct loop, interacts with
+users, invokes tools, and decides how work is performed. Mnemon owns attachable
+governance loops around that execution: memory, skill lifecycle, goal tracking,
+evaluation, risk, review, audit, policy, and future backup or replication.
+
+This is similar to the distinction between application logic and a control
+plane in service systems. The application still performs the work, while the
+control plane provides state, policy, observability, review, recovery, and
+coordination. Mnemon should play that harness role for agents.
+
+The implication is important: agent core execution and governance loops can
+evolve independently. A host can improve its reasoning and tool execution while
+Mnemon improves memory, skills, evaluation, review, audit, or replication
+without mixing all of those concerns into one agent framework.
+
 ## Standard Integration Surface
 
 | Primitive | Harness Use |
@@ -200,10 +220,17 @@ The same harness pattern can support more loops:
 - Review loop: coordinate human approval, checkpoints, and release gates.
 - Audit loop: record which module acted, why it acted, and what changed.
 - Policy loop: maintain host-specific safety and permission guidance.
+- Backup / replication loop: preserve and restore harness state across machines,
+  nodes, or host-agent environments.
 
 Each module should remain independently installable. Modules may optionally use
 `mnemon-daemon` for background scheduling, but should not require it for the
 basic install path.
+
+Backup and replication should start conservatively. The first useful shape is a
+primary-writer model with snapshots, restore, node identity, leases or locks,
+conflict detection, merge proposals, and audit records. Multi-node active-active
+coordination can remain a later design.
 
 ## Composable Module Flow
 

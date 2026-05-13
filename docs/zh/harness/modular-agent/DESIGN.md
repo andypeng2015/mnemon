@@ -96,6 +96,24 @@ runtime。
 它也避免另一个误解：Mnemon 不应被看作只是一堆 Markdown skills。Harness
 substrate 让 modules 可以协作，同时又不变成单体 agent framework。
 
+## 执行平面与治理循环
+
+Modular agent 模型把宿主执行平面和 harness 治理循环分开。
+
+宿主 agent 拥有执行平面：它运行 ReAct loop、和用户交互、调用工具，并决定
+具体工作怎样执行。Mnemon 拥有围绕这个执行平面挂载的治理循环：memory、
+skill lifecycle、goal tracking、evaluation、risk、review、audit、policy，
+以及未来的 backup 或 replication。
+
+这类似服务系统中 application logic 与 control plane 的关系。Application
+仍然完成实际工作；control plane 提供 state、policy、observability、review、
+recovery 和 coordination。Mnemon 应该在 agent 架构中承担这个 harness 角色。
+
+这个区分很重要：agent 核心执行和外围治理 loop 可以独立演进。宿主可以持续
+改进 reasoning 和 tool execution；Mnemon 则可以独立改进 memory、skills、
+evaluation、review、audit 或 replication，而不需要把所有关注点揉进一个
+agent framework。
+
 ## 标准接入面
 
 | 原语 | Harness 用法 |
@@ -191,9 +209,16 @@ Memory module 使用冷热记忆模型：
 - Review loop：协调人工审批、checkpoint 和 release gate。
 - Audit loop：记录哪个 module 因为什么行动，以及改变了什么。
 - Policy loop：维护宿主特定的安全与权限策略。
+- Backup / replication loop：在不同机器、节点或宿主 agent 环境之间保存和恢复
+  harness state。
 
 每个 module 都应保持可独立安装。Module 可以选择使用 `mnemon-daemon` 做后台
 调度，但 basic install path 不应强依赖 daemon。
+
+Backup 和 replication 应从保守形态开始。第一版更适合采用 primary-writer
+模型，支持 snapshot、restore、node identity、leases 或 locks、conflict
+detection、merge proposal 和 audit record。多节点 active-active coordination
+可以留到后续设计。
 
 ## 可组合 Module Flow
 
@@ -246,7 +271,7 @@ objective 协调 memory、skills、evaluation、risk、review、audit 和 policy
 - 不把所有 state 注入 prompt。
 - 不在缺少明确策略和 review 的情况下进行 self-modifying change。
 
-## Reference Case
+## 参考宿主案例
 
 Claude Code 是第一个 modular-agent case，因为它目前暴露了相对完整的一组扩展
 能力：hooks、skills、subagents、filesystem config，以及 project/user scope。
