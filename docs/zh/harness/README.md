@@ -21,6 +21,7 @@ host surface projection，以及可选的 daemon scheduling。
 | --- | --- |
 | Modular Agent Harness | [中文](modular-agent/DESIGN.md) / [EN](../../harness/modular-agent/DESIGN.md) |
 | Loop Module Standard | [中文](LOOP_MODULE_STANDARD.md) / [EN](../../harness/LOOP_MODULE_STANDARD.md) |
+| Host Projection | [中文](HOST_PROJECTION.md) / [EN](../../harness/HOST_PROJECTION.md) |
 | Harness Roadmap | [中文](ROADMAP.md) / [EN](../../harness/ROADMAP.md) |
 | Memory Loop | [中文](memory-loop/DESIGN.md) / [EN](../../harness/memory-loop/DESIGN.md) / [site](../../site/memory-loop/site.html) |
 | Skill Loop | [中文](skill-loop/DESIGN.md) / [EN](../../harness/skill-loop/DESIGN.md) / [site](../../site/skill-loop/site.html) |
@@ -43,6 +44,7 @@ host surface projection，以及可选的 daemon scheduling。
 | protocol | 定义可复用操作的 Markdown skill。 |
 | subagent | 用于较重 review 或 consolidation 的后台维护 agent。 |
 | projection | 把 canonical loop assets 渲染到 `.claude`、`.codex` 或其他 runtime surface 的宿主特定过程。 |
+| host manifest | 机器可读记录，描述已投影 loops、paths、lifecycle mappings 和 host capabilities。 |
 | daemon | 可选的 harness maintenance runner，用于调度模块后台工作。 |
 | substrate | Mnemon 拥有的运行时基座，用于 module state、setup、projection、scheduling 和跨模块协议。 |
 

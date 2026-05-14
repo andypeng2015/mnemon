@@ -26,6 +26,7 @@ projection into host surfaces, and optional daemon scheduling.
 | --- | --- |
 | Modular Agent Harness | [EN](modular-agent/DESIGN.md) / [中文](../zh/harness/modular-agent/DESIGN.md) |
 | Loop Module Standard | [EN](LOOP_MODULE_STANDARD.md) / [中文](../zh/harness/LOOP_MODULE_STANDARD.md) |
+| Host Projection | [EN](HOST_PROJECTION.md) / [中文](../zh/harness/HOST_PROJECTION.md) |
 | Harness Roadmap | [EN](ROADMAP.md) / [中文](../zh/harness/ROADMAP.md) |
 | Memory Loop | [EN](memory-loop/DESIGN.md) / [中文](../zh/harness/memory-loop/DESIGN.md) / [site](../site/memory-loop/site.html) |
 | Skill Loop | [EN](skill-loop/DESIGN.md) / [中文](../zh/harness/skill-loop/DESIGN.md) / [site](../site/skill-loop/site.html) |
@@ -48,6 +49,7 @@ projection into host surfaces, and optional daemon scheduling.
 | protocol | Markdown skills that define reusable operations. |
 | subagent | Background maintenance agent for heavier review or consolidation. |
 | projection | Host-specific rendering of canonical loop assets into `.claude`, `.codex`, or another runtime surface. |
+| host manifest | Machine-readable record of projected loops, paths, lifecycle mappings, and host capabilities. |
 | daemon | Optional harness maintenance runner for scheduled module work. |
 | substrate | Mnemon-owned runtime base for module state, setup, projection, scheduling, and cross-module protocols. |
 
