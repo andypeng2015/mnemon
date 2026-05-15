@@ -261,7 +261,7 @@ export MNEMON_SKILL_LOOP_USAGE_FILE="${CANONICAL_MODULE_DIR}/skills/.usage.jsonl
 export MNEMON_SKILL_LOOP_PROPOSALS_DIR="${CANONICAL_MODULE_DIR}/proposals"
 export MNEMON_SKILL_LOOP_HOST_SKILLS_DIR="${host_skills_dir}"
 export MNEMON_SKILL_LOOP_REVIEW_MIN_EVENTS="\${MNEMON_SKILL_LOOP_REVIEW_MIN_EVENTS:-20}"
-export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="\${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill_observe,skill_curate,skill_manage,memory_get,memory_set}"
+export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="\${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill_observe,skill_curate,skill_author,skill_manage,memory_get,memory_set}"
 EOF
   chmod 0755 "${CONFIG_DIR}/mnemon-skill-loop/env.sh"
 }
@@ -322,6 +322,7 @@ install_skill_loop() {
     "${CANONICAL_MODULE_DIR}/reports" \
     "${HOST_SKILLS_DIR}/skill_observe" \
     "${HOST_SKILLS_DIR}/skill_curate" \
+    "${HOST_SKILLS_DIR}/skill_author" \
     "${HOST_SKILLS_DIR}/skill_manage" \
     "${CONFIG_DIR}/agents" \
     "${CONFIG_DIR}/hooks/mnemon-skill-loop"
@@ -329,6 +330,7 @@ install_skill_loop() {
 
   install_file "${MODULE_DIR}/skills/skill_observe.md" "${HOST_SKILLS_DIR}/skill_observe/SKILL.md" 0644
   install_file "${MODULE_DIR}/skills/skill_curate.md" "${HOST_SKILLS_DIR}/skill_curate/SKILL.md" 0644
+  install_file "${MODULE_DIR}/skills/skill_author.md" "${HOST_SKILLS_DIR}/skill_author/SKILL.md" 0644
   install_file "${MODULE_DIR}/skills/skill_manage.md" "${HOST_SKILLS_DIR}/skill_manage/SKILL.md" 0644
   install_file "${MODULE_DIR}/subagents/curator.md" "${CONFIG_DIR}/agents/mnemon-skill-curator.md" 0644
 
@@ -398,6 +400,7 @@ uninstall_skill_loop() {
   rm -rf "${CONFIG_DIR}/hooks/mnemon-skill-loop"
   rm -rf "${host_skills_dir}/skill_observe"
   rm -rf "${host_skills_dir}/skill_curate"
+  rm -rf "${host_skills_dir}/skill_author"
   rm -rf "${host_skills_dir}/skill_manage"
   rm -f "${CONFIG_DIR}/agents/mnemon-skill-curator.md"
   rm -rf "${CONFIG_DIR}/mnemon-skill-loop"

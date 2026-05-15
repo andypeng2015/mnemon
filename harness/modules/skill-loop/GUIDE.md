@@ -22,7 +22,9 @@ Record evidence when a session shows one of these signals:
 - a skill should be protected, pinned, restored, staled, or archived
 
 Skip evidence for one-off commands, transient progress, raw chat logs, secrets,
-or facts better stored as memory.
+or facts better stored as memory. Do not record evidence merely because a
+single command succeeded or because the current prompt mentions the skill loop;
+there must be a reusable workflow or lifecycle signal.
 
 ## Lifecycle
 

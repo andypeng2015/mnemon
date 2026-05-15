@@ -32,6 +32,12 @@ Run the longer memory regression suite with:
 make codex-memory-deep-eval
 ```
 
+Run the longer skill-loop regression suite with:
+
+```bash
+make codex-skill-deep-eval
+```
+
 To run an actual Codex turn, use:
 
 ```bash
@@ -72,3 +78,12 @@ The `memory-deep` suite extends memory coverage with:
 - rejecting uncertain preference changes
 - rejecting secret-like values and generic restatements of existing safety policy
 - multi-turn continuity through persisted `MEMORY.md`
+
+The `skill-deep` suite extends skill-loop coverage with:
+
+- skipping transient one-off workflow evidence
+- recording missing-skill evidence as JSONL
+- applying an explicitly approved active skill creation
+- preserving the host skill surface during canonical skill changes
+- producing proposal-first curation output without activating skills
+- drafting reviewable skill content without activating it

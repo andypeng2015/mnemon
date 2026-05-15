@@ -289,6 +289,7 @@ install_skill_loop() {
     "${CANONICAL_MODULE_DIR}/reports" \
     "${HOST_SKILLS_DIR}/skill_observe" \
     "${HOST_SKILLS_DIR}/skill_curate" \
+    "${HOST_SKILLS_DIR}/skill_author" \
     "${HOST_SKILLS_DIR}/skill_manage" \
     "${CONFIG_DIR}/mnemon-skill-loop"
   write_runtime_env "${CONFIG_DIR}/mnemon-skill-loop" "MNEMON_SKILL_LOOP_ENV" "MNEMON_SKILL_LOOP_DIR"
@@ -301,13 +302,16 @@ export MNEMON_SKILL_LOOP_ARCHIVED_DIR="${CANONICAL_MODULE_DIR}/skills/archived"
 export MNEMON_SKILL_LOOP_USAGE_FILE="${CANONICAL_MODULE_DIR}/skills/.usage.jsonl"
 export MNEMON_SKILL_LOOP_PROPOSALS_DIR="${CANONICAL_MODULE_DIR}/proposals"
 export MNEMON_SKILL_LOOP_HOST_SKILLS_DIR="${HOST_SKILLS_DIR}"
+export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill_observe,skill_curate,skill_author,skill_manage,memory_get,memory_set}"
 EOF
 
   install_file "${MODULE_DIR}/skills/skill_observe.md" "${HOST_SKILLS_DIR}/skill_observe/SKILL.md" 0644
   install_file "${MODULE_DIR}/skills/skill_curate.md" "${HOST_SKILLS_DIR}/skill_curate/SKILL.md" 0644
+  install_file "${MODULE_DIR}/skills/skill_author.md" "${HOST_SKILLS_DIR}/skill_author/SKILL.md" 0644
   install_file "${MODULE_DIR}/skills/skill_manage.md" "${HOST_SKILLS_DIR}/skill_manage/SKILL.md" 0644
   append_codex_runtime_note "${HOST_SKILLS_DIR}/skill_observe/SKILL.md" "MNEMON_SKILL_LOOP_DIR" "${CONFIG_DIR}/mnemon-skill-loop/env.sh"
   append_codex_runtime_note "${HOST_SKILLS_DIR}/skill_curate/SKILL.md" "MNEMON_SKILL_LOOP_DIR" "${CONFIG_DIR}/mnemon-skill-loop/env.sh"
+  append_codex_runtime_note "${HOST_SKILLS_DIR}/skill_author/SKILL.md" "MNEMON_SKILL_LOOP_DIR" "${CONFIG_DIR}/mnemon-skill-loop/env.sh"
   append_codex_runtime_note "${HOST_SKILLS_DIR}/skill_manage/SKILL.md" "MNEMON_SKILL_LOOP_DIR" "${CONFIG_DIR}/mnemon-skill-loop/env.sh"
 
   write_host_manifest "${CONFIG_DIR}"
@@ -356,6 +360,7 @@ uninstall_skill_loop() {
   local host_skills_dir="${MNEMON_SKILL_LOOP_HOST_SKILLS_DIR:-${HOST_SKILLS_DIR:-${CONFIG_DIR}/skills}}"
   rm -rf "${host_skills_dir}/skill_observe"
   rm -rf "${host_skills_dir}/skill_curate"
+  rm -rf "${host_skills_dir}/skill_author"
   rm -rf "${host_skills_dir}/skill_manage"
   rm -rf "${CONFIG_DIR}/mnemon-skill-loop"
   if [[ "${PURGE_LIBRARY}" == "1" ]]; then

@@ -20,6 +20,7 @@ harness/modules/skill-loop/
 ├── skills/
 │   ├── skill_observe.md
 │   ├── skill_curate.md
+│   ├── skill_author.md
 │   └── skill_manage.md
 ├── subagents/
 │   └── curator.md
@@ -43,6 +44,7 @@ harness/modules/skill-loop/
 | `hooks/*.md` | Four lifecycle reminders. Prime syncs active skills; Nudge records evidence; Compact may trigger review; Remind is no-op by default. |
 | `skills/skill_observe.md` | Online evidence capture protocol. |
 | `skills/skill_curate.md` | Protocol for starting a curator review. |
+| `skills/skill_author.md` | Protocol for drafting reviewable `SKILL.md` content. |
 | `skills/skill_manage.md` | Approved lifecycle mutation protocol. |
 | `subagents/curator.md` | Background reviewer that proposes create, patch, consolidate, stale, archive, or restore actions. |
 | Host adapter | Host-specific projection lives outside the module under `harness/hosts/<host>/`. |
@@ -90,6 +92,7 @@ The key split is:
 GUIDE.md decides when skill evolution behavior is useful.
 skill_observe.md records evidence only.
 curator.md reviews evidence and proposes changes.
+skill_author.md drafts skill content for review.
 skill_manage.md applies approved changes to canonical state.
 prime.sh projects active canonical skills into the host skill surface.
 ```
