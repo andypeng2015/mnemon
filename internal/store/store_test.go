@@ -701,6 +701,12 @@ func TestMigrateIfNeeded(t *testing.T) {
 	}
 	db.InsertInsight(makeInsight("mig-1", "legacy data", 3))
 	db.Close()
+	if err := os.WriteFile(filepath.Join(base, "mnemon.db-wal"), []byte("wal"), 0o644); err != nil {
+		t.Fatalf("write legacy wal: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(base, "mnemon.db-shm"), []byte("shm"), 0o644); err != nil {
+		t.Fatalf("write legacy shm: %v", err)
+	}
 
 	// Run migration
 	if err := MigrateIfNeeded(base); err != nil {
@@ -710,6 +716,24 @@ func TestMigrateIfNeeded(t *testing.T) {
 	// Old file should be gone
 	if _, err := os.Stat(filepath.Join(base, "mnemon.db")); !os.IsNotExist(err) {
 		t.Error("old mnemon.db should be moved")
+	}
+	if _, err := os.Stat(filepath.Join(base, "mnemon.db-wal")); !os.IsNotExist(err) {
+		t.Error("old WAL should be moved")
+	}
+	if _, err := os.Stat(filepath.Join(base, "mnemon.db-shm")); !os.IsNotExist(err) {
+		t.Error("old SHM should be moved")
+	}
+	if got, err := os.ReadFile(filepath.Join(StoreDir(base, DefaultStoreName), "mnemon.db-wal")); err != nil || string(got) != "wal" {
+		t.Fatalf("migrated WAL mismatch: got=%q err=%v", got, err)
+	}
+	if got, err := os.ReadFile(filepath.Join(StoreDir(base, DefaultStoreName), "mnemon.db-shm")); err != nil || string(got) != "shm" {
+		t.Fatalf("migrated SHM mismatch: got=%q err=%v", got, err)
+	}
+	if err := os.Remove(filepath.Join(StoreDir(base, DefaultStoreName), "mnemon.db-wal")); err != nil {
+		t.Fatalf("remove fake migrated WAL: %v", err)
+	}
+	if err := os.Remove(filepath.Join(StoreDir(base, DefaultStoreName), "mnemon.db-shm")); err != nil {
+		t.Fatalf("remove fake migrated SHM: %v", err)
 	}
 
 	// New location should work

@@ -170,15 +170,25 @@ func MigrateIfNeeded(baseDir string) error {
 	}
 
 	// Move WAL and SHM if they exist
-	if _, err := os.Stat(oldWAL); err == nil {
-		os.Rename(oldWAL, newDB+"-wal")
+	if err := renameIfExists(oldWAL, newDB+"-wal"); err != nil {
+		return fmt.Errorf("migrate WAL: %w", err)
 	}
-	if _, err := os.Stat(oldSHM); err == nil {
-		os.Rename(oldSHM, newDB+"-shm")
+	if err := renameIfExists(oldSHM, newDB+"-shm"); err != nil {
+		return fmt.Errorf("migrate SHM: %w", err)
 	}
 
 	fmt.Fprintf(os.Stderr, "mnemon: migrated database to %s\n", newDB)
 	return nil
+}
+
+func renameIfExists(oldPath, newPath string) error {
+	if _, err := os.Stat(oldPath); err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	return os.Rename(oldPath, newPath)
 }
 
 // OpenReadOnly opens the SQLite database in read-only mode.
