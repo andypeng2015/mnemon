@@ -25,6 +25,7 @@ $MNEMON_SKILL_LOOP_ARCHIVED_DIR
 ## Allowed MVP Operations
 
 - create an approved skill under `active/<skill-id>/SKILL.md`
+- apply approved `SKILL.md` content drafted by `skill_author.md`
 - patch an existing skill in its current lifecycle directory
 - consolidate duplicated skills with an approved replacement
 - move `active -> stale`
@@ -38,7 +39,8 @@ $MNEMON_SKILL_LOOP_ARCHIVED_DIR
 1. Read the approved proposal and confirm the intended operation.
 2. Check `MNEMON_SKILL_LOOP_PROTECTED_SKILLS`; do not modify protected skills
    unless the approval explicitly covers the exception.
-3. Keep skill ids filesystem-safe: lowercase letters, numbers, `_`, and `-`.
+3. Keep new user-facing skill ids hyphen-case: lowercase letters, numbers, and
+   `-`. Existing protocol skill ids may keep their established underscore names.
 4. Apply the smallest canonical change under the lifecycle directories.
 5. Prefer moving to `archived` over deletion.
 6. Do not edit the host skill surface directly. Let Prime regenerate it.

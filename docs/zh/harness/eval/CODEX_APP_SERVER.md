@@ -35,6 +35,16 @@ make codex-memory-deep-eval
 deep memory suite 会额外覆盖：带噪声的相关 recall、过期 memory 覆盖、
 不确定偏好拒绝、疑似 secret 值拒绝，以及通过持久化 `MEMORY.md` 完成多轮连续性。
 
+更长的 skill loop 回归可以运行：
+
+```bash
+make codex-skill-deep-eval
+```
+
+deep skill suite 会额外覆盖：跳过临时 evidence、记录 missing-skill evidence、
+执行已批准的 active skill 创建、保护 host skill surface，以及 proposal-first
+curation 不直接激活 skill，并验证 reviewable skill draft 的 authoring。
+
 如果需要触发真实 Codex turn，可以显式开启：
 
 ```bash

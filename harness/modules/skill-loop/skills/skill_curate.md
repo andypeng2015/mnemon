@@ -29,7 +29,9 @@ It does not directly apply lifecycle changes. Approved changes are applied with
    - `.usage.jsonl`
    - existing proposals
 3. Request proposals for create, patch, consolidate, stale, archive, or restore
-   actions only when evidence supports them.
+   actions only when evidence supports them. When a proposal needs concrete
+   skill content, use `skill_author.md` to draft reviewable `SKILL.md` content
+   under the proposals directory.
 4. Keep the output proposal-first. Do not enable a new active skill in the
    current session unless the user explicitly approves and the host supports it.
 

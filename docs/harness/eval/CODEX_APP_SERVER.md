@@ -37,6 +37,16 @@ The deep memory suite adds noisy recall filtering, stale-memory supersession,
 uncertain-preference rejection, secret-like value rejection, and multi-turn
 continuity through persisted `MEMORY.md`.
 
+For longer skill-loop regression, run:
+
+```bash
+make codex-skill-deep-eval
+```
+
+The deep skill suite adds transient evidence skip, missing-skill evidence,
+approved active skill creation, host-surface preservation, and proposal-first
+curation checks, plus reviewable skill authoring drafts.
+
 To trigger a real Codex turn, opt in explicitly:
 
 ```bash

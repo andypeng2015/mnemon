@@ -301,6 +301,9 @@ class Scenario:
         self.assert_result = assert_result
 
 
+SKILL_LOOP_EXPECTED_SKILLS = ["skill_observe", "skill_curate", "skill_author", "skill_manage"]
+
+
 def setup_none(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
     del workspace, mnemon_dir, env
 
@@ -513,11 +516,200 @@ def assert_memory_multiturn(report: dict[str, Any], workspace: Path, mnemon_dir:
 
 def assert_skill_observe(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
     del report, workspace, env
-    usage_file = mnemon_dir / "harness" / "skill-loop" / "skills" / ".usage.jsonl"
+    usage_file = skill_usage_path(mnemon_dir)
     content = usage_file.read_text(encoding="utf-8") if usage_file.exists() else ""
     return [
         {"name": "skill usage log exists", "passed": usage_file.exists(), "path": str(usage_file)},
         {"name": "skill evidence mentions reusable eval workflow", "passed": "eval-runner workflow" in content.lower(), "path": str(usage_file)},
+    ]
+
+
+def skill_loop_path(mnemon_dir: Path) -> Path:
+    return mnemon_dir / "harness" / "skill-loop"
+
+
+def skill_usage_path(mnemon_dir: Path) -> Path:
+    return skill_loop_path(mnemon_dir) / "skills" / ".usage.jsonl"
+
+
+def skill_active_path(mnemon_dir: Path, skill_id: str) -> Path:
+    return skill_loop_path(mnemon_dir) / "skills" / "active" / skill_id / "SKILL.md"
+
+
+def skill_stale_path(mnemon_dir: Path, skill_id: str) -> Path:
+    return skill_loop_path(mnemon_dir) / "skills" / "stale" / skill_id / "SKILL.md"
+
+
+def skill_archived_path(mnemon_dir: Path, skill_id: str) -> Path:
+    return skill_loop_path(mnemon_dir) / "skills" / "archived" / skill_id / "SKILL.md"
+
+
+def skill_proposals_dir(mnemon_dir: Path) -> Path:
+    return skill_loop_path(mnemon_dir) / "proposals"
+
+
+def write_skill(path: Path, skill_id: str, description: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "---\n"
+        f"name: {skill_id}\n"
+        f"description: {description}\n"
+        "---\n\n"
+        f"# {skill_id}\n\n"
+        "Use this skill for lifecycle eval fixtures.\n",
+        encoding="utf-8",
+    )
+
+
+def append_skill_usage(mnemon_dir: Path, item: dict[str, Any]) -> None:
+    path = skill_usage_path(mnemon_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(item, sort_keys=True) + "\n")
+
+
+def setup_skill_curate_evidence(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del workspace, env
+    for index, event in enumerate(["missing", "workflow", "feedback"], start=1):
+        append_skill_usage(
+            mnemon_dir,
+            {
+                "time": f"2026-05-15T00:0{index}:00Z",
+                "skill": None,
+                "event": event,
+                "outcome": "negative" if event == "missing" else "neutral",
+                "note": "Release handoff checklist workflow repeated across eval, docs, and push tasks.",
+                "source": "agent",
+            },
+        )
+
+
+def setup_skill_active_release(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del workspace, env
+    write_skill(skill_active_path(mnemon_dir, "release-checklist"), "release-checklist", "Release handoff checklist fixture.")
+
+
+def setup_skill_active_legacy(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del workspace, env
+    write_skill(skill_active_path(mnemon_dir, "legacy-release"), "legacy-release", "Legacy release workflow fixture.")
+
+
+def setup_skill_stale_release(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del workspace, env
+    write_skill(skill_stale_path(mnemon_dir, "release-checklist"), "release-checklist", "Stale release handoff checklist fixture.")
+
+
+def load_jsonl(path: Path) -> list[dict[str, Any]]:
+    items: list[dict[str, Any]] = []
+    if not path.exists():
+        return items
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            items.append(value)
+    return items
+
+
+def assert_skill_skip_noise(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    path = skill_usage_path(mnemon_dir)
+    content = path.read_text(encoding="utf-8") if path.exists() else ""
+    return [
+        {"name": "transient skill evidence was not recorded", "passed": not path.exists() or not content.strip(), "path": str(path)},
+        {"name": "temporary token absent from skill evidence", "passed": "skill-temp-742913" not in content.lower(), "path": str(path)},
+    ]
+
+
+def assert_skill_missing_observed(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    path = skill_usage_path(mnemon_dir)
+    items = load_jsonl(path)
+    matching = [
+        item for item in items
+        if item.get("event") == "missing"
+        and item.get("skill") == "release-checklist"
+        and "release handoff checklist" in str(item.get("note", "")).lower()
+    ]
+    return [
+        {"name": "missing-skill evidence log exists", "passed": path.exists(), "path": str(path)},
+        {"name": "missing release checklist evidence recorded", "passed": bool(matching), "path": str(path)},
+        {"name": "evidence source is agent or user", "passed": bool(matching) and matching[-1].get("source") in {"agent", "user"}, "path": str(path)},
+    ]
+
+
+def assert_skill_manage_create(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, env
+    path = skill_active_path(mnemon_dir, "release-checklist")
+    host_path = workspace / ".codex" / "skills" / "release-checklist" / "SKILL.md"
+    return [
+        {"name": "approved skill created in active library", "passed": path.exists(), "path": str(path)},
+        assert_file_contains(path, "release-checklist", "created skill has release-checklist identity"),
+        {"name": "host skill surface was not directly edited", "passed": not host_path.exists(), "path": str(host_path)},
+    ]
+
+
+def assert_skill_curate_proposal(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    proposals = skill_proposals_dir(mnemon_dir)
+    files = sorted(path for path in proposals.rglob("*") if path.is_file()) if proposals.exists() else []
+    combined = "\n".join(path.read_text(encoding="utf-8", errors="replace") for path in files)
+    active = skill_active_path(mnemon_dir, "release-checklist")
+    return [
+        {"name": "curation proposal file created", "passed": bool(files), "path": str(proposals)},
+        {"name": "proposal mentions release checklist", "passed": "release handoff checklist" in combined.lower() or "release-checklist" in combined.lower(), "path": str(proposals)},
+        {"name": "curation did not directly activate skill", "passed": not active.exists(), "path": str(active)},
+    ]
+
+
+def assert_skill_unapproved_noop(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    active = skill_active_path(mnemon_dir, "release-checklist")
+    archived = skill_archived_path(mnemon_dir, "release-checklist")
+    return [
+        {"name": "unapproved lifecycle request kept active skill", "passed": active.exists(), "path": str(active)},
+        {"name": "unapproved lifecycle request did not archive skill", "passed": not archived.exists(), "path": str(archived)},
+    ]
+
+
+def assert_skill_stale_move(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    active = skill_active_path(mnemon_dir, "legacy-release")
+    stale = skill_stale_path(mnemon_dir, "legacy-release")
+    return [
+        {"name": "approved stale move removed active skill", "passed": not active.exists(), "path": str(active)},
+        {"name": "approved stale move created stale skill", "passed": stale.exists(), "path": str(stale)},
+    ]
+
+
+def assert_skill_restore(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    active = skill_active_path(mnemon_dir, "release-checklist")
+    stale = skill_stale_path(mnemon_dir, "release-checklist")
+    return [
+        {"name": "approved restore created active skill", "passed": active.exists(), "path": str(active)},
+        {"name": "approved restore removed stale skill", "passed": not stale.exists(), "path": str(stale)},
+    ]
+
+
+def assert_skill_author_draft(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, env
+    proposals = skill_proposals_dir(mnemon_dir)
+    draft = proposals / "release-checklist.SKILL.md"
+    active = skill_active_path(mnemon_dir, "release-checklist")
+    host_path = workspace / ".codex" / "skills" / "release-checklist" / "SKILL.md"
+    content = draft.read_text(encoding="utf-8") if draft.exists() else ""
+    return [
+        {"name": "skill author draft exists", "passed": draft.exists(), "path": str(draft)},
+        {"name": "draft has release-checklist frontmatter", "passed": "name: release-checklist" in content.lower(), "path": str(draft)},
+        {"name": "draft includes reusable procedure", "passed": "procedure" in content.lower() and "handoff" in content.lower(), "path": str(draft)},
+        {"name": "draft did not activate skill", "passed": not active.exists(), "path": str(active)},
+        {"name": "draft did not edit host skill surface", "passed": not host_path.exists(), "path": str(host_path)},
+        {"name": "draft omits secret-like token", "passed": "sk-test-author" not in content.lower(), "path": str(draft)},
     ]
 
 
@@ -633,7 +825,7 @@ SCENARIOS: dict[str, Scenario] = {
     "skill-observe-evidence": Scenario(
         name="skill-observe-evidence",
         modules=["skill-loop"],
-        expected_skills=["skill_observe", "skill_curate", "skill_manage"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
         setup=setup_none,
         prompt=(
             "Use the Mnemon skill loop to record lightweight evidence that the eval-runner workflow "
@@ -641,6 +833,108 @@ SCENARIOS: dict[str, Scenario] = {
             "Use note text containing 'eval-runner workflow'. Do not create or patch skills. Then reply done."
         ),
         assert_result=assert_skill_observe,
+    ),
+    "skill-skip-transient": Scenario(
+        name="skill-skip-transient",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_none,
+        prompt=(
+            "Apply the Mnemon skill loop guide. This turn used a one-off shell command "
+            "with temporary token skill-temp-742913 and no reusable workflow value. "
+            "Do not record skill evidence for it. Reply done."
+        ),
+        assert_result=assert_skill_skip_noise,
+    ),
+    "skill-observe-missing": Scenario(
+        name="skill-observe-missing",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_none,
+        prompt=(
+            "Use the Mnemon skill loop to record missing-skill evidence. "
+            "The missing skill id is release-checklist, event is missing, outcome is negative, "
+            "and the note must contain 'release handoff checklist'. Append exactly one JSONL item "
+            "to the configured usage log. Do not create or patch skills. Reply done."
+        ),
+        assert_result=assert_skill_missing_observed,
+    ),
+    "skill-manage-approved-create": Scenario(
+        name="skill-manage-approved-create",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_none,
+        prompt=(
+            "Use the Mnemon skill loop skill_manage procedure. This eval is explicit approval "
+            "to create a new canonical active skill with id release-checklist. Create only "
+            "active/release-checklist/SKILL.md in the canonical skill library, with frontmatter "
+            "name: release-checklist and a short procedure for release handoff checks. Do not edit "
+            "the host .codex skills surface directly. Reply done."
+        ),
+        assert_result=assert_skill_manage_create,
+    ),
+    "skill-curate-proposal": Scenario(
+        name="skill-curate-proposal",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_skill_curate_evidence,
+        prompt=(
+            "Use the Mnemon skill loop skill_curate procedure to review accumulated evidence. "
+            "Create a proposal file under the configured proposals directory recommending a "
+            "release-checklist skill for the repeated release handoff checklist workflow. "
+            "Do not create active skills or modify the host skill surface. Reply done."
+        ),
+        assert_result=assert_skill_curate_proposal,
+    ),
+    "skill-manage-unapproved-noop": Scenario(
+        name="skill-manage-unapproved-noop",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_skill_active_release,
+        prompt=(
+            "Apply the Mnemon skill loop skill_manage boundary. I am only considering "
+            "archiving active skill release-checklist someday, but this is not approved. "
+            "Do not move, archive, patch, or delete any skill. Reply with what you did."
+        ),
+        assert_result=assert_skill_unapproved_noop,
+    ),
+    "skill-manage-approved-stale": Scenario(
+        name="skill-manage-approved-stale",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_skill_active_legacy,
+        prompt=(
+            "Use the Mnemon skill loop skill_manage procedure. This eval explicitly approves "
+            "moving active skill legacy-release to stale because it is superseded. Move only "
+            "the canonical skill from active to stale. Do not edit the host .codex skill surface. Reply done."
+        ),
+        assert_result=assert_skill_stale_move,
+    ),
+    "skill-manage-approved-restore": Scenario(
+        name="skill-manage-approved-restore",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_skill_stale_release,
+        prompt=(
+            "Use the Mnemon skill loop skill_manage procedure. This eval explicitly approves "
+            "restoring stale skill release-checklist to active because renewed evidence supports it. "
+            "Move only the canonical skill from stale to active. Do not edit the host .codex skill surface. Reply done."
+        ),
+        assert_result=assert_skill_restore,
+    ),
+    "skill-author-draft": Scenario(
+        name="skill-author-draft",
+        modules=["skill-loop"],
+        expected_skills=SKILL_LOOP_EXPECTED_SKILLS,
+        setup=setup_none,
+        prompt=(
+            "Use the Mnemon skill loop skill_author procedure to draft a reviewable skill. "
+            "Create only the proposal draft release-checklist.SKILL.md under the configured proposals directory. "
+            "The skill id is release-checklist and it should teach a reusable release handoff checklist workflow. "
+            "Include frontmatter name and description plus a concise procedure. Do not activate the skill, do not edit "
+            "the host .codex skill surface, and do not include this temporary token: sk-test-author-742913. Reply done."
+        ),
+        assert_result=assert_skill_author_draft,
     ),
 }
 
@@ -664,6 +958,19 @@ MEMORY_DEEP_SUITE = [
     "memory-secret-rejection",
     "memory-no-pollution",
     "memory-multiturn-continuity",
+]
+
+
+SKILL_DEEP_SUITE = [
+    "skill-observe-evidence",
+    "skill-skip-transient",
+    "skill-observe-missing",
+    "skill-manage-approved-create",
+    "skill-curate-proposal",
+    "skill-manage-unapproved-noop",
+    "skill-manage-approved-stale",
+    "skill-manage-approved-restore",
+    "skill-author-draft",
 ]
 
 
@@ -813,7 +1120,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument(
         "--suite-name",
-        choices=["default", "memory-deep"],
+        choices=["default", "memory-deep", "skill-deep"],
         default="default",
         help="Scenario suite to run with --suite.",
     )
@@ -855,7 +1162,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         if "memory-loop" in args.modules:
             expected.extend(["memory_get", "memory_set"])
         if "skill-loop" in args.modules:
-            expected.extend(["skill_observe", "skill_curate", "skill_manage"])
+            expected.extend(SKILL_LOOP_EXPECTED_SKILLS)
         args.expected_skills = expected
     return args
 
@@ -865,7 +1172,12 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
     suite_root = Path(args.run_root) if args.run_root else root / ".testdata" / "codex-app-eval-suite" / utc_run_id()
     suite_root.mkdir(parents=True, exist_ok=True)
     reports = []
-    suite_names = MEMORY_DEEP_SUITE if args.suite_name == "memory-deep" else DEFAULT_SUITE
+    if args.suite_name == "memory-deep":
+        suite_names = MEMORY_DEEP_SUITE
+    elif args.suite_name == "skill-deep":
+        suite_names = SKILL_DEEP_SUITE
+    else:
+        suite_names = DEFAULT_SUITE
     for name in suite_names:
         scenario = SCENARIOS[name]
         current = scenario_args(args, scenario)

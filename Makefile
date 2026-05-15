@@ -10,7 +10,7 @@ ifeq ($(GOBIN),)
   GOBIN     := $(shell go env GOPATH)/bin
 endif
 
-.PHONY: deps build install uninstall test unit vet harness-validate codex-app-eval codex-app-eval-suite codex-memory-deep-eval docker-build docker-run compose-up compose-down compose-dev release-snapshot clean help
+.PHONY: deps build install uninstall test unit vet harness-validate codex-app-eval codex-app-eval-suite codex-memory-deep-eval codex-skill-deep-eval docker-build docker-run compose-up compose-down compose-dev release-snapshot clean help
 
 .DEFAULT_GOAL := help
 
@@ -56,6 +56,9 @@ codex-app-eval-suite: ## Run real Codex app-server memory/skill scenario suite
 
 codex-memory-deep-eval: ## Run deep real Codex app-server memory regression suite
 	python3 scripts/codex_app_server_eval.py --suite --suite-name memory-deep
+
+codex-skill-deep-eval: ## Run deep real Codex app-server skill regression suite
+	python3 scripts/codex_app_server_eval.py --suite --suite-name skill-deep
 
 # ── Containers / Deployment ──────────────────────────────────────────
 

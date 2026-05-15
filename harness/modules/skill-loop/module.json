@@ -21,6 +21,7 @@
     "skills": [
       "skills/skill_observe.md",
       "skills/skill_curate.md",
+      "skills/skill_author.md",
       "skills/skill_manage.md"
     ],
     "subagents": [
