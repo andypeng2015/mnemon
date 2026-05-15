@@ -27,6 +27,16 @@ The suite currently covers local-context memory skip, focused long-term recall,
 durable `MEMORY.md` writes, transient no-pollution behavior, and skill evidence
 logging.
 
+For longer memory-loop regression, run:
+
+```bash
+make codex-memory-deep-eval
+```
+
+The deep memory suite adds noisy recall filtering, stale-memory supersession,
+uncertain-preference rejection, secret-like value rejection, and multi-turn
+continuity through persisted `MEMORY.md`.
+
 To trigger a real Codex turn, opt in explicitly:
 
 ```bash

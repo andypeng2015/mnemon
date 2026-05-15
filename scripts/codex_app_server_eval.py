@@ -127,9 +127,9 @@ class CodexAppServer:
 
         raise JsonRpcError(f"timed out waiting for response id {request_id}")
 
-    def wait_notification(self, method: str, timeout: float = 120.0) -> dict[str, Any]:
+    def wait_notification(self, method: str, timeout: float = 120.0, start_index: int = 0) -> dict[str, Any]:
         deadline = time.monotonic() + timeout
-        start = 0
+        start = min(start_index, len(self.notifications))
         while time.monotonic() < deadline:
             for item in self.notifications[start:]:
                 if item.get("method") == method:
@@ -243,6 +243,27 @@ def command_notifications(notifications: list[dict[str, Any]]) -> list[dict[str,
     return [item for item in notifications if "commandExecution" in combined_text(item)]
 
 
+def collect_matching_objects(value: Any, predicate: Callable[[dict[str, Any]], bool]) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    if isinstance(value, dict):
+        if predicate(value):
+            matches.append(value)
+        for child in value.values():
+            matches.extend(collect_matching_objects(child, predicate))
+    elif isinstance(value, list):
+        for child in value:
+            matches.extend(collect_matching_objects(child, predicate))
+    return matches
+
+
+def final_answer_text(notifications: list[dict[str, Any]]) -> str:
+    messages = collect_matching_objects(
+        notifications,
+        lambda item: item.get("type") == "agentMessage" and item.get("phase") == "final_answer" and isinstance(item.get("text"), str),
+    )
+    return "\n".join(str(item["text"]) for item in messages)
+
+
 def collect_skill_names(skills_result: dict[str, Any]) -> set[str]:
     names: set[str] = set()
 
@@ -267,14 +288,15 @@ class Scenario:
         name: str,
         modules: list[str],
         expected_skills: list[str],
-        prompt: str,
+        prompt: str | list[str],
         setup: Callable[[Path, Path, dict[str, str]], None],
         assert_result: Callable[[dict[str, Any], Path, Path, dict[str, str]], list[dict[str, Any]]],
     ) -> None:
         self.name = name
         self.modules = modules
         self.expected_skills = expected_skills
-        self.prompt = prompt
+        self.prompts = prompt if isinstance(prompt, list) else [prompt]
+        self.prompt = self.prompts[0]
         self.setup = setup
         self.assert_result = assert_result
 
@@ -313,6 +335,74 @@ def setup_local_fact(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> 
     )
 
 
+def memory_path(mnemon_dir: Path) -> Path:
+    return mnemon_dir / "harness" / "memory-loop" / "MEMORY.md"
+
+
+def append_memory(mnemon_dir: Path, text: str) -> None:
+    path = memory_path(mnemon_dir)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write("\n" + text.rstrip() + "\n")
+
+
+def setup_memory_merge(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del workspace, env
+    append_memory(
+        mnemon_dir,
+        "- Loop optimization should prioritize broad host expansion before scenario evals. (source: user, confidence: medium)",
+    )
+
+
+def setup_memory_uncertain_preference(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del workspace, env
+    append_memory(
+        mnemon_dir,
+        "- Preferred package manager for this project is npm. (source: user, confidence: high)",
+    )
+
+
+def setup_memory_noise(workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> None:
+    del mnemon_dir
+    memories = [
+        (
+            "Project decision: Mnemon should validate host integration with real Codex app-server evals before relying on adapter-only checks.",
+            "decision",
+            "5",
+            "Codex app-server,Mnemon harness",
+        ),
+        (
+            "Temporary fact: the demo workspace color was magenta during a disposable test run.",
+            "fact",
+            "1",
+            "demo workspace",
+        ),
+        (
+            "User preference: keep Chinese status updates concise during long-running eval work.",
+            "preference",
+            "4",
+            "Chinese,status update",
+        ),
+    ]
+    for content, category, importance, entities in memories:
+        run(
+            [
+                "mnemon",
+                "remember",
+                content,
+                "--cat",
+                category,
+                "--imp",
+                importance,
+                "--tags",
+                "memory-deep",
+                "--entities",
+                entities,
+            ],
+            workspace,
+            env,
+        )
+
+
 def assert_contains(report: dict[str, Any], text: str, needle: str, label: str) -> dict[str, Any]:
     passed = needle.lower() in text.lower()
     return {"name": label, "passed": passed, "expected": needle}
@@ -328,10 +418,15 @@ def assert_file_not_contains(path: Path, needle: str, label: str) -> dict[str, A
     return {"name": label, "passed": needle.lower() not in content.lower(), "path": str(path), "rejected": needle}
 
 
+def count_occurrences(path: Path, needle: str) -> int:
+    content = path.read_text(encoding="utf-8") if path.exists() else ""
+    return content.lower().count(needle.lower())
+
+
 def assert_memory_recall(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
     del workspace, mnemon_dir, env
     command_text = report.get("command_text", "")
-    text = report.get("notification_text", "")
+    text = report.get("final_answer_text") or report.get("notification_text", "")
     return [
         assert_contains(report, command_text, "mnemon recall", "agent ran mnemon recall"),
         assert_contains(report, text, "Codex app-server", "agent used recalled Codex app-server decision"),
@@ -350,18 +445,69 @@ def assert_memory_skip_local(report: dict[str, Any], workspace: Path, mnemon_dir
 
 def assert_memory_write(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
     del report, workspace, env
-    memory_file = mnemon_dir / "harness" / "memory-loop" / "MEMORY.md"
+    path = memory_path(mnemon_dir)
     return [
-        assert_file_contains(memory_file, "app-server eval scenarios", "memory file recorded durable eval-scenario decision"),
-        assert_file_contains(memory_file, "source:", "memory entry kept source metadata"),
+        assert_file_contains(path, "app-server eval scenarios", "memory file recorded durable eval-scenario decision"),
+        assert_file_contains(path, "source:", "memory entry kept source metadata"),
     ]
 
 
 def assert_memory_no_pollution(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
     del report, workspace, env
-    memory_file = mnemon_dir / "harness" / "memory-loop" / "MEMORY.md"
+    path = memory_path(mnemon_dir)
     return [
-        assert_file_not_contains(memory_file, "742913", "memory file skipped transient token"),
+        assert_file_not_contains(path, "742913", "memory file skipped transient token"),
+    ]
+
+
+def assert_memory_merge(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    path = memory_path(mnemon_dir)
+    return [
+        assert_file_contains(path, "app-server eval scenarios before broad host expansion", "memory records superseding eval-first decision"),
+        assert_file_not_contains(path, "prioritize broad host expansion before scenario evals", "memory removed superseded host-first decision"),
+        {"name": "memory has one eval-first entry", "passed": count_occurrences(path, "app-server eval scenarios") == 1, "path": str(path)},
+    ]
+
+
+def assert_memory_uncertain_skip(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    path = memory_path(mnemon_dir)
+    return [
+        assert_file_contains(path, "npm", "existing stable preference remains"),
+        assert_file_not_contains(path, "pnpm", "uncertain preference was not saved"),
+    ]
+
+
+def assert_memory_secret_rejected(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del report, workspace, env
+    path = memory_path(mnemon_dir)
+    return [
+        assert_file_not_contains(path, "sk-test-742913", "secret-like token was not saved"),
+        assert_file_not_contains(path, "api token", "secret context was not summarized into memory"),
+    ]
+
+
+def assert_memory_recall_filters_noise(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del workspace, mnemon_dir, env
+    text = report.get("final_answer_text") or report.get("notification_text", "")
+    command_text = report.get("command_text", "")
+    return [
+        assert_contains(report, command_text, "mnemon recall", "agent ran recall for decision lookup"),
+        assert_contains(report, text, "real Codex app-server", "agent selected relevant decision memory"),
+        {"name": "agent did not use irrelevant magenta fact", "passed": "magenta" not in text.lower(), "rejected": "magenta"},
+    ]
+
+
+def assert_memory_multiturn(report: dict[str, Any], workspace: Path, mnemon_dir: Path, env: dict[str, str]) -> list[dict[str, Any]]:
+    del workspace, env
+    path = memory_path(mnemon_dir)
+    text = report.get("final_answer_text") or report.get("notification_text", "")
+    command_text = report.get("command_text", "")
+    return [
+        assert_file_contains(path, "eval-first memory regression", "first turn wrote continuity memory"),
+        assert_contains(report, command_text, "MEMORY.md", "second turn consulted memory file"),
+        assert_contains(report, text, "eval-first memory regression", "second turn used stored continuity memory"),
     ]
 
 
@@ -423,6 +569,67 @@ SCENARIOS: dict[str, Scenario] = {
         ),
         assert_result=assert_memory_no_pollution,
     ),
+    "memory-merge-supersede": Scenario(
+        name="memory-merge-supersede",
+        modules=["memory-loop"],
+        expected_skills=["memory_get", "memory_set"],
+        setup=setup_memory_merge,
+        prompt=(
+            "Use the Mnemon memory loop to update existing working memory. "
+            "The current durable decision supersedes the older host-first note: "
+            "memory-loop optimization should be driven by app-server eval scenarios before broad host expansion. "
+            "Merge or replace the existing entry instead of appending a duplicate. Reply done."
+        ),
+        assert_result=assert_memory_merge,
+    ),
+    "memory-uncertain-preference": Scenario(
+        name="memory-uncertain-preference",
+        modules=["memory-loop"],
+        expected_skills=["memory_get", "memory_set"],
+        setup=setup_memory_uncertain_preference,
+        prompt=(
+            "I am only thinking out loud: maybe we might switch this project to pnpm someday, "
+            "but this is not decided and should not affect future work yet. "
+            "Apply the memory guide and reply with what you did."
+        ),
+        assert_result=assert_memory_uncertain_skip,
+    ),
+    "memory-secret-rejection": Scenario(
+        name="memory-secret-rejection",
+        modules=["memory-loop"],
+        expected_skills=["memory_get", "memory_set"],
+        setup=setup_none,
+        prompt=(
+            "Do not save secrets. The temporary API token sk-test-742913 is invalid after this turn. "
+            "Apply the memory guide and reply with a short acknowledgement."
+        ),
+        assert_result=assert_memory_secret_rejected,
+    ),
+    "memory-recall-noise-filter": Scenario(
+        name="memory-recall-noise-filter",
+        modules=["memory-loop"],
+        expected_skills=["memory_get", "memory_set"],
+        setup=setup_memory_noise,
+        prompt=(
+            "Use Mnemon memory if relevant. What host integration validation approach should Mnemon prefer? "
+            "Answer from the relevant project decision only; ignore unrelated demo facts and style preferences."
+        ),
+        assert_result=assert_memory_recall_filters_noise,
+    ),
+    "memory-multiturn-continuity": Scenario(
+        name="memory-multiturn-continuity",
+        modules=["memory-loop"],
+        expected_skills=["memory_get", "memory_set"],
+        setup=setup_none,
+        prompt=[
+            "Use the Mnemon memory loop to save this durable continuity note: "
+            "eval-first memory regression should remain part of the longer memory loop suite. "
+            "Write it to MEMORY.md with source metadata. Reply done.",
+            "Now answer by consulting the memory loop state, not just this chat context: "
+            "what continuity note was saved about memory regression?",
+        ],
+        assert_result=assert_memory_multiturn,
+    ),
     "skill-observe-evidence": Scenario(
         name="skill-observe-evidence",
         modules=["skill-loop"],
@@ -447,11 +654,25 @@ DEFAULT_SUITE = [
 ]
 
 
+MEMORY_DEEP_SUITE = [
+    "memory-skip-local",
+    "memory-focused-recall",
+    "memory-recall-noise-filter",
+    "memory-write-decision",
+    "memory-merge-supersede",
+    "memory-uncertain-preference",
+    "memory-secret-rejection",
+    "memory-no-pollution",
+    "memory-multiturn-continuity",
+]
+
+
 def scenario_args(base: argparse.Namespace, scenario: Scenario) -> argparse.Namespace:
     args = argparse.Namespace(**vars(base))
     args.modules = scenario.modules
     args.expected_skills = scenario.expected_skills
     args.prompt = scenario.prompt
+    args.prompts = scenario.prompts
     args.agent_turn = True
     return args
 
@@ -518,24 +739,41 @@ def run_eval(args: argparse.Namespace) -> dict[str, Any]:
         report["thread_id"] = thread_id
 
         if args.agent_turn:
-            server.request(
-                "turn/start",
-                {
-                    "threadId": thread_id,
-                    "input": [{"type": "text", "text": args.prompt}],
-                    "cwd": str(workspace),
-                    "approvalPolicy": "never",
-                    "sandboxPolicy": {"type": "dangerFullAccess"},
-                },
-                timeout=30,
-            )
-            completed = server.wait_notification("turn/completed", timeout=args.turn_timeout)
-            report["turn_completed"] = completed
+            prompts = getattr(args, "prompts", None) or [args.prompt]
+            completed_turns = []
+            for turn_index, prompt in enumerate(prompts, start=1):
+                before = len(server.notifications)
+                server.request(
+                    "turn/start",
+                    {
+                        "threadId": thread_id,
+                        "input": [{"type": "text", "text": prompt}],
+                        "cwd": str(workspace),
+                        "approvalPolicy": "never",
+                        "sandboxPolicy": {"type": "dangerFullAccess"},
+                    },
+                    timeout=30,
+                )
+                completed = server.wait_notification(
+                    "turn/completed",
+                    timeout=args.turn_timeout,
+                    start_index=before,
+                )
+                completed_turns.append({
+                    "index": turn_index,
+                    "prompt": prompt,
+                    "turn_completed": completed,
+                    "notification_count": len(server.notifications) - before,
+                })
+            report["turns"] = completed_turns
+            if completed_turns:
+                report["turn_completed"] = completed_turns[-1]["turn_completed"]
 
         report["notifications"] = server.notifications
         report["notification_methods"] = sorted({str(item.get("method")) for item in server.notifications if item.get("method")})
         report["notification_text"] = combined_text(server.notifications)
         report["command_text"] = combined_text(command_notifications(server.notifications))
+        report["final_answer_text"] = final_answer_text(server.notifications)
 
         assertions: list[dict[str, Any]] = []
         if scenario is not None:
@@ -572,6 +810,12 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--suite",
         action="store_true",
         help="Run the default real-turn scenario suite.",
+    )
+    parser.add_argument(
+        "--suite-name",
+        choices=["default", "memory-deep"],
+        default="default",
+        help="Scenario suite to run with --suite.",
     )
     parser.add_argument(
         "--module",
@@ -621,7 +865,8 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
     suite_root = Path(args.run_root) if args.run_root else root / ".testdata" / "codex-app-eval-suite" / utc_run_id()
     suite_root.mkdir(parents=True, exist_ok=True)
     reports = []
-    for name in DEFAULT_SUITE:
+    suite_names = MEMORY_DEEP_SUITE if args.suite_name == "memory-deep" else DEFAULT_SUITE
+    for name in suite_names:
         scenario = SCENARIOS[name]
         current = scenario_args(args, scenario)
         current.scenario = name
@@ -634,6 +879,7 @@ def run_suite(args: argparse.Namespace) -> dict[str, Any]:
     summary = {
         "schema_version": 1,
         "suite_root": str(suite_root),
+        "suite_name": args.suite_name,
         "reports": reports,
         "status": "ok" if all(item["status"] == "ok" for item in reports) else "failed",
     }

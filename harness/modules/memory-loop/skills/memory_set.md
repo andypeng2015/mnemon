@@ -68,6 +68,7 @@ Omit metadata only when the source is obvious from nearby context.
 - temporary task progress
 - unverified guesses
 - facts already obvious from source files
+- restatements of `GUIDE.md`, memory policy, safety policy, or skip conditions
 - noisy implementation details
 - low-confidence speculation
 
@@ -75,3 +76,7 @@ Omit metadata only when the source is obvious from nearby context.
 
 If an update could conflict with user intent or current repository facts, ask
 for clarification or leave `MEMORY.md` unchanged.
+
+Do not write a memory entry merely because the user repeated an existing safety
+rule such as not storing secrets. Apply the rule for the current turn and leave
+`MEMORY.md` unchanged unless the user explicitly provides a new durable policy.

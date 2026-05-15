@@ -26,6 +26,15 @@ make codex-app-eval-suite
 决策应写入 `MEMORY.md`、临时信息不应污染 memory，以及 skill evidence
 应写入 JSONL。
 
+更长的 memory loop 回归可以运行：
+
+```bash
+make codex-memory-deep-eval
+```
+
+deep memory suite 会额外覆盖：带噪声的相关 recall、过期 memory 覆盖、
+不确定偏好拒绝、疑似 secret 值拒绝，以及通过持久化 `MEMORY.md` 完成多轮连续性。
+
 如果需要触发真实 Codex turn，可以显式开启：
 
 ```bash
