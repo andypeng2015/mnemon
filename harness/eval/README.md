@@ -20,6 +20,18 @@ turn:
 make codex-app-eval
 ```
 
+Run the real memory/skill scenario suite with:
+
+```bash
+make codex-app-eval-suite
+```
+
+Run the longer memory regression suite with:
+
+```bash
+make codex-memory-deep-eval
+```
+
 To run an actual Codex turn, use:
 
 ```bash
@@ -42,3 +54,21 @@ Each eval run has:
 - `.mnemon/`: canonical Mnemon harness state
 - `logs/`: app-server logs
 - `reports/`: machine-readable eval reports
+
+## Scenario Suite
+
+The default suite covers:
+
+- `memory-skip-local`: visible workspace context should not trigger recall
+- `memory-focused-recall`: relevant seeded long-term memory should be recalled
+- `memory-write-decision`: durable decisions should update `MEMORY.md`
+- `memory-no-pollution`: transient tokens should not be stored
+- `skill-observe-evidence`: reusable workflow evidence should append JSONL
+
+The `memory-deep` suite extends memory coverage with:
+
+- relevant recall with noisy low-value memories
+- superseding stale memory entries without duplicating decisions
+- rejecting uncertain preference changes
+- rejecting secret-like values and generic restatements of existing safety policy
+- multi-turn continuity through persisted `MEMORY.md`
