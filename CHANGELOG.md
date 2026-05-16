@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-05-16
+
+### Added
+- `remember --entity-mode` to choose `merge`, `provided`, or `auto` entity handling.
+
+### Fixed
+- Store name validation for resolved store paths.
+- Query limit validation for recall and related command paths.
+- Sidecar migration error reporting.
+- Setup integration cleanup reliability.
+
+### Note
+- Harness modules, harness documentation, and harness evaluation assets remain experimental and are not part of the v0.1.4 public stability guarantee.
+
 ## [0.1.3] - 2026-05-03
 
 ### Added
@@ -46,7 +60,8 @@ Initial public release.
 - Release pipeline: GoReleaser, GitHub Actions, Homebrew tap
 - Comprehensive documentation with Chinese translations
 
-[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/mnemon-dev/mnemon/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mnemon-dev/mnemon/compare/v0.1.2...v0.1.3
 [0.1.1]: https://github.com/mnemon-dev/mnemon/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/mnemon-dev/mnemon/releases/tag/v0.1.0
