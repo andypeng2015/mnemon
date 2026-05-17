@@ -105,7 +105,7 @@ NanoClaw runs agents inside Linux containers. Use the `/add-mnemon` skill to int
 
 The skill is available at `.claude/skills/add-mnemon/` in the NanoClaw repo.
 
-### [Nanobot](https://github.com/dream-aim/nanobot)
+### [Nanobot](https://github.com/HKUDS/nanobot)
 
 ```bash
 mnemon setup --target nanobot --global --yes
