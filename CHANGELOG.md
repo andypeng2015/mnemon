@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-05-17
+
 ### Fixed
 - `Diff` now sorts matches by `Similarity` descending before selecting the overall
   suggestion. Previously, `KeywordSearch` ordered candidates by token overlap score,
@@ -77,7 +79,8 @@ Initial public release.
 - Release pipeline: GoReleaser, GitHub Actions, Homebrew tap
 - Comprehensive documentation with Chinese translations
 
-[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/mnemon-dev/mnemon/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/mnemon-dev/mnemon/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/mnemon-dev/mnemon/compare/v0.1.2...v0.1.3
 [0.1.1]: https://github.com/mnemon-dev/mnemon/compare/v0.1.0...v0.1.1
