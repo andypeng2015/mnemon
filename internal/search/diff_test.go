@@ -33,18 +33,38 @@ func TestClassifySuggestion_ConflictNegation(t *testing.T) {
 		newText  string
 		existing string
 	}{
-		{"not", "do not use Redis", "use Redis for caching"},
 		{"no longer", "no longer supports Python 2", "supports Python 2"},
 		{"replaced", "replaced Flask with FastAPI", "uses Flask for API"},
 		{"chinese_negation", "不再使用Redis", "使用Redis"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			// Similarity >= 0.7 so negation check is active.
 			got := classifySuggestion(0.7, tt.newText, tt.existing)
 			if got != DiffConflict {
 				t.Errorf("want CONFLICT, got %s", got)
 			}
 		})
+	}
+}
+
+func TestClassifySuggestion_NotWordNoConflict(t *testing.T) {
+	// "not" alone must NOT trigger CONFLICT — it appears constantly in
+	// scientific text ("species not previously recorded") and would cause
+	// false replacements of distinct survey records.
+	got := classifySuggestion(0.7, "species not recorded at this site", "species recorded at Kinabalu")
+	if got == DiffConflict {
+		t.Error("bare 'not' should not trigger CONFLICT")
+	}
+}
+
+func TestClassifySuggestion_ConflictBelowThreshold(t *testing.T) {
+	// Negation words must NOT trigger CONFLICT when similarity < 0.7.
+	// Two survey records from different locations may share domain vocabulary
+	// and contain "no longer" or "replaced" in unrelated sentences.
+	got := classifySuggestion(0.6, "no longer present at Raub site", "butterfly survey Kinabalu")
+	if got == DiffConflict {
+		t.Error("negation below similarity 0.7 should not trigger CONFLICT")
 	}
 }
 
@@ -102,6 +122,29 @@ func TestDiff_DuplicateOverridesOverall(t *testing.T) {
 	result := Diff(insights, "Go uses SQLite for storage", DiffOptions{})
 	if result.Suggestion != DiffDuplicate {
 		t.Errorf("exact match present: want overall DUPLICATE, got %s", result.Suggestion)
+	}
+}
+
+func TestDiff_SameDomainCosineNoOverride(t *testing.T) {
+	// Regression: same-domain facts with different locations must not trigger UPDATE.
+	// nomic-embed-text produces cosine ~0.75 for same-domain different-fact pairs.
+	// The old threshold (0.70) let cosine override token similarity and incorrectly
+	// classified as UPDATE, replacing the original insight. The fix raises it to 0.85.
+	insights := []*model.Insight{
+		{ID: "kinabalu", Content: "Dichorragia nesimachus singleton at Kinabalu Park, Sabah."},
+	}
+	// Two unit vectors with cosine similarity = 0.75: simulates same-domain different-fact embeddings.
+	newVec := []float64{1.0, 0.0}
+	existVec := []float64{0.75, 0.6614} // cos(newVec, existVec) = 0.75
+
+	result := Diff(insights,
+		"Dichorragia nesimachus first record in Bentong, Pahang.",
+		DiffOptions{
+			NewEmbedding:  newVec,
+			ExistingEmbed: []EmbeddedItem{{ID: "kinabalu", Embedding: existVec}},
+		})
+	if result.Suggestion != DiffAdd {
+		t.Errorf("cosine=0.75 (same domain, different location): want ADD, got %s", result.Suggestion)
 	}
 }
 

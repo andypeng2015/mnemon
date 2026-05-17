@@ -67,7 +67,7 @@ func Diff(insights []*model.Insight, newContent string, opts DiffOptions) DiffRe
 	// Step 2: score each candidate
 	matches := make([]DiffMatch, 0, len(candidates))
 	for _, c := range candidates {
-		tokenSim := ContentSimilarity(newContent, c.Insight.Content)
+		tokenSim := JaccardSimilarity(newContent, c.Insight.Content)
 
 		var cosineSim float64
 		if opts.NewEmbedding != nil {
@@ -76,10 +76,11 @@ func Diff(insights []*model.Insight, newContent string, opts DiffOptions) DiffRe
 			}
 		}
 
-		// Combined similarity: cosine only contributes when above 0.7
-		// (below that, same-domain but different content can produce false matches)
+		// Combined similarity: cosine only contributes when above 0.85.
+		// Below that, same-domain content (e.g. two butterfly survey locations)
+		// clusters around 0.70–0.84 and produces false UPDATE matches.
 		similarity := tokenSim
-		if cosineSim >= 0.7 && cosineSim > similarity {
+		if cosineSim >= 0.85 && cosineSim > similarity {
 			similarity = cosineSim
 		}
 
@@ -137,9 +138,9 @@ func Diff(insights []*model.Insight, newContent string, opts DiffOptions) DiffRe
 			if !ok {
 				continue
 			}
-			tokenSim := ContentSimilarity(newContent, ins.Content)
+			tokenSim := JaccardSimilarity(newContent, ins.Content)
 			similarity := tokenSim
-			if cp.sim >= 0.7 && cp.sim > similarity {
+			if cp.sim >= 0.85 && cp.sim > similarity {
 				similarity = cp.sim
 			}
 			suggestion := classifySuggestion(similarity, newContent, ins.Content)
@@ -177,11 +178,13 @@ func Diff(insights []*model.Insight, newContent string, opts DiffOptions) DiffRe
 	}
 }
 
-// negationWords detects potential contradictions.
+// negationWords detects clear state-change signals. Single common words like
+// "not" are intentionally excluded — they appear constantly in scientific and
+// research text and cause false CONFLICT classifications.
 var negationWords = []string{
-	"not", "no longer", "don't", "doesn't", "never", "switched from",
+	"no longer", "don't", "doesn't", "never", "switched from",
 	"instead of", "rather than", "replaced", "deprecated",
-	"不", "没有", "不再", "放弃", "替换", "取消",
+	"不再", "放弃", "替换", "取消",
 }
 
 func classifySuggestion(similarity float64, newText, existingText string) DiffSuggestion {
@@ -189,12 +192,17 @@ func classifySuggestion(similarity float64, newText, existingText string) DiffSu
 		return DiffAdd
 	}
 
-	// Check for negation/conflict signals (even at high similarity)
-	newLower := strings.ToLower(newText)
-	existLower := strings.ToLower(existingText)
-	for _, neg := range negationWords {
-		if strings.Contains(newLower, neg) || strings.Contains(existLower, neg) {
-			return DiffConflict
+	// Only check for conflict signals when texts are substantially similar.
+	// At borderline similarity (0.5–0.7) texts may share domain vocabulary
+	// without being about the same subject (e.g. two survey records from
+	// different locations with shared species names).
+	if similarity >= 0.7 {
+		newLower := strings.ToLower(newText)
+		existLower := strings.ToLower(existingText)
+		for _, neg := range negationWords {
+			if strings.Contains(newLower, neg) || strings.Contains(existLower, neg) {
+				return DiffConflict
+			}
 		}
 	}
 
