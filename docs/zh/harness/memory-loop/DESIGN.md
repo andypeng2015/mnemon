@@ -8,6 +8,29 @@
 
 Memory loop 是 self-evolution harness 的第一个可落地切片。它给 HostAgent 提供一份面向 prompt 的工作记忆，同时使用 Mnemon 作为持久长期记忆。Harness 本身保持很小：围绕已有 HostAgent 安装 Markdown policy、hook prompt、protocol skills 和一个维护型 subagent。
 
+## 生命周期控制平面位置
+
+在生命周期控制平面里，`memory-loop` 是一个 `LoopModule`。它声明可迁移的记忆
+policy、lifecycle prompts、protocol skills、dreaming subagent 和 runtime state
+contract。
+
+这个 loop 通过 host binding 进入宿主：
+
+```text
+LoopModule(memory-loop)
+  -> HostBinding(host + lifecycle surfaces)
+  -> Reconcile
+  -> HostAdapter
+  -> Projection(.codex / .claude / other host surface)
+  -> Status
+  -> next Reconcile
+```
+
+HostAgent 消费 projection，并继续拥有执行。`.mnemon` 保存 memory-loop 的
+canonical state，包括 `MEMORY.md`、manifests 和持久 Mnemon stores。宿主目录是
+可重新生成的视图；当 projection status 与声明的 binding 漂移时，可以由
+reconcile 修复。
+
 ## 设计目标
 
 MVP 要回答一个问题：如何让 HostAgent 在不变成自定义 agent runtime 的前提下，跨任务记住有用信息？

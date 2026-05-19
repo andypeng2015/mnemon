@@ -8,6 +8,29 @@ The skill loop gives a host agent a self-evolving skill library without replacin
 
 The MVP is intentionally a visibility and lifecycle harness. It decides which skills should be discoverable now, which should be kept for maintenance, and which should remain as history. It does not inject all skills into the prompt, and it does not require the host agent to reload newly-created or patched skills in the current session.
 
+## Lifecycle Control Plane Position
+
+In the lifecycle control plane, `skill-loop` is a `LoopModule`. It declares
+skill visibility policy, observation and management protocols, curator
+maintenance, and the canonical skill lifecycle state contract.
+
+The loop becomes active through a host binding:
+
+```text
+LoopModule(skill-loop)
+  -> HostBinding(host + skill surface)
+  -> Reconcile
+  -> HostAdapter
+  -> Projection(.codex/skills, .claude/skills, or another host surface)
+  -> Status
+  -> next Reconcile
+```
+
+The HostAgent consumes the projected active skill surface and still owns native
+skill discovery and execution. `.mnemon` keeps the canonical skill library and
+evidence. Host skill directories are generated views that can be repaired when
+projection status drifts from the declared binding.
+
 ## Goals
 
 - Keep the host agent in control of execution, native skill discovery, subagent calls, and tool routing.

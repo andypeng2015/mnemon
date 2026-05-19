@@ -69,6 +69,36 @@
       text-transform: uppercase;
     }
 
+    .nav-left {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .home-link:hover,
+    .home-link:focus-visible {
+      border-color: var(--host);
+      color: var(--host);
+      outline: 0;
+    }
+
     .language-switch {
       display: inline-flex;
       gap: 2px;
@@ -268,6 +298,74 @@
       margin-bottom: 5px;
       color: var(--color);
       font-size: 14px;
+    }
+
+    .control-path {
+      margin-bottom: 18px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .control-path-grid {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 1px;
+      background: var(--line);
+    }
+
+    .control-step {
+      position: relative;
+      min-height: 118px;
+      padding: 13px;
+      background: #ffffff;
+      border-top: 4px solid var(--color);
+    }
+
+    .control-step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -14px;
+      z-index: 2;
+      width: 24px;
+      height: 2px;
+      background: var(--color);
+    }
+
+    .control-step:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: calc(50% - 4px);
+      right: -17px;
+      z-index: 3;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      border-left: 8px solid var(--color);
+    }
+
+    .control-step b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--color);
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .control-step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .control-feedback {
+      padding: 10px 14px;
+      border-top: 1px solid var(--line);
+      background: #fbfcfe;
+      color: var(--muted);
+      font-size: 13px;
     }
 
     .flow-layout {
@@ -513,9 +611,15 @@
     @media (max-width: 1080px) {
       .hero,
       .inventory-layout,
+      .control-path-grid,
       .flow-layout,
       .rules {
         grid-template-columns: 1fr;
+      }
+
+      .control-step:not(:last-child)::before,
+      .control-step:not(:last-child)::after {
+        display: none;
       }
 
       .section-title {
@@ -565,7 +669,10 @@
   <header>
     <div class="shell">
       <div class="topbar">
-        <div class="eyebrow" id="eyebrow"></div>
+        <div class="nav-left">
+          <a class="home-link" href="../index.html">Docs Home</a>
+          <div class="eyebrow" id="eyebrow"></div>
+        </div>
         <div class="language-switch" id="language-switch" aria-label="Language">
           <button type="button" data-lang="zh">中文</button>
           <button type="button" data-lang="en">English</button>
@@ -582,6 +689,17 @@
   </header>
 
   <main class="shell">
+    <section aria-labelledby="control-title">
+      <div class="section-title">
+        <h2 id="control-title"></h2>
+        <p id="control-intro"></p>
+      </div>
+      <div class="control-path">
+        <div class="control-path-grid" id="control-path"></div>
+        <div class="control-feedback" id="control-feedback"></div>
+      </div>
+    </section>
+
     <section aria-labelledby="components-title">
       <div class="section-title">
         <h2 id="components-title"></h2>
@@ -645,6 +763,17 @@
           "先看三大核心：HostAgent、MEMORY.md、Mnemon。",
           "再看五类支撑概念：GUIDE、setup、hook、protocol、subagent。",
           "最后切换阶段，看每个 hook 如何把判断交给 skill 或 subagent。"
+        ],
+        controlTitle: "生命周期控制位置",
+        controlIntro: "memory-loop 在整体控制平面里是一个 LoopModule。它先被声明和绑定，再由 HostAdapter 投影到宿主；运行结果和状态回到 .mnemon，供下一次 reconcile 使用。",
+        controlFeedback: "Status 反馈到下一次 Reconcile；记忆真实状态保留在 .mnemon，而不是宿主 projection 目录。",
+        controlSteps: [
+          { name: "LoopModule", color: "var(--working)", text: "memory-loop 声明 GUIDE、hooks、memory_get、memory_set、dreaming 和 MEMORY.md 状态契约。" },
+          { name: "HostBinding", color: "var(--guide)", text: "声明 memory-loop 应绑定到 Codex、Claude Code 或其他 host，并启用对应 lifecycle surface。" },
+          { name: "Reconcile", color: "var(--capability)", text: "检查 projection 是否存在、过期或漂移，并决定是否重新生成宿主可见资产。" },
+          { name: "HostAdapter", color: "var(--host)", text: "把同一 memory-loop 渲染成 host-native skills、hooks、env 和 runtime 指针。" },
+          { name: "Projection", color: "var(--hook)", text: "HostAgent 消费 .codex 或 .claude 中生成的 skill、hook、instruction 和 env 文件。" },
+          { name: "Status", color: "var(--longterm)", text: "记录 projection 状态、manifest 和 .mnemon/harness/memory-loop 的 canonical runtime state。" }
         ],
         componentsTitle: "系统组成",
         componentsIntro: "这里先固定三大核心主体，再用统一的五类 harness 概念描述安装、触发、协议和后台维护。",
@@ -800,6 +929,17 @@
           "Start with the three core parts: HostAgent, MEMORY.md, and Mnemon.",
           "Then read the five harness concepts: GUIDE, setup, hook, protocol, and subagent.",
           "Finally switch phases to see how each hook delegates to a skill or subagent."
+        ],
+        controlTitle: "Lifecycle Control Position",
+        controlIntro: "memory-loop is one LoopModule in the lifecycle control plane. It is declared, bound to a host, projected by a HostAdapter, and observed through status so the next reconcile can repair drift.",
+        controlFeedback: "Status feeds the next Reconcile; durable memory state remains in .mnemon, not in the host projection directory.",
+        controlSteps: [
+          { name: "LoopModule", color: "var(--working)", text: "memory-loop declares GUIDE, hooks, memory_get, memory_set, dreaming, and the MEMORY.md state contract." },
+          { name: "HostBinding", color: "var(--guide)", text: "Declares that memory-loop should bind to Codex, Claude Code, or another host with specific lifecycle surfaces." },
+          { name: "Reconcile", color: "var(--capability)", text: "Checks whether projection is missing, stale, or drifted, then decides whether host-visible assets need repair." },
+          { name: "HostAdapter", color: "var(--host)", text: "Renders the same memory-loop into host-native skills, hooks, env files, and runtime pointers." },
+          { name: "Projection", color: "var(--hook)", text: "The HostAgent consumes generated skills, hooks, instructions, and env files under .codex or .claude." },
+          { name: "Status", color: "var(--longterm)", text: "Records projection condition, manifests, and canonical runtime state under .mnemon/harness/memory-loop." }
         ],
         componentsTitle: "System Components",
         componentsIntro: "This keeps the three core runtime parts stable, then describes installation, timing, protocol execution, and background maintenance through one shared harness vocabulary.",
@@ -1100,6 +1240,9 @@
       document.getElementById("page-title").textContent = t.title;
       document.getElementById("page-summary").textContent = t.summary;
       document.getElementById("reading-card").innerHTML = `<h2>${t.readingTitle}</h2><ol>${t.reading.map((item) => `<li>${item}</li>`).join("")}</ol>`;
+      document.getElementById("control-title").textContent = t.controlTitle;
+      document.getElementById("control-intro").textContent = t.controlIntro;
+      document.getElementById("control-feedback").textContent = t.controlFeedback;
       document.getElementById("components-title").textContent = t.componentsTitle;
       document.getElementById("components-intro").textContent = t.componentsIntro;
       document.getElementById("core-heading").textContent = t.coreHeading;
@@ -1112,6 +1255,13 @@
 
       document.getElementById("core-row").innerHTML = t.cores.map((item) => `
         <div class="core" style="--color: ${item.color};">
+          <b>${item.name}</b>
+          <p>${item.text}</p>
+        </div>
+      `).join("");
+
+      document.getElementById("control-path").innerHTML = t.controlSteps.map((item) => `
+        <div class="control-step" style="--color: ${item.color};">
           <b>${item.name}</b>
           <p>${item.text}</p>
         </div>

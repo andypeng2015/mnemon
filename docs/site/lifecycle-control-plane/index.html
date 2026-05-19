@@ -1,0 +1,1312 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Mnemon memory-driven lifecycle control plane design note." />
+  <title>Mnemon Lifecycle Control Plane</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fa;
+      --ink: #151922;
+      --muted: #647084;
+      --line: #d8e0ea;
+      --panel: #ffffff;
+      --soft: #eef3f8;
+      --host: #2d6b57;
+      --control: #315f9c;
+      --loop: #8a5fbf;
+      --state: #a45138;
+      --warn: #9a6b1f;
+      --shadow: 0 14px 34px rgba(29, 40, 58, 0.1);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .shell {
+      width: min(1240px, calc(100vw - 32px));
+      margin: 0 auto;
+    }
+
+    header {
+      padding: 28px 0 24px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(245, 247, 250, 0.97);
+    }
+
+    .topbar {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .nav-left {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .home-link {
+      display: inline-flex;
+      align-items: center;
+      min-height: 30px;
+      padding: 5px 10px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      text-transform: uppercase;
+    }
+
+    .home-link:hover,
+    .home-link:focus-visible {
+      border-color: var(--control);
+      color: var(--control);
+      outline: 0;
+    }
+
+    .language-switch {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--panel);
+    }
+
+    .language-switch button {
+      min-width: 82px;
+      border: 0;
+      border-radius: 999px;
+      background: transparent;
+      padding: 6px 11px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .language-switch button[aria-pressed="true"] {
+      background: var(--control);
+      color: #ffffff;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 340px;
+      gap: 24px;
+      align-items: start;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 44px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      margin: 12px 0 0;
+      max-width: 860px;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .reading {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .reading h2,
+    .section-title h2 {
+      margin: 0;
+      font-size: 17px;
+      letter-spacing: 0;
+    }
+
+    .reading h2 {
+      padding: 13px 14px;
+      border-bottom: 1px solid var(--line);
+      color: var(--control);
+      background: #fbfcfe;
+    }
+
+    .reading ol {
+      margin: 0;
+      padding: 12px 16px 14px 32px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .reading li + li {
+      margin-top: 6px;
+    }
+
+    main {
+      padding: 22px 0 44px;
+    }
+
+    .section-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      align-items: end;
+      margin: 0 0 10px;
+    }
+
+    .section-title p {
+      margin: 0;
+      max-width: 760px;
+      color: var(--muted);
+      font-size: 13px;
+      text-align: right;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .panel h3 {
+      margin: 0;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+      font-size: 15px;
+      letter-spacing: 0;
+      background: #fbfcfe;
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .statement {
+      margin: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .statement strong {
+      color: var(--ink);
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 4px 9px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .tag.host {
+      border-color: rgba(45, 107, 87, 0.35);
+      background: rgba(45, 107, 87, 0.08);
+      color: var(--host);
+    }
+
+    .tag.control {
+      border-color: rgba(49, 95, 156, 0.35);
+      background: rgba(49, 95, 156, 0.08);
+      color: var(--control);
+    }
+
+    .tag.loop {
+      border-color: rgba(138, 95, 191, 0.35);
+      background: rgba(138, 95, 191, 0.08);
+      color: var(--loop);
+    }
+
+    .tag.state {
+      border-color: rgba(164, 81, 56, 0.35);
+      background: rgba(164, 81, 56, 0.08);
+      color: var(--state);
+    }
+
+    .diagram {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .diagram-stage {
+      padding: 16px;
+      background: linear-gradient(180deg, #fbfcfe 0%, #f4f7fb 100%);
+    }
+
+    .diagram-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .diagram-flow {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      align-items: stretch;
+    }
+
+    .diagram-flow.control-loop {
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+    }
+
+    .diagram-flow.external {
+      grid-template-columns: 1.2fr 0.8fr 1fr 1fr;
+    }
+
+    .diagram-node {
+      position: relative;
+      width: 100%;
+      min-height: 92px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #ffffff;
+      padding: 12px;
+      text-align: left;
+      box-shadow: 0 8px 22px rgba(28, 39, 57, 0.07);
+      cursor: pointer;
+      transition: border-color 150ms ease, box-shadow 150ms ease, transform 150ms ease;
+    }
+
+    .diagram-node:hover,
+    .diagram-node:focus-visible,
+    .diagram-node.active {
+      border-color: var(--control);
+      box-shadow: 0 12px 28px rgba(49, 95, 156, 0.14);
+      outline: 0;
+      transform: translateY(-1px);
+    }
+
+    .diagram-node.host {
+      border-left: 4px solid var(--host);
+    }
+
+    .diagram-node.control {
+      border-left: 4px solid var(--control);
+    }
+
+    .diagram-node.loop {
+      border-left: 4px solid var(--loop);
+    }
+
+    .diagram-node.state {
+      border-left: 4px solid var(--state);
+    }
+
+    .diagram-node.warn {
+      border-left: 4px solid var(--warn);
+    }
+
+    .diagram-node b {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--ink);
+      font-size: 14px;
+      letter-spacing: 0;
+    }
+
+    .diagram-node span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .diagram-node.compact {
+      min-height: 74px;
+    }
+
+    .diagram-flow .diagram-node:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -20px;
+      z-index: 2;
+      display: grid;
+      width: 30px;
+      height: 2px;
+      background: var(--control);
+      transform: translateY(-50%);
+    }
+
+    .diagram-flow .diagram-node:not(:last-child)::before {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -23px;
+      z-index: 3;
+      width: 0;
+      height: 0;
+      border-top: 5px solid transparent;
+      border-bottom: 5px solid transparent;
+      border-left: 8px solid var(--control);
+      transform: translateY(-50%);
+    }
+
+    .diagram-feedback {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+      padding-right: 4px;
+      color: var(--control);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .diagram-feedback::before {
+      content: "<-";
+      margin-right: 8px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    .diagram-arrow {
+      display: grid;
+      place-items: center;
+      min-height: 24px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .diagram-arrow::before,
+    .diagram-arrow::after {
+      content: "";
+      display: block;
+      width: 1px;
+      height: 10px;
+      background: var(--line);
+    }
+
+    .diagram-arrow.horizontal {
+      min-height: 92px;
+    }
+
+    .diagram-arrow.horizontal::before,
+    .diagram-arrow.horizontal::after {
+      width: 100%;
+      height: 1px;
+    }
+
+    .diagram-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .diagram-chip-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+
+    .diagram-chip {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: var(--soft);
+      padding: 3px 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .diagram-caption {
+      min-height: 44px;
+      padding: 11px 14px;
+      border-top: 1px solid var(--line);
+      background: #ffffff;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .diagram-legend {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .lane {
+      display: grid;
+      grid-template-columns: 170px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .lane:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .lane:first-child {
+      padding-top: 0;
+    }
+
+    .lane-name {
+      font-size: 13px;
+      font-weight: 900;
+      color: var(--ink);
+    }
+
+    .lane-desc {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .objects {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(130px, 1fr));
+      gap: 10px;
+    }
+
+    .object {
+      min-height: 126px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--panel);
+    }
+
+    .object b {
+      display: block;
+      margin-bottom: 6px;
+      color: var(--control);
+      font-size: 13px;
+    }
+
+    .object span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .loop-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+
+    .loop-table th,
+    .loop-table td {
+      padding: 10px 11px;
+      border-bottom: 1px solid var(--line);
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .loop-table th {
+      color: var(--muted);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: #fbfcfe;
+    }
+
+    .loop-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .note {
+      border-left: 4px solid var(--warn);
+      padding: 10px 12px;
+      background: rgba(154, 107, 31, 0.08);
+      color: #5f4214;
+      font-size: 13px;
+    }
+
+    [data-lang-panel] {
+      display: none;
+    }
+
+    [data-lang-panel].active {
+      display: block;
+    }
+
+    @media (max-width: 980px) {
+      .hero,
+      .grid-2,
+      .grid-3 {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-flow,
+      .diagram-flow.external,
+      .objects {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .diagram-inner {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-legend {
+        grid-template-columns: 1fr;
+      }
+
+      .diagram-flow .diagram-node:not(:last-child)::after {
+        display: none;
+      }
+
+      .diagram-flow .diagram-node:not(:last-child)::before {
+        display: none;
+      }
+
+      .section-title {
+        display: block;
+      }
+
+      .section-title p {
+        margin-top: 5px;
+        text-align: left;
+      }
+    }
+
+    @media (max-width: 620px) {
+      .shell {
+        width: min(100% - 22px, 1240px);
+      }
+
+      h1 {
+        font-size: 32px;
+      }
+
+      .topbar {
+        display: block;
+      }
+
+      .language-switch {
+        margin-top: 12px;
+      }
+
+      .diagram-flow,
+      .diagram-flow.control-loop,
+      .diagram-flow.external,
+      .objects {
+        grid-template-columns: 1fr;
+      }
+
+      .lane {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="shell">
+      <div class="topbar">
+        <div class="nav-left">
+          <a class="home-link" href="../index.html">Docs Home</a>
+          <div class="eyebrow">Mnemon Harness Design Note</div>
+        </div>
+        <div class="language-switch" aria-label="Language">
+          <button type="button" data-lang="zh" aria-pressed="true">中文</button>
+          <button type="button" data-lang="en" aria-pressed="false">English</button>
+        </div>
+      </div>
+
+      <div data-lang-panel="zh" class="active">
+        <div class="hero">
+          <div>
+            <h1>生命周期控制平面</h1>
+            <p class="summary">
+              Mnemon 的核心不是另一个 memory store，也不是新的 agent runtime，而是一个由 durable memory 驱动的 agent 生命周期编排层。它通过宿主已有的 hooks、skills、plugins、subagents 或 app-server surface，把 memory、skill、eval、goal、audit 等 loop 编排到 HostAgent 的执行平面之外。
+            </p>
+            <div class="tag-row">
+              <span class="tag state">memory-driven</span>
+              <span class="tag loop">lifecycle loops</span>
+              <span class="tag control">control plane</span>
+              <span class="tag host">host-native projection</span>
+            </div>
+          </div>
+          <aside class="reading">
+            <h2>阅读顺序</h2>
+            <ol>
+              <li>先看控制循环：desired state、reconcile、projection、status。</li>
+              <li>再看六个对象分别落在循环的哪个位置。</li>
+              <li>最后看 memory、skill、eval loops 如何进入这个循环。</li>
+            </ol>
+          </aside>
+        </div>
+      </div>
+
+      <div data-lang-panel="en">
+        <div class="hero">
+          <div>
+            <h1>Lifecycle Control Plane</h1>
+            <p class="summary">
+              Mnemon is not just another memory store and not a new agent runtime. It is an agent lifecycle orchestration layer driven by durable memory. It projects memory, skill, eval, goal, and audit loops onto host-native surfaces such as hooks, skills, plugins, subagents, and app-server endpoints.
+            </p>
+            <div class="tag-row">
+              <span class="tag state">memory-driven</span>
+              <span class="tag loop">lifecycle loops</span>
+              <span class="tag control">control plane</span>
+              <span class="tag host">host-native projection</span>
+            </div>
+          </div>
+          <aside class="reading">
+            <h2>Reading Path</h2>
+            <ol>
+              <li>Start with the control loop: desired state, reconcile, projection, and status.</li>
+              <li>Then place the six objects inside that loop.</li>
+              <li>Finally map memory, skill, and eval loops into the loop.</li>
+            </ol>
+          </aside>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="shell">
+    <div data-lang-panel="zh" class="active">
+      <section>
+        <div class="section-title">
+          <h2>核心定义</h2>
+          <p>把 memory 从存取能力提升为 agent 生命周期中的持续循环机制。</p>
+        </div>
+        <div class="grid-2">
+          <article class="panel">
+            <h3>Mnemon 是什么</h3>
+            <div class="panel-body">
+              <p class="statement">
+                <strong>Mnemon 是面向 agent 的生命周期控制平面。</strong> 它不替换 HostAgent 的执行模型，也不只控制 memory 本身，而是管理由 durable state 驱动的一组生命周期 loop：经验如何变成长期状态、这些状态如何被召回、写回、沉淀、评估和审计。
+              </p>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>Mnemon 不是什么</h3>
+            <div class="panel-body">
+              <p class="statement">
+                Mnemon 不定义 ReAct loop、tool runtime、plugin 格式、skill runtime、subagent 执行模型或 UI。宿主继续拥有执行平面；Mnemon 只拥有围绕执行平面挂载的治理循环。
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>控制编排主轴</h2>
+          <p>Mnemon 的主轴不是“执行任务”，而是让声明的 loop projection 持续接近现实。</p>
+        </div>
+        <div class="diagram" data-diagram>
+          <div class="diagram-stage">
+            <div class="diagram-flow control-loop">
+              <button class="diagram-node loop compact active" type="button" data-caption="Desired State 由 LoopModule 加 HostBinding 构成：声明哪个 loop 应该出现在什么 host 上。">
+                <b>Desired State</b>
+                <span>LoopModule + HostBinding</span>
+              </button>
+              <button class="diagram-node control compact" type="button" data-caption="Reconcile 读取 desired 和 actual，判断 projection 是否缺失、过期、漂移或不兼容。">
+                <b>Reconcile</b>
+                <span>compare desired vs actual</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="HostAdapter 执行宿主特定投影：Claude Code 用 hooks/skills/subagents，Codex 用 skills/app-server surface。">
+                <b>HostAdapter</b>
+                <span>render host-native surface</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="Projection 是 .claude、.codex 或 plugin surface 中生成的视图；HostAgent 只消费这个视图。">
+                <b>Projection</b>
+                <span>.claude / .codex / plugins</span>
+              </button>
+              <button class="diagram-node state compact" type="button" data-caption="Status 记录现实状态：Ready、Drifted、MissingCapability、StaleProjection，并反馈给下一次 reconcile。">
+                <b>Status</b>
+                <span>Ready / Drifted / feeds reconcile</span>
+              </button>
+            </div>
+            <div class="diagram-feedback">Status 反馈到下一次 Reconcile</div>
+            <div class="diagram-legend">
+              <button class="diagram-node state" type="button" data-caption=".mnemon 保存 canonical state：memory、evidence、reports、proposals、audit、bindings 和 projection status。">
+                <b>.mnemon Canonical State</b>
+                <span>source of truth for durable loop state</span>
+              </button>
+              <button class="diagram-node host" type="button" data-caption="HostAgent 继续拥有执行平面：reasoning、tool calls、权限、UI 和 native runtime。">
+                <b>HostAgent Execution Plane</b>
+                <span>consumes projection, owns execution</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-caption">Desired State 由 LoopModule 加 HostBinding 构成：声明哪个 loop 应该出现在什么 host 上。</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>控制对象</h2>
+          <p>六个对象不是并列概念；它们分别服务于同一个 desired-state reconcile 闭环。</p>
+        </div>
+        <div class="objects">
+          <div class="object">
+            <b>LoopModule</b>
+            <span>Desired state 的能力定义：policy、lifecycle prompts、protocol skills、state contract。</span>
+          </div>
+          <div class="object">
+            <b>HostAdapter</b>
+            <span>Reconcile 调用的宿主实现：把 loop 渲染成 Claude Code、Codex、OpenClaw 的原生 surface。</span>
+          </div>
+          <div class="object">
+            <b>HostBinding</b>
+            <span>Desired state 的绑定定义：哪个 loop 应该安装到哪个 host，启用哪些 lifecycle 能力。</span>
+          </div>
+          <div class="object">
+            <b>Projection</b>
+            <span>Actual state 的宿主视图：生成的 host-native 文件，不是 source of truth。</span>
+          </div>
+          <div class="object">
+            <b>Status</b>
+            <span>Actual state 的观测结果：Installed、Ready、Drifted、MissingCapability、Stale。</span>
+          </div>
+          <div class="object">
+            <b>Reconcile</b>
+            <span>控制动作：比较 desired 和 actual，执行 create、repair、update、remove 或 no-op。</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>现有 loops 如何进入闭环</h2>
+          <p>memory、skill、eval 不是散落模块；它们先变成 desired state，再由 host adapter 投影到宿主。</p>
+        </div>
+        <div class="diagram" data-diagram>
+          <div class="diagram-stage">
+            <div class="diagram-flow">
+              <button class="diagram-node loop compact active" type="button" data-caption="LoopModules 是可携带能力包：memory-loop、skill-loop、eval-loop 都先保持 host-agnostic。">
+                <b>LoopModules</b>
+                <span>memory / skill / eval</span>
+              </button>
+              <button class="diagram-node loop compact" type="button" data-caption="HostBindings 把 loop 绑定到 host：例如 codex.memory-loop、claude-code.skill-loop。">
+                <b>HostBindings</b>
+                <span>codex.* / claude-code.*</span>
+              </button>
+              <button class="diagram-node control compact" type="button" data-caption="Reconcile 读取 module、binding 和当前 status，决定是否需要重新投影或修复。">
+                <b>Reconcile</b>
+                <span>repair drift</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="HostAdapters 把同一 loop 渲染成不同宿主最自然的 surface。">
+                <b>HostAdapters</b>
+                <span>codex / claude-code</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="Projections 是 HostAgent 实际消费的文件和配置：skills、hooks、agents、instructions。">
+                <b>Projections</b>
+                <span>.codex / .claude</span>
+              </button>
+              <button class="diagram-node state compact" type="button" data-caption="Status 和 .mnemon state 记录结果，并为下一次 reconcile 提供 reality input。">
+                <b>Status + State</b>
+                <span>.mnemon</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-caption">LoopModules 是可携带能力包：memory-loop、skill-loop、eval-loop 都先保持 host-agnostic。</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>现有 loops 的组织</h2>
+          <p>memory-loop 是连续性起点；skill-loop 和 eval-loop 是围绕记忆治理自然展开的控制循环。</p>
+        </div>
+        <div class="panel">
+          <table class="loop-table">
+            <thead>
+              <tr>
+                <th>Loop</th>
+                <th>控制目标</th>
+                <th>主要动作</th>
+                <th>状态位置</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>memory-loop</strong></td>
+                <td>让经验变成未来可用的 durable memory。</td>
+                <td>prime、recall、writeback、compact preservation、dreaming consolidation。</td>
+                <td><code>.mnemon/harness/memory-loop</code></td>
+              </tr>
+              <tr>
+                <td><strong>skill-loop</strong></td>
+                <td>从重复有效行为中沉淀、治理和迁移 skills。</td>
+                <td>observe、curate、author、manage active/stale/archived lifecycle。</td>
+                <td><code>.mnemon/harness/skill-loop</code></td>
+              </tr>
+              <tr>
+                <td><strong>eval-loop</strong></td>
+                <td>验证 loop 是否真的改善 HostAgent 行为。</td>
+                <td>plan scenarios、run evals、analyze reports、propose improvements。</td>
+                <td><code>.mnemon/harness/eval-loop</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>外部 memory 的位置</h2>
+          <p>外部 memory 项目不必被替代；它们可以成为 Mnemon memory-loop 编排的 backend、source 或 surface。</p>
+        </div>
+        <div class="diagram" data-diagram>
+          <div class="diagram-stage">
+            <div class="diagram-flow external">
+              <button class="diagram-node state active" type="button" data-caption="外部 memory 系统可以作为 backend、source 或 surface 接入，而不是被 Mnemon 替代。">
+                <b>External Memory Systems</b>
+                <span>AgentMemory / GBrain / mem0 / MCP memory / vector DB / notes</span>
+              </button>
+              <button class="diagram-node control" type="button" data-caption="Memory adapter 只统一进入 loop 的接口，不统一外部系统自己的存储模型。">
+                <b>Memory Adapters</b>
+                <span>read / write / search / metadata / conflict hints</span>
+              </button>
+              <button class="diagram-node loop" type="button" data-caption="Mnemon memory-loop 决定何时 recall、写回、整理、冲突处理和审计。">
+                <b>Mnemon Memory Loop</b>
+                <span>recall policy / writeback policy / consolidation / audit</span>
+              </button>
+              <button class="diagram-node host" type="button" data-caption="最终影响的是 agent lifecycle：prime、remind、nudge、compact 和 maintenance。">
+                <b>Agent Lifecycle</b>
+                <span>prime / remind / nudge / compact / maintenance</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-caption">外部 memory 系统可以作为 backend、source 或 surface 接入，而不是被 Mnemon 替代。</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>现实落地</h2>
+          <p>这个划分现实，因为它抽象的是已经存在的复杂度，而不是发明一个新 agent runtime。</p>
+        </div>
+        <div class="grid-3">
+          <article class="panel">
+            <h3>现在已有</h3>
+            <div class="panel-body">
+              <div class="lane">
+                <div class="lane-name">LoopModule</div>
+                <p class="lane-desc"><code>harness/modules/*</code></p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">HostAdapter</div>
+                <p class="lane-desc"><code>harness/hosts/*</code></p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">Projection</div>
+                <p class="lane-desc"><code>.claude</code>、<code>.codex</code> generated files</p>
+              </div>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>下一步</h3>
+            <div class="panel-body">
+              <div class="lane">
+                <div class="lane-name">HostBinding</div>
+                <p class="lane-desc">把“哪个 loop 绑定到哪个 host”从命令参数提升为声明对象。</p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">Status</div>
+                <p class="lane-desc">从目录存在检查升级为 projection drift 和 capability 检查。</p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">Reconcile</div>
+                <p class="lane-desc">让 install 成为幂等 reconcile 的入口，而不是一次性复制脚本。</p>
+              </div>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>保持克制</h3>
+            <div class="panel-body">
+              <p class="statement">
+                不急于做 API server、daemon、distributed scheduler、CRD 系统或全模块依赖求解。先用文件、CLI、manifest 和 adapter 把 desired state 与 actual projection 对齐。
+              </p>
+              <div class="note" style="margin-top:12px;">
+                最小成功标准：<code>mnemon harness reconcile</code> 可以修复缺失或过期的 host projection。
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <div data-lang-panel="en">
+      <section>
+        <div class="section-title">
+          <h2>Core Definition</h2>
+          <p>Mnemon turns memory from a storage capability into a lifecycle mechanism for agents.</p>
+        </div>
+        <div class="grid-2">
+          <article class="panel">
+            <h3>What Mnemon Is</h3>
+            <div class="panel-body">
+              <p class="statement">
+                <strong>Mnemon is a memory-driven lifecycle control plane for agents.</strong> It does not replace the HostAgent execution model, and it does not only control memory itself. It governs a set of lifecycle loops driven by durable state: how experience becomes long-term state, and how that state is recalled, written back, consolidated, evaluated, and audited.
+              </p>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>What Mnemon Is Not</h3>
+            <div class="panel-body">
+              <p class="statement">
+                Mnemon does not define the ReAct loop, tool runtime, plugin format, skill runtime, subagent execution model, or UI. The host owns execution; Mnemon owns attachable governance loops around execution.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>Control Loop Blueprint</h2>
+          <p>Mnemon's main axis is not task execution. It keeps declared loop projections close to reality.</p>
+        </div>
+        <div class="diagram" data-diagram>
+          <div class="diagram-stage">
+            <div class="diagram-flow control-loop">
+              <button class="diagram-node loop compact active" type="button" data-caption="Desired State is LoopModule plus HostBinding: which loop should appear on which host.">
+                <b>Desired State</b>
+                <span>LoopModule + HostBinding</span>
+              </button>
+              <button class="diagram-node control compact" type="button" data-caption="Reconcile reads desired and actual state, then detects missing, stale, drifted, or incompatible projections.">
+                <b>Reconcile</b>
+                <span>compare desired vs actual</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="HostAdapter performs host-specific projection: Claude Code uses hooks, skills, and subagents; Codex uses skills and app-server surfaces.">
+                <b>HostAdapter</b>
+                <span>render host-native surface</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="Projection is the generated view in .claude, .codex, or plugin surfaces. The HostAgent consumes this view.">
+                <b>Projection</b>
+                <span>.claude / .codex / plugins</span>
+              </button>
+              <button class="diagram-node state compact" type="button" data-caption="Status records reality: Ready, Drifted, MissingCapability, StaleProjection, and feeds the next reconcile.">
+                <b>Status</b>
+                <span>Ready / Drifted / feeds reconcile</span>
+              </button>
+            </div>
+            <div class="diagram-feedback">Status feeds next reconcile</div>
+            <div class="diagram-legend">
+              <button class="diagram-node state" type="button" data-caption=".mnemon stores canonical state: memory, evidence, reports, proposals, audit, bindings, and projection status.">
+                <b>.mnemon Canonical State</b>
+                <span>source of truth for durable loop state</span>
+              </button>
+              <button class="diagram-node host" type="button" data-caption="The HostAgent keeps the execution plane: reasoning, tool calls, permissions, UI, and native runtime.">
+                <b>HostAgent Execution Plane</b>
+                <span>consumes projection, owns execution</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-caption">Desired State is LoopModule plus HostBinding: which loop should appear on which host.</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>Control Objects</h2>
+          <p>These six objects are not parallel ideas. They each occupy one position in the same desired-state reconcile loop.</p>
+        </div>
+        <div class="objects">
+          <div class="object">
+            <b>LoopModule</b>
+            <span>Desired-state capability definition: policy, lifecycle prompts, protocol skills, and state contract.</span>
+          </div>
+          <div class="object">
+            <b>HostAdapter</b>
+            <span>Host implementation called by reconcile to render Claude Code, Codex, or OpenClaw surfaces.</span>
+          </div>
+          <div class="object">
+            <b>HostBinding</b>
+            <span>Desired-state binding: which loop goes to which host, and which lifecycle capabilities are enabled.</span>
+          </div>
+          <div class="object">
+            <b>Projection</b>
+            <span>Actual host view: generated host-native files, not the source of truth.</span>
+          </div>
+          <div class="object">
+            <b>Status</b>
+            <span>Observed actual state: Installed, Ready, Drifted, MissingCapability, Stale.</span>
+          </div>
+          <div class="object">
+            <b>Reconcile</b>
+            <span>Control action: compare desired with actual, then create, repair, update, remove, or no-op.</span>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>How Current Loops Enter The Control Loop</h2>
+          <p>memory, skill, and eval are not scattered modules. They become desired state, then host adapters project them.</p>
+        </div>
+        <div class="diagram" data-diagram>
+          <div class="diagram-stage">
+            <div class="diagram-flow">
+              <button class="diagram-node loop compact active" type="button" data-caption="LoopModules are portable capability packages: memory-loop, skill-loop, and eval-loop stay host-agnostic first.">
+                <b>LoopModules</b>
+                <span>memory / skill / eval</span>
+              </button>
+              <button class="diagram-node loop compact" type="button" data-caption="HostBindings bind loops to hosts, such as codex.memory-loop or claude-code.skill-loop.">
+                <b>HostBindings</b>
+                <span>codex.* / claude-code.*</span>
+              </button>
+              <button class="diagram-node control compact" type="button" data-caption="Reconcile reads modules, bindings, and current status to decide whether projection repair is needed.">
+                <b>Reconcile</b>
+                <span>repair drift</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="HostAdapters render the same loop into each host's most natural surface.">
+                <b>HostAdapters</b>
+                <span>codex / claude-code</span>
+              </button>
+              <button class="diagram-node host compact" type="button" data-caption="Projections are the files and config HostAgent actually consumes: skills, hooks, agents, and instructions.">
+                <b>Projections</b>
+                <span>.codex / .claude</span>
+              </button>
+              <button class="diagram-node state compact" type="button" data-caption="Status and .mnemon state record outcomes and feed reality back into the next reconcile.">
+                <b>Status + State</b>
+                <span>.mnemon</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-caption">LoopModules are portable capability packages: memory-loop, skill-loop, and eval-loop stay host-agnostic first.</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>Current Loops</h2>
+          <p>memory-loop is the continuity point. skill-loop and eval-loop naturally extend memory-centered governance.</p>
+        </div>
+        <div class="panel">
+          <table class="loop-table">
+            <thead>
+              <tr>
+                <th>Loop</th>
+                <th>Control Goal</th>
+                <th>Main Actions</th>
+                <th>State Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><strong>memory-loop</strong></td>
+                <td>Turn experience into durable memory usable by future work.</td>
+                <td>prime, recall, writeback, compact preservation, dreaming consolidation.</td>
+                <td><code>.mnemon/harness/memory-loop</code></td>
+              </tr>
+              <tr>
+                <td><strong>skill-loop</strong></td>
+                <td>Promote repeated useful behavior into governed skills.</td>
+                <td>observe, curate, author, manage active/stale/archived lifecycle.</td>
+                <td><code>.mnemon/harness/skill-loop</code></td>
+              </tr>
+              <tr>
+                <td><strong>eval-loop</strong></td>
+                <td>Verify whether loops improve HostAgent behavior.</td>
+                <td>plan scenarios, run evals, analyze reports, propose improvements.</td>
+                <td><code>.mnemon/harness/eval-loop</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>External Memory</h2>
+          <p>External memory systems do not need to be replaced. They can become backends, sources, or surfaces orchestrated by Mnemon memory-loop.</p>
+        </div>
+        <div class="diagram" data-diagram>
+          <div class="diagram-stage">
+            <div class="diagram-flow external">
+              <button class="diagram-node state active" type="button" data-caption="External memory systems can plug in as backends, sources, or surfaces instead of being replaced by Mnemon.">
+                <b>External Memory Systems</b>
+                <span>AgentMemory / GBrain / mem0 / MCP memory / vector DB / notes</span>
+              </button>
+              <button class="diagram-node control" type="button" data-caption="Memory adapters standardize the loop-facing interface without forcing external systems to share one storage model.">
+                <b>Memory Adapters</b>
+                <span>read / write / search / metadata / conflict hints</span>
+              </button>
+              <button class="diagram-node loop" type="button" data-caption="Mnemon memory-loop decides when to recall, write back, consolidate, resolve conflicts, and audit.">
+                <b>Mnemon Memory Loop</b>
+                <span>recall policy / writeback policy / consolidation / audit</span>
+              </button>
+              <button class="diagram-node host" type="button" data-caption="The effect lands in the agent lifecycle: prime, remind, nudge, compact, and maintenance.">
+                <b>Agent Lifecycle</b>
+                <span>prime / remind / nudge / compact / maintenance</span>
+              </button>
+            </div>
+          </div>
+          <div class="diagram-caption">External memory systems can plug in as backends, sources, or surfaces instead of being replaced by Mnemon.</div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-title">
+          <h2>Practical Path</h2>
+          <p>This split is practical because it abstracts complexity already present in the system instead of inventing a new agent runtime.</p>
+        </div>
+        <div class="grid-3">
+          <article class="panel">
+            <h3>Already Present</h3>
+            <div class="panel-body">
+              <div class="lane">
+                <div class="lane-name">LoopModule</div>
+                <p class="lane-desc"><code>harness/modules/*</code></p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">HostAdapter</div>
+                <p class="lane-desc"><code>harness/hosts/*</code></p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">Projection</div>
+                <p class="lane-desc"><code>.claude</code> and <code>.codex</code> generated files</p>
+              </div>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>Next Step</h3>
+            <div class="panel-body">
+              <div class="lane">
+                <div class="lane-name">HostBinding</div>
+                <p class="lane-desc">Promote “which loop goes to which host” from command arguments into a declared object.</p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">Status</div>
+                <p class="lane-desc">Move beyond directory checks into projection drift and capability checks.</p>
+              </div>
+              <div class="lane">
+                <div class="lane-name">Reconcile</div>
+                <p class="lane-desc">Make install an idempotent reconcile entrypoint instead of a one-time copy script.</p>
+              </div>
+            </div>
+          </article>
+          <article class="panel">
+            <h3>Keep It Small</h3>
+            <div class="panel-body">
+              <p class="statement">
+                Do not start with an API server, daemon, distributed scheduler, CRD system, or dependency solver. Use files, CLI commands, manifests, and adapters to align desired state with actual projection.
+              </p>
+              <div class="note" style="margin-top:12px;">
+                Minimal success: <code>mnemon harness reconcile</code> can repair missing or stale host projections.
+              </div>
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <script>
+    const buttons = Array.from(document.querySelectorAll("[data-lang]"));
+    const panels = Array.from(document.querySelectorAll("[data-lang-panel]"));
+
+    function setLanguage(lang) {
+      buttons.forEach((button) => {
+        button.setAttribute("aria-pressed", button.dataset.lang === lang ? "true" : "false");
+      });
+      panels.forEach((panel) => {
+        panel.classList.toggle("active", panel.dataset.langPanel === lang);
+      });
+      document.documentElement.lang = lang === "zh" ? "zh-CN" : "en";
+    }
+
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => setLanguage(button.dataset.lang));
+    });
+
+    document.querySelectorAll("[data-diagram]").forEach((diagram) => {
+      const caption = diagram.querySelector(".diagram-caption");
+      const nodes = Array.from(diagram.querySelectorAll(".diagram-node"));
+
+      function activate(node) {
+        nodes.forEach((item) => item.classList.toggle("active", item === node));
+        if (caption && node.dataset.caption) {
+          caption.textContent = node.dataset.caption;
+        }
+      }
+
+      nodes.forEach((node) => {
+        node.addEventListener("click", () => activate(node));
+        node.addEventListener("focus", () => activate(node));
+      });
+    });
+  </script>
+</body>
+</html>

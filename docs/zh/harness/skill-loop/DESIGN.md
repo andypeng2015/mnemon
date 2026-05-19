@@ -10,6 +10,29 @@ Skill loop 的目标是让宿主 Agent 拥有一套可自我演进的 skill libr
 
 MVP 的边界是“可见性治理”和“生命周期治理”：哪些 skill 当前应该可被发现，哪些进入维护，哪些仅保留为历史。它不把所有 skill 注入 prompt，也不要求新建或 patch 后的 skill 在当前 session 立即 reload。
 
+## 生命周期控制平面位置
+
+在生命周期控制平面里，`skill-loop` 是一个 `LoopModule`。它声明 skill visibility
+policy、observation 和 management protocols、curator maintenance，以及
+canonical skill lifecycle state contract。
+
+这个 loop 通过 host binding 进入宿主：
+
+```text
+LoopModule(skill-loop)
+  -> HostBinding(host + skill surface)
+  -> Reconcile
+  -> HostAdapter
+  -> Projection(.codex/skills, .claude/skills, or another host surface)
+  -> Status
+  -> next Reconcile
+```
+
+HostAgent 消费被投影的 active skill surface，并继续拥有原生 skill discovery 和
+执行。`.mnemon` 保存 canonical skill library 和 evidence。宿主 skill 目录是
+可重新生成的视图；当 projection status 与声明的 binding 漂移时，可以由
+reconcile 修复。
+
 ## 目标
 
 - 让 HostAgent 继续拥有执行、原生 skill discovery、subagent 调用和 tool routing。

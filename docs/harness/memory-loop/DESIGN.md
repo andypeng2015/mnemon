@@ -8,6 +8,29 @@ Installable MVP assets: [harness/modules/memory-loop](../../../harness/modules/m
 
 The memory loop is the first practical slice of the self-evolution harness. It gives a host agent a prompt-facing working memory while using Mnemon as durable long-term memory. The harness stays small: it installs Markdown policy, hook prompts, protocol skills, and one maintenance subagent around an existing host agent.
 
+## Lifecycle Control Plane Position
+
+In the lifecycle control plane, `memory-loop` is a `LoopModule`. It declares the
+portable memory policy, lifecycle prompts, protocol skills, dreaming subagent,
+and runtime state contract.
+
+The loop becomes active through a host binding:
+
+```text
+LoopModule(memory-loop)
+  -> HostBinding(host + lifecycle surfaces)
+  -> Reconcile
+  -> HostAdapter
+  -> Projection(.codex / .claude / other host surface)
+  -> Status
+  -> next Reconcile
+```
+
+The HostAgent consumes the projection and still owns execution. `.mnemon` keeps
+the canonical memory-loop state, including `MEMORY.md`, manifests, and durable
+Mnemon stores. Host directories are generated views that can be repaired when
+projection status drifts from the declared binding.
+
 ## Design Goal
 
 The MVP should answer one question: how can a host agent remember useful information across work without becoming a custom agent runtime?
