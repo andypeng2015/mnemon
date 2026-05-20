@@ -24,7 +24,7 @@ host surface projection，以及可选的 daemon scheduling。
 | Host Projection | [中文](HOST_PROJECTION.md) / [EN](../../harness/HOST_PROJECTION.md) |
 | Harness Roadmap | [中文](ROADMAP.md) / [EN](../../harness/ROADMAP.md) |
 | YC Evolving 设计哲学 | [中文](YC_EVOLVING_DESIGN_PHILOSOPHY.md) / [EN](../../harness/YC_EVOLVING_DESIGN_PHILOSOPHY.md) |
-| Lifecycle Control Plane | [site](../../site/lifecycle-control-plane/index.html) |
+| Lifecycle Control Plane | [中文](LIFECYCLE_CONTROL_PLANE.md) / [EN](../../harness/LIFECYCLE_CONTROL_PLANE.md) / [site](../../site/lifecycle-control-plane/index.html) |
 | Memory Loop | [中文](memory-loop/DESIGN.md) / [EN](../../harness/memory-loop/DESIGN.md) / [site](../../site/memory-loop/index.html) |
 | Skill Loop | [中文](skill-loop/DESIGN.md) / [EN](../../harness/skill-loop/DESIGN.md) / [site](../../site/skill-loop/index.html) |
 | Eval Loop | [中文](eval-loop/DESIGN.md) / [EN](../../harness/eval-loop/DESIGN.md) |
