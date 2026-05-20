@@ -41,7 +41,7 @@ model.
 
 | Profile | Meaning | Examples |
 | --- | --- | --- |
-| Template | Reusable definition, not necessarily reconciled. | `LoopModule` |
+| Template | Reusable definition, not necessarily reconciled. | `Loop` |
 | Controlled | Needs ongoing alignment of Intent and Reality. | `LoopBinding`, `EvalRun`, future `Goal` |
 | Surface | Expresses or reaches host capability. | `HostCapability`, `Projection` |
 | Evidence | Observed fact from Reality, not a declarative object. | `Observation`, runtime status |
@@ -54,8 +54,8 @@ profiles participate in reconcile differently.
 
 | Entity | Profile | Role |
 | --- | --- | --- |
-| `LoopModule` | Template | Reusable lifecycle capability package such as memory-loop, skill-loop, or eval-loop. |
-| `LoopBinding` | Controlled | Binds one `LoopModule` to one host; suitable as the first full controlled object sample. |
+| `Loop` | Template | Reusable lifecycle capability package such as memory, skill, or eval. |
+| `Binding` | Controlled | Binds one `Loop` to one host; suitable as the first full controlled object sample. |
 | `HostCapability` | Surface | Describes static or dynamic capabilities a host can expose. |
 | `Projection` | Surface | Lets the HostAgent see Mnemon's Intent. |
 | `Observation` | Evidence | Lets Mnemon see the HostAgent's Reality. |
@@ -101,7 +101,7 @@ Mnemon's method is to take capabilities that are often built as heavy external
 systems and reintroduce them into the host lifecycle through hooks, skills,
 daemon work, canonical state, and reconcile.
 
-`memory-loop` validated this pattern for memory:
+`memory` validated this pattern for memory:
 
 ```text
 external memory service
@@ -154,5 +154,5 @@ Mnemon should grow through lightweight capability levels:
 | Governance | Let AI produce patches, reports, and proposals while review gates control risk. |
 
 The goal is not to copy a large control system. The goal is a small, consistent
-lifecycle model that can scale from memory-loop to self-evolving agentic
+lifecycle model that can scale from memory to self-evolving agentic
 projects.

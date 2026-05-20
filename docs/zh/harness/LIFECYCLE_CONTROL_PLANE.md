@@ -37,7 +37,7 @@ Execution surfaces 不属于核心模型。它们属于执行层：它们说明 
 
 | Profile | 含义 | 示例 |
 | --- | --- | --- |
-| Template | 可复用定义，不一定被持续 reconcile。 | `LoopModule` |
+| Template | 可复用定义，不一定被持续 reconcile。 | `Loop` |
 | Controlled | 需要持续对齐 Intent 与 Reality。 | `LoopBinding`、`EvalRun`、未来 `Goal` |
 | Surface | 表达或触达宿主能力。 | `HostCapability`、`Projection` |
 | Evidence | 来自 Reality 的观测事实，不是声明对象。 | `Observation`、runtime status |
@@ -50,8 +50,8 @@ Execution surfaces 不属于核心模型。它们属于执行层：它们说明 
 
 | Entity | Profile | 作用 |
 | --- | --- | --- |
-| `LoopModule` | Template | 可复用 lifecycle capability package，例如 memory-loop、skill-loop、eval-loop。 |
-| `LoopBinding` | Controlled | 把某个 `LoopModule` 绑定到某个 host；适合作为第一个完整 controlled object 样本。 |
+| `Loop` | Template | 可复用 lifecycle capability package，例如 memory、skill、eval。 |
+| `Binding` | Controlled | 把某个 `Loop` 绑定到某个 host；适合作为第一个完整 controlled object 样本。 |
 | `HostCapability` | Surface | 描述宿主可以暴露的静态或动态能力。 |
 | `Projection` | Surface | 让 HostAgent 看见 Mnemon 的 Intent。 |
 | `Observation` | Evidence | 让 Mnemon 看见 HostAgent 的 Reality。 |
@@ -94,7 +94,7 @@ Observation 让 Mnemon 看见 HostAgent Reality。
 Mnemon 的方法，是把通常被做成重外部系统的能力，通过 hooks、skills、daemon work、
 canonical state 和 reconcile，重新引入宿主生命周期。
 
-`memory-loop` 已经用 memory 验证了这个模式：
+`memory` 已经用 memory 验证了这个模式：
 
 ```text
 external memory service
@@ -144,4 +144,4 @@ Mnemon 应该沿着轻量能力层级增长：
 | Governance | AI 可以产生 patch、report 和 proposal，由 review gate 控制风险。 |
 
 目标不是复制一个大型控制系统，而是形成一个小而一致的 lifecycle model，从
-memory-loop 延展到自演进的 agentic projects。
+memory 延展到自演进的 agentic projects。

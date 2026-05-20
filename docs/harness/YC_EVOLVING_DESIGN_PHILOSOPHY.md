@@ -96,45 +96,33 @@ regenerated.
 The article's loop structure can be translated into Mnemon's lifecycle model:
 
 ```text
-Observed Signals
-  user intent, repo diffs, host status, eval results, customer feedback
+State
+  durable context, skill lifecycle state, reports, proposals, status
         |
         v
-Desired State
-  goals, policies, skills, memory, bindings, expected projections
+Intent
+  goals, policies, desired visibility, review boundaries
+        |
+        v
+Projection
+  host-readable skills, hooks, app servers, tools, eval surfaces
+        |
+        v
+Reality
+  user intent, repo diffs, host behavior, eval results, customer feedback
         |
         v
 Reconcile
-  compare desired state with actual host surfaces and outcomes
+  compare Intent with Reality, then record action, no-op, or proposal
         |
         v
-Projection And Execution
-  host adapters expose skills, hooks, app servers, tools, evals
-        |
-        v
-Status And Learning
-  record success, failure, drift, missing tools, stale skills, review needs
-        |
-        v
-Updated Canonical Context
+Updated State
 ```
 
 This is the minimum trunk Mnemon should keep clear:
 
 ```text
-LoopModule + HostBinding
-        |
-        v
-Desired State
-        |
-        v
-Reconcile
-        |
-        v
-HostAdapter -> Projection -> HostAgent
-        |
-        v
-Status -> Learning -> next Reconcile
+State -> Intent -> Projection -> Reality -> Reconcile -> State
 ```
 
 ## Host Capability Surfaces
