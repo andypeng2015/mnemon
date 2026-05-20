@@ -28,6 +28,7 @@ projection into host surfaces, and optional daemon scheduling.
 | Loop Module Standard | [EN](LOOP_MODULE_STANDARD.md) / [中文](../zh/harness/LOOP_MODULE_STANDARD.md) |
 | Host Projection | [EN](HOST_PROJECTION.md) / [中文](../zh/harness/HOST_PROJECTION.md) |
 | Harness Roadmap | [EN](ROADMAP.md) / [中文](../zh/harness/ROADMAP.md) |
+| YC Evolving Design Philosophy | [EN](YC_EVOLVING_DESIGN_PHILOSOPHY.md) / [中文](../zh/harness/YC_EVOLVING_DESIGN_PHILOSOPHY.md) |
 | Lifecycle Control Plane | [site](../site/lifecycle-control-plane/index.html) |
 | Memory Loop | [EN](memory-loop/DESIGN.md) / [中文](../zh/harness/memory-loop/DESIGN.md) / [site](../site/memory-loop/index.html) |
 | Skill Loop | [EN](skill-loop/DESIGN.md) / [中文](../zh/harness/skill-loop/DESIGN.md) / [site](../site/skill-loop/index.html) |
