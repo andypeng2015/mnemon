@@ -5,6 +5,7 @@
 .claude/
 .codex/
 .openclaw/
+.kanna/
 .supervisor/
 .mnemon/
 .env
