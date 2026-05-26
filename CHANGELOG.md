@@ -7,18 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.9] - 2026-05-26
+
 ### Changed
 
-- **BREAKING**: `recall` default output is now compact (LLM-friendly).
-  Use `--verbose` to restore the previous full payload. The compact
-  format keeps id / content / category / importance / intent /
-  matched_via / confidence / score; signals, timestamps, traversal
-  metadata, and extra fields are dropped from the default and remain
-  available via `--verbose`. (#3)
+- **BREAKING**: `recall` now emits a compact, LLM-friendly JSON shape by
+  default. The default result entries keep `id`, `content`, `category`,
+  `importance`, `intent`, `matched_via`, `confidence`, and rounded `score`,
+  while omitting verbose debug fields such as `signals`, timestamps,
+  `access_count`, tags, entities, source, and traversal metadata. (#3)
+- The previous full `recall` payload remains available with `--verbose` for
+  scripts, debugging, and callers that still need `meta`, `signals`, or the
+  full embedded insight object.
 
 ### Added
 
-- `--verbose` flag on `recall` to output the full RecallResponse.
+- `recall --verbose` flag to restore the previous full recall response.
 
 ## [0.1.8] - 2026-05-24
 
