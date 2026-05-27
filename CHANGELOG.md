@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-05-27
+
+### Added
+
+- `mnemon import <file>` bulk-imports memory draft JSON files into a selected
+  Mnemon store. Imported insights use the normal write path for duplicate and
+  conflict detection, embeddings when Ollama is available, entity/causal/
+  semantic graph construction, lifecycle scoring, and capacity pruning.
+- `internal/importdraft` defines the public draft schema for historical chat
+  imports:
+  - top-level `schema_version`, `source`, `insights`, and optional `edges`
+  - insight fields for `content`, `category`, `importance`, `tags`,
+    `entities`, `source`, and RFC 3339 `created_at`
+  - explicit edge fields for `source_index`, `target_index`, `edge_type`,
+    `weight`, and `reason`
+- `mnemon import --dry-run` validates draft structure without writing to the
+  database, and `mnemon import --no-diff` inserts all draft insights without
+  duplicate/conflict detection.
+- [Import documentation](docs/IMPORT.md) with the full schema reference,
+  category and importance guidance, edge-type guidance, examples, operational
+  notes, and a copy-paste LLM prompt for turning chat exports into
+  `memory_draft.json`.
+
+### Fixed
+
+- Historical imports no longer create incorrect temporal backbone edges when
+  `created_at` is older than existing store contents. The import path disables
+  real-time temporal edge generation, then repairs affected source timelines
+  after all backdated insights are written so imported memories are inserted
+  into the global chronological chain.
+- Explicit draft edges now participate in effective-importance calculation
+  before `AutoPrune` runs. Import finalization inserts explicit edges, repairs
+  temporal edges, refreshes touched insight scores, and only then applies
+  pruning.
+
+### Changed
+
+- The graph engine now supports internal `EngineOptions` with `TemporalMode`,
+  allowing import to skip real-time temporal generation without changing the
+  behavior of `mnemon remember`.
+- Store internals gained helpers for source-ordered active insight scans and
+  typed single-edge deletion, used by temporal repair during imports.
+
+### Tests
+
+- Added validation coverage for the import draft schema, including required
+  content, category and importance constraints, RFC 3339 timestamps, edge index
+  bounds, and source fallback behavior.
+- Added command integration coverage for backdated import temporal repair and
+  effective-importance refresh after explicit draft edges.
+
 ## [0.1.9] - 2026-05-26
 
 ### Changed
@@ -138,7 +189,9 @@ Initial public release.
 - Release pipeline: GoReleaser, GitHub Actions, Homebrew tap
 - Comprehensive documentation with Chinese translations
 
-[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.10...HEAD
+[0.1.10]: https://github.com/mnemon-dev/mnemon/compare/v0.1.9...v0.1.10
+[0.1.9]: https://github.com/mnemon-dev/mnemon/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/mnemon-dev/mnemon/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/mnemon-dev/mnemon/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/mnemon-dev/mnemon/compare/v0.1.5...v0.1.6
