@@ -74,6 +74,7 @@ Hook 契约是行为契约。脚本正文是 runtime-specific implementation det
 | Codex | `AGENTS.md`、skill、本地指令，以及启用后的 hooks |
 | Claude Code | `CLAUDE.md`、skill、slash command、settings hooks、project/user memory 文件 |
 | OpenClaw | Plugin hooks 和 skill，但不要求 Mnemon-specific memory engine |
+| Pi | `AGENTS.md`、原生 skill，以及 TypeScript extension lifecycle events |
 | Skill-first agents | Skill、memory guidance 和轻量提醒 |
 | Minimal CLIs | 引用 `SKILL.md` 和 `GUIDELINE.md` 的 rules 文件或 system instruction |
 

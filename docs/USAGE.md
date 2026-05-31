@@ -30,6 +30,7 @@ mnemon setup --global
 # Non-interactive: specific target only
 mnemon setup --target claude-code
 mnemon setup --target openclaw
+mnemon setup --target pi
 mnemon setup --target nanobot --global
 
 # Auto-confirm all prompts (CI-friendly)
@@ -42,8 +43,8 @@ mnemon setup --eject --target claude-code
 
 | Flag | Default | Description |
 |---|---|---|
-| `--global` | `false` | Install to user-wide config instead of project-local (required for Nanobot: installs to `~/.nanobot/workspace/`) |
-| `--target <name>` | (auto-detect) | Target environment: `claude-code`, `openclaw`, or `nanobot` |
+| `--global` | `false` | Install to user-wide config instead of project-local (recommended for Nanobot: installs to `~/.nanobot/workspace/`; Pi installs to `~/.pi/agent/`) |
+| `--target <name>` | (auto-detect) | Target environment: `claude-code`, `codex`, `openclaw`, `nanobot`, or `pi` |
 | `--eject` | `false` | Remove mnemon integrations |
 | `--yes` | `false` | Auto-confirm all prompts |
 

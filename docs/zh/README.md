@@ -100,6 +100,17 @@ mnemon setup --target openclaw --yes
 
 一条命令将技能文件、钩子、插件和行为引导部署到 `~/.openclaw/`。重启 OpenClaw 网关即可激活。
 
+### [Pi](https://pi.dev)
+
+```bash
+mnemon setup --target pi --yes
+```
+
+一条命令将 mnemon skill、prompt 文件和 Pi TypeScript extension 部署到
+`.pi/`。这个 extension 会把 Mnemon 的 lifecycle reminder 映射到 Pi 事件
+（`resources_discover`、`before_agent_start`、`agent_end`、
+`session_before_compact`）。启动新的 Pi session 或运行 `/reload` 即可激活。
+
 ### [NanoClaw](https://github.com/qwibitai/nanoclaw)
 
 NanoClaw 在 Linux 容器内运行智能体。使用 `/add-mnemon` 技能集成：
@@ -153,6 +164,7 @@ Agent 工作，并且只在有用时调用 Mnemon
 
 - **零用户操作** — 安装一次；支持 hook 的 runtime 可用 hook，minimal runtime 可用持久规则
 - **LLM 监督式** — 宿主 LLM 主动决定记什么、更新什么、遗忘什么；无内嵌 LLM，无 API 密钥
+- **多框架支持** — Claude Code 和 Codex（hooks）、OpenClaw（plugins）、Pi（extensions）、Nanobot（skills）等
 - **Markdown 可安装 harness** — `SKILL.md`、`INSTALL.md`、`GUIDELINE.md` 和四个生命周期提醒
 - **四图架构** — 时序、实体、因果、语义四种边，不仅仅是向量相似度
 - **意图原生协议** — 三个原语（`remember`、`link`、`recall`）映射到 LLM 的认知词汇而非数据库语法；结构化 JSON 输出，带信号透明度
@@ -170,6 +182,8 @@ Agent 工作，并且只在有用时调用 Mnemon
                 │
   OpenClaw ─────┤
                 │
+  Pi ───────────┤
+                │
   NanoClaw ─────┤
                 ├──▶  ~/.mnemon  ◀── 共享记忆
   OpenCode ─────┤
@@ -177,7 +191,7 @@ Agent 工作，并且只在有用时调用 Mnemon
   Gemini CLI ───┘
 ```
 
-基础已就绪：一个 `~/.mnemon` 数据库，任何 agent 都可以读写。Claude Code setup 可自动安装 hook；OpenClaw 可以使用 plugin hooks；NanoClaw 通过容器技能和卷挂载集成。同一个 harness 可以安装到任何支持 skill、rule、system prompt 或 event hook 的 LLM CLI。
+基础已就绪：一个 `~/.mnemon` 数据库，任何 agent 都可以读写。Claude Code setup 可自动安装 hook；OpenClaw 可以使用 plugin hooks；Pi 通过原生 skill 和 TypeScript lifecycle extension 集成；NanoClaw 通过容器技能和卷挂载集成。同一个 harness 可以安装到任何支持 skill、rule、system prompt 或 event hook 的 LLM CLI。
 
 更长远的方向是**记忆网关**：协议层与存储引擎解耦。当前 SQLite 后端是第一个适配器；协议面（`remember / link / recall`）可运行在 PostgreSQL、Neo4j 或任何图数据库之上。Agent 侧优化（何时召回、记什么）与存储侧优化（索引、图算法）独立演进。详见[未来方向](design/08-decisions.md#82-未来方向)。
 
