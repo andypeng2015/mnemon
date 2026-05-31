@@ -22,10 +22,10 @@ var setupCmd = &cobra.Command{
 	Short: "Deploy mnemon into LLM CLI environments",
 	Long: `Detect installed LLM CLIs and deploy mnemon integration.
 
-By default, installs to project-local config (.claude/, .codex/, .openclaw/, .nanobot/).
-Use --global to install to user-wide config (~/.claude/, ~/.codex/, ~/.openclaw/, ~/.nanobot/workspace/).
+By default, installs to project-local config (.claude/, .codex/, .openclaw/, .nanobot/, .pi/).
+Use --global to install to user-wide config (~/.claude/, ~/.codex/, ~/.openclaw/, ~/.nanobot/workspace/, ~/.pi/agent/).
 
-Supported environments: Claude Code, Codex, OpenClaw, Nanobot.
+Supported environments: Claude Code, Codex, OpenClaw, Nanobot, Pi.
 
 Examples:
   mnemon setup                              # Interactive: project-local install
@@ -38,7 +38,7 @@ Examples:
 }
 
 func init() {
-	setupCmd.Flags().StringVar(&setupTarget, "target", "", "target environment (claude-code, codex, openclaw, nanobot)")
+	setupCmd.Flags().StringVar(&setupTarget, "target", "", "target environment (claude-code, codex, openclaw, nanobot, pi)")
 	setupCmd.Flags().BoolVar(&setupEject, "eject", false, "remove mnemon integrations")
 	setupCmd.Flags().BoolVar(&setupYes, "yes", false, "auto-confirm all prompts (CI-friendly)")
 	setupCmd.Flags().BoolVar(&setupGlobal, "global", false, "install to user-wide config instead of project-local config")
@@ -46,8 +46,8 @@ func init() {
 }
 
 func runSetup(cmd *cobra.Command, args []string) error {
-	if setupTarget != "" && setupTarget != "claude-code" && setupTarget != "codex" && setupTarget != "openclaw" && setupTarget != "nanobot" {
-		return fmt.Errorf("invalid target %q (must be claude-code, codex, openclaw, or nanobot)", setupTarget)
+	if setupTarget != "" && setupTarget != "claude-code" && setupTarget != "codex" && setupTarget != "openclaw" && setupTarget != "nanobot" && setupTarget != "pi" {
+		return fmt.Errorf("invalid target %q (must be claude-code, codex, openclaw, nanobot, or pi)", setupTarget)
 	}
 
 	envs := setup.DetectEnvironments(setupGlobal)
@@ -83,7 +83,7 @@ func runInstallFlow(envs []setup.Environment) error {
 
 	if len(detected) == 0 {
 		fmt.Println("\nNo supported LLM CLI environments detected.")
-		fmt.Println("Install Claude Code, Codex, OpenClaw, or Nanobot, then run 'mnemon setup' again.")
+		fmt.Println("Install Claude Code, Codex, OpenClaw, Nanobot, or Pi, then run 'mnemon setup' again.")
 		return nil
 	}
 
@@ -131,6 +131,8 @@ func installEnv(env *setup.Environment) error {
 		err = installOpenClaw(env)
 	case "nanobot":
 		err = installNanobot(env)
+	case "pi":
+		err = installPi(env)
 	}
 	if err != nil {
 		return err
@@ -543,6 +545,67 @@ func installNanobot(env *setup.Environment) error {
 	return nil
 }
 
+// ─── Pi ─────────────────────────────────────────────────────────────
+
+func installPi(env *setup.Environment) error {
+	configDir := env.ConfigDir
+
+	if !setupGlobal && !setupYes && setup.IsInteractive() {
+		home := setup.HomeDir()
+		localDir := ".pi"
+		globalDir := home + "/.pi/agent"
+		idx := setup.SelectOne("Install scope",
+			[]string{
+				fmt.Sprintf("Local — this project only (%s/)", localDir),
+				fmt.Sprintf("Global — all projects (%s/)", globalDir),
+			}, 0)
+		if idx == 1 {
+			configDir = globalDir
+		} else {
+			configDir = localDir
+		}
+	}
+
+	fmt.Printf("\nSetting up Pi (%s)...\n", configDir)
+
+	fmt.Println("\n[1/3] Skill")
+	if path, err := setup.PiWriteSkill(configDir); err != nil {
+		setup.StatusError(0, 0, "Skill", err)
+		return err
+	} else {
+		setup.StatusOK(0, 0, "Skill", path)
+	}
+
+	fmt.Println("\n[2/3] Prompts")
+	var promptPath string
+	if path, err := setup.WritePromptFiles(); err != nil {
+		setup.StatusError(0, 0, "Prompts", err)
+		return err
+	} else {
+		setup.StatusOK(0, 0, "Prompts", path)
+		promptPath = path
+	}
+
+	fmt.Println("\n[3/3] Extension")
+	if path, err := setup.PiWriteExtension(configDir); err != nil {
+		setup.StatusError(0, 0, "Extension", err)
+		return err
+	} else {
+		setup.StatusOK(0, 0, "Extension", path)
+	}
+
+	fmt.Println()
+	fmt.Println("Setup complete!")
+	fmt.Printf("  Skill     %s/skills/mnemon/SKILL.md\n", configDir)
+	fmt.Printf("  Extension %s/extensions/mnemon.ts (resources_discover, before_agent_start, agent_end, session_before_compact)\n", configDir)
+	fmt.Printf("  Prompts   %s/ (guide.md, skill.md)\n", promptPath)
+	fmt.Println()
+	fmt.Println("Start a new Pi session or run /reload to activate.")
+	fmt.Println("Run 'mnemon setup --eject --target pi' to remove.")
+
+	return nil
+}
+
 // ─── Eject ──────────────────────────────────────────────────────────
 
 func runEjectFlow(envs []setup.Environment) error {
@@ -631,6 +694,13 @@ func ejectEnv(env *setup.Environment) error {
 
 	case "nanobot":
 		errs := setup.NanobotEject(env.ConfigDir)
+		ejectMarkdown("AGENTS.md", "Remove memory guidance from ./AGENTS.md?")
+		if len(errs) > 0 {
+			return errs[0]
+		}
+
+	case "pi":
+		errs := setup.PiEject(env.ConfigDir)
 		ejectMarkdown("AGENTS.md", "Remove memory guidance from ./AGENTS.md?")
 		if len(errs) > 0 {
 			return errs[0]
