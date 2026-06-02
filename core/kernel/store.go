@@ -25,7 +25,7 @@ func OpenStore(path string) (*Store, error) {
 	for _, s := range []string{
 		`CREATE TABLE IF NOT EXISTS resources (kind TEXT, id TEXT, version INTEGER NOT NULL, fields TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY(kind,id));`,
 		`CREATE TABLE IF NOT EXISTS events (ingest_seq INTEGER PRIMARY KEY AUTOINCREMENT, payload TEXT NOT NULL);`,
-		`CREATE TABLE IF NOT EXISTS decisions (decision_id TEXT PRIMARY KEY, op_id TEXT, ingest_seq INTEGER, actor TEXT, status TEXT, payload TEXT NOT NULL);`,
+		`CREATE TABLE IF NOT EXISTS decisions (decision_id TEXT PRIMARY KEY, op_id TEXT, ingest_seq INTEGER, actor TEXT, correlation_id TEXT, status TEXT, payload TEXT NOT NULL);`,
 	} {
 		if _, err := db.Exec(s); err != nil {
 			db.Close()
@@ -92,16 +92,16 @@ func (t *Tx) ReadVersion(ref contract.ResourceRef) (contract.Version, error) {
 // AppendDecisionTx writes a decision INSIDE a caller's txn (used for accepted ops — crash-safe atomicity, Invariant #7).
 func (t *Tx) AppendDecisionTx(d contract.Decision) error {
 	b, _ := json.Marshal(d)
-	_, err := t.tx.Exec(`INSERT INTO decisions (decision_id,op_id,ingest_seq,actor,status,payload) VALUES (?,?,?,?,?,?)`,
-		d.DecisionID, d.OpID, d.IngestSeq, string(d.Actor), string(d.Status), string(b))
+	_, err := t.tx.Exec(`INSERT INTO decisions (decision_id,op_id,ingest_seq,actor,correlation_id,status,payload) VALUES (?,?,?,?,?,?,?)`,
+		d.DecisionID, d.OpID, d.IngestSeq, string(d.Actor), d.CorrelationID, string(d.Status), string(b))
 	return err
 }
 
 // AppendDecision writes a decision in its own txn (used for non-accepted ops — nothing to be atomic with).
 func (s *Store) AppendDecision(d contract.Decision) error {
 	b, _ := json.Marshal(d)
-	_, err := s.db.Exec(`INSERT INTO decisions (decision_id,op_id,ingest_seq,actor,status,payload) VALUES (?,?,?,?,?,?)`,
-		d.DecisionID, d.OpID, d.IngestSeq, string(d.Actor), string(d.Status), string(b))
+	_, err := s.db.Exec(`INSERT INTO decisions (decision_id,op_id,ingest_seq,actor,correlation_id,status,payload) VALUES (?,?,?,?,?,?,?)`,
+		d.DecisionID, d.OpID, d.IngestSeq, string(d.Actor), d.CorrelationID, string(d.Status), string(b))
 	return err
 }
 func (s *Store) AppendEvent(ev contract.Event) (int64, error) {
@@ -145,6 +145,17 @@ func (s *Store) DecisionCount() int {
 func (s *Store) MaxDecidedSeq() int64 {
 	var n int64
 	_ = s.db.QueryRow(`SELECT COALESCE(MAX(ingest_seq), 0) FROM decisions`).Scan(&n)
+	return n
+}
+
+// DeferralCount returns how many deferred decisions a CorrelationID has accumulated in the durable log.
+// It is the liveness-escalation counter (Invariant #10) derived from the decision log rather than held
+// in memory, so escalation survives a process restart exactly as the cursor does. Under rebase mode every
+// pre-escalation deferral carries NextAction=rebase, so counting all deferrals for the correlation is
+// behaviourally identical to counting only rebase-deferrals, with one fewer column to maintain.
+func (s *Store) DeferralCount(correlationID string) int {
+	var n int
+	_ = s.db.QueryRow(`SELECT COUNT(*) FROM decisions WHERE correlation_id=? AND status='deferred'`, correlationID).Scan(&n)
 	return n
 }
 

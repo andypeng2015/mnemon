@@ -11,14 +11,16 @@ type Reconciler struct {
 	store  *kernel.Store
 	kernel *kernel.Kernel
 	cursor int64
-	rebase map[string]int // per-CorrelationID deferral count; PERSISTS across RunOnce calls (Invariant #10)
 }
 
 // NewReconciler seeds its cursor from the durable decision log (Store.MaxDecidedSeq), so a process
 // restart resumes after the last consumed event instead of re-reading the log from 0 and re-deciding
 // already-accepted events (which would pollute pull feedback). The decision log is the cursor.
+//
+// The liveness-escalation counter (Invariant #10) is NOT kept in memory either — it is derived per event
+// from the durable log (Store.DeferralCount), so escalation survives restart exactly as the cursor does.
 func NewReconciler(s *kernel.Store, k *kernel.Kernel) *Reconciler {
-	return &Reconciler{store: s, kernel: k, cursor: s.MaxDecidedSeq(), rebase: map[string]int{}}
+	return &Reconciler{store: s, kernel: k, cursor: s.MaxDecidedSeq()}
 }
 
 // opFromEvent builds the KernelOp from a TRUSTED event. Actor and read-set come from the event envelope
@@ -37,7 +39,7 @@ func opFromEvent(ev contract.Event) contract.KernelOp {
 			writes = nil // malformed payload -> no writes -> kernel rejects it (never a phantom Accepted no-op, #3)
 		}
 	}
-	return contract.KernelOp{OpID: ev.ID, Actor: ev.Actor, Writes: writes, ReadSet: ev.BasedOn, IngestSeq: ev.IngestSeq}
+	return contract.KernelOp{OpID: ev.ID, Actor: ev.Actor, Writes: writes, ReadSet: ev.BasedOn, IngestSeq: ev.IngestSeq, CorrelationID: ev.CorrelationID}
 }
 
 func (r *Reconciler) RunOnce(modes contract.Modes) []contract.Decision {
@@ -45,13 +47,12 @@ func (r *Reconciler) RunOnce(modes contract.Modes) []contract.Decision {
 	var out []contract.Decision
 	for _, ev := range evs { // strictly IngestSeq order (Invariant #9)
 		call := modes
-		if modes.Conflict == contract.ConflictRebase && r.rebase[ev.CorrelationID] >= 2 {
-			call.Conflict = contract.ConflictDeferToHuman // escalate BEFORE Apply -> terminal decision persisted once (#10)
+		// Escalate BEFORE Apply (so the persisted decision is terminal, #10). The deferral count is read
+		// from the durable log, not in-memory, so a restart cannot silently reset the escalation clock.
+		if modes.Conflict == contract.ConflictRebase && r.store.DeferralCount(ev.CorrelationID) >= 2 {
+			call.Conflict = contract.ConflictDeferToHuman
 		}
 		d := r.kernel.Apply(opFromEvent(ev), call) // kernel is the serializer, not us (Invariant #2)
-		if d.Status == contract.Deferred && d.NextAction == "rebase" {
-			r.rebase[ev.CorrelationID]++
-		}
 		out = append(out, d)
 		r.cursor = ev.IngestSeq
 	}

@@ -36,11 +36,12 @@ type ResourceWrite struct {
 // TRUSTED source; 0 for a direct (non-event) Apply. It is the event<->decision audit link and the basis
 // for the reconciler's durable cursor.
 type KernelOp struct {
-	OpID      string
-	Actor     ActorID
-	Writes    []ResourceWrite
-	ReadSet   []ResourceVersion
-	IngestSeq int64
+	OpID          string
+	Actor         ActorID
+	Writes        []ResourceWrite
+	ReadSet       []ResourceVersion
+	IngestSeq     int64
+	CorrelationID string // trusted envelope field; the durable key for liveness escalation (Invariant #10)
 }
 
 // ---- decisions ----
@@ -66,16 +67,17 @@ type Conflict struct {
 	Kind            ConflictKind
 }
 type Decision struct {
-	DecisionID  string
-	OpID        string
-	IngestSeq   int64
-	Actor       ActorID
-	Status      DecisionStatus
-	Reason      string
-	Conflicts   []Conflict
-	NextAction  string // "" (terminal) | "rebase" | "human_review"
-	AppliedAt   string // RFC3339; set iff Accepted
-	NewVersions []ResourceVersion
+	DecisionID    string
+	OpID          string
+	IngestSeq     int64
+	Actor         ActorID
+	CorrelationID string // carries the triggering event's correlation; the durable escalation key (Invariant #10)
+	Status        DecisionStatus
+	Reason        string
+	Conflicts     []Conflict
+	NextAction    string // "" (terminal) | "rebase" | "human_review"
+	AppliedAt     string // RFC3339; set iff Accepted
+	NewVersions   []ResourceVersion
 }
 
 // ---- events ----
