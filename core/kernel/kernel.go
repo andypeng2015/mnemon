@@ -27,6 +27,15 @@ func (k *Kernel) Apply(op contract.KernelOp, m contract.Modes) contract.Decision
 	var newVers []contract.ResourceVersion
 	var conflicts []contract.Conflict
 
+	// A write-op must write at least one resource. An empty Writes set (e.g. a malformed/undecodable
+	// proposal whose payload yielded no writes) must NOT be rubber-stamped Accepted as a phantom no-op
+	// (review finding #3). Reject it terminally — rebase can't fix a malformed op.
+	if len(op.Writes) == 0 {
+		d.Status, d.NextAction, d.Reason = contract.Rejected, "", "empty op: no writes"
+		_ = k.store.AppendDecision(d)
+		return d
+	}
+
 	err := k.store.WithTx(func(tx *Tx) error {
 		if m.Isolation == contract.IsolationProjectionReadSet { // read-set validation (Invariant #6)
 			for _, rv := range op.ReadSet {

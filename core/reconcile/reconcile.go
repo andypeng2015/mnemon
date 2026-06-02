@@ -33,7 +33,9 @@ func opFromEvent(ev contract.Event) contract.KernelOp {
 	var writes []contract.ResourceWrite
 	if raw, ok := ev.Payload["writes"]; ok {
 		b, _ := json.Marshal(raw)
-		_ = json.Unmarshal(b, &writes)
+		if err := json.Unmarshal(b, &writes); err != nil {
+			writes = nil // malformed payload -> no writes -> kernel rejects it (never a phantom Accepted no-op, #3)
+		}
 	}
 	return contract.KernelOp{OpID: ev.ID, Actor: ev.Actor, Writes: writes, ReadSet: ev.BasedOn, IngestSeq: ev.IngestSeq}
 }
