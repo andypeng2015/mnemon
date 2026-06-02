@@ -27,13 +27,21 @@ func (k *Kernel) Apply(op contract.KernelOp, m contract.Modes) contract.Decision
 	var newVers []contract.ResourceVersion
 	var conflicts []contract.Conflict
 
-	// A write-op must write at least one resource. An empty Writes set (e.g. a malformed/undecodable
-	// proposal whose payload yielded no writes) must NOT be rubber-stamped Accepted as a phantom no-op
-	// (review finding #3). Reject it terminally — rebase can't fix a malformed op.
+	// A write-op must write at least one resource, and every write must name a supported op kind. A
+	// malformed/undecodable proposal (no writes, or a zero-value write whose Kind is "") must NOT be
+	// rubber-stamped Accepted as a phantom no-op, nor rejected with an incidental authz reason
+	// (review finding #3). Reject it terminally up-front with a clear reason — rebase can't fix it.
 	if len(op.Writes) == 0 {
 		d.Status, d.NextAction, d.Reason = contract.Rejected, "", "empty op: no writes"
 		_ = k.store.AppendDecision(d)
 		return d
+	}
+	for _, w := range op.Writes {
+		if w.Kind != contract.OpCreate && w.Kind != contract.OpUpdate {
+			d.Status, d.NextAction, d.Reason = contract.Rejected, "", "malformed op: unsupported op kind \""+string(w.Kind)+"\""
+			_ = k.store.AppendDecision(d)
+			return d
+		}
 	}
 
 	err := k.store.WithTx(func(tx *Tx) error {

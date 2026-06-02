@@ -1,6 +1,7 @@
 package kernel
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/mnemon-dev/mnemon/core/contract"
@@ -19,5 +20,19 @@ func TestEmptyWritesOpIsRejected(t *testing.T) {
 	}
 	if k.Store().DecisionCount() != 1 {
 		t.Fatalf("exactly one decision persisted, got %d", k.Store().DecisionCount())
+	}
+}
+
+// #3 (hardening): a non-empty write with an invalid OpKind (e.g. a zero-value write from a {"writes":[{}]}
+// payload) must be Rejected with a reason that NAMES the malformed op kind — caught up-front, not
+// incidentally via an authz error on an empty resource kind.
+func TestMalformedWriteKindIsRejectedWithClearReason(t *testing.T) {
+	k := newKernel(t)
+	d := k.Apply(contract.KernelOp{OpID: "z", Actor: "user", Writes: []contract.ResourceWrite{{}}}, p0Modes())
+	if d.Status != contract.Rejected || d.NextAction != "" {
+		t.Fatalf("malformed write must be Rejected/'' (terminal), got %s/%q", d.Status, d.NextAction)
+	}
+	if !strings.Contains(d.Reason, "op kind") {
+		t.Fatalf("reason should name the malformed op kind, got %q", d.Reason)
 	}
 }

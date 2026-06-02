@@ -42,3 +42,31 @@ func TestPullFeedbackOrderedByIngestSeq(t *testing.T) {
 		t.Fatalf("feedback must be ordered by IngestSeq [1,2], got [%d,%d]", fb[0].IngestSeq, fb[1].IngestSeq)
 	}
 }
+
+// #4 (coverage): when two deferred decisions for an actor share an IngestSeq (e.g. direct non-event
+// Applies, all IngestSeq=0), the ORDER BY's `, rowid` tiebreak must give insertion order — not the
+// undefined order of a bare ORDER BY ingest_seq. OpIDs are chosen so alphabetical != insertion order.
+func TestPullFeedbackTiebreakIsInsertionOrder(t *testing.T) {
+	s, k := newRecon(t)
+	X := contract.ResourceRef{Kind: "memory", ID: "X"}
+	seedCreate(t, k, X, map[string]any{"content": "v0"})    // X@1
+	seedUpdate(t, k, X, 1, map[string]any{"content": "v1"}) // X@2 -> base 1 stale
+	// two DIRECT deferred Applies for codex, both IngestSeq 0, distinct correlations (no escalation)
+	upd := func(opID, corr string) contract.KernelOp {
+		return contract.KernelOp{OpID: opID, Actor: "codex", CorrelationID: corr,
+			Writes: []contract.ResourceWrite{{Ref: X, Kind: contract.OpUpdate, BasedOn: 1, Fields: map[string]any{"content": "x"}}}}
+	}
+	if d := k.Apply(upd("z_first", "c1"), casModes()); d.Status != contract.Deferred {
+		t.Fatalf("z_first must defer, got %s", d.Status)
+	}
+	if d := k.Apply(upd("a_second", "c2"), casModes()); d.Status != contract.Deferred {
+		t.Fatalf("a_second must defer, got %s", d.Status)
+	}
+	fb, _ := s.DecisionsForActor("codex")
+	if len(fb) != 2 {
+		t.Fatalf("want 2 deferred, got %d", len(fb))
+	}
+	if fb[0].OpID != "z_first" || fb[1].OpID != "a_second" {
+		t.Fatalf("same-seq feedback must be in insertion order [z_first,a_second], got [%s,%s]", fb[0].OpID, fb[1].OpID)
+	}
+}
