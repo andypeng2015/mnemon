@@ -161,9 +161,14 @@ func (s *Store) MaxDecidedSeq() int64 {
 // DeferralCount returns how many REBASE deferrals a CorrelationID has accumulated in the durable log.
 // It is the liveness-escalation counter (Invariant #10) derived from the decision log rather than held
 // in memory, so escalation survives a process restart exactly as the cursor does. It counts ONLY
-// next_action='rebase' deferrals — exactly the predicate the removed in-memory map used — so an unrelated
-// human_review deferral (from a defer_to_human / auto_merge_disjoint pass that shares the CorrelationID)
-// does NOT pre-seed the count and trigger premature escalation.
+// next_action='rebase' deferrals, so an unrelated human_review deferral (from a defer_to_human /
+// auto_merge_disjoint pass that shares the CorrelationID) does NOT pre-seed the count and trigger
+// premature escalation.
+//
+// Scope note: for the reconciler path — the SOLE production caller of Kernel.Apply — this reproduces the
+// removed in-memory map's predicate exactly (rebase-deferrals are only produced inside RunOnce). A direct
+// (non-reconciler) Apply sharing a CorrelationID would also contribute to this durable count; that is not
+// reachable today and is the intended behaviour for any future direct path (e.g. CLI-inline, Invariant #17).
 func (s *Store) DeferralCount(correlationID string) int {
 	var n int
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM decisions WHERE correlation_id=? AND status='deferred' AND next_action='rebase'`, correlationID).Scan(&n)
