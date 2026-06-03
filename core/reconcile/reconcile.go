@@ -2,10 +2,17 @@ package reconcile
 
 import (
 	"encoding/json"
+	"strings"
 
 	"github.com/mnemon-dev/mnemon/core/contract"
 	"github.com/mnemon-dev/mnemon/core/kernel"
 )
+
+// isProposal reports whether an event is a proposed operation the reconciler should try to apply.
+// The event log carries BOTH observations and proposals; only proposals (by the "*.proposed" type
+// convention) become KernelOps. Observations are consumed without a decision. A "*.proposed" event that
+// carries no decodable writes is a MALFORMED proposal and is still Rejected by the kernel (not skipped).
+func isProposal(ev contract.Event) bool { return strings.HasSuffix(ev.Type, ".proposed") }
 
 type Reconciler struct {
 	store  *kernel.Store
@@ -52,6 +59,10 @@ func (r *Reconciler) RunOnce(modes contract.Modes) []contract.Decision {
 		return out
 	}
 	for _, ev := range evs { // strictly IngestSeq order (Invariant #9)
+		if !isProposal(ev) {
+			r.cursor = ev.IngestSeq // observation: consumed, but not a write attempt — no decision (R2#2)
+			continue
+		}
 		call := modes
 		// Escalate BEFORE Apply (so the persisted decision is terminal, #10). The deferral count is read
 		// from the durable log, not in-memory, so a restart cannot silently reset the escalation clock.
