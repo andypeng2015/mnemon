@@ -231,6 +231,12 @@ func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, []ker
 			ID: id, Kind: "job", EventSeq: ev.IngestSeq,
 			Target: dec.Job.Kind, Payload: string(payload), IdempotencyKey: dec.Job.IdempotencyKey})
 	}
+	// S7: surface accumulated advisory reasons (e.g. a co-firing warn rule) for the verdicts whose branch does
+	// not already emit them (Deny and standalone-Warn do). A warning is never silently dropped, even when a
+	// higher-ranked verdict wins.
+	if len(dec.Reasons) > 0 && (dec.Verdict == contract.VerdictPropose || dec.Verdict == contract.VerdictEnqueueJob || dec.Verdict == contract.VerdictRequestEvidence) {
+		stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "warn", Reason: "warn: " + strings.Join(dec.Reasons, "; "), Ref: ev.Type}))
+	}
 	return stamped, jobs, nil
 }
 

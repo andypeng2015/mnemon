@@ -264,6 +264,33 @@ func TestWarnVerdictEmitsDiagnostic(t *testing.T) {
 	}
 }
 
+// re-verify LOW: warn reasons must surface even when a higher verdict (propose) wins — never a silent warn.
+func TestWarnReasonsSurfacedWhenProposeWins(t *testing.T) {
+	warn := rule.NewNativeRule("warn", "agent", "x.proposed", []string{"memory.observed"},
+		func(rule.RuleInput) (contract.RuleDecision, error) {
+			return contract.RuleDecision{Verdict: contract.VerdictWarn, Reasons: []string{"DANGER"}}, nil
+		})
+	s, _, cs := newServerWith(t, rule.NewRuleSet(warn, proposeRule()))
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if v, _ := s.GetVersion(contract.ResourceRef{Kind: "memory", ID: "m1"}); v != 2 {
+		t.Fatalf("propose must still win (m1 @2); got %d", v)
+	}
+	found := false
+	for _, dg := range diagEvents(t, s) {
+		if reason, _ := dg.Payload["reason"].(string); strings.Contains(reason, "DANGER") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("warn reasons must surface as a diagnostic even when propose wins")
+	}
+}
+
 func hasDiagStage(t *testing.T, s *kernel.Store, stage string) bool {
 	t.Helper()
 	for _, dg := range diagEvents(t, s) {

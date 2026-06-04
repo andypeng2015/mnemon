@@ -181,6 +181,11 @@ func (t *Tx) AppendEventReturningSeq(ev contract.Event) (int64, error) {
 // writer connection serializes concurrent ingests, so the SELECT-then-INSERT cannot race. The server stamps
 // env.Event.Actor from the authenticated principal BEFORE calling (D7) — the store trusts the envelope.
 func (s *Store) IngestObservation(env contract.ObservationEnvelope) (int64, bool, error) {
+	// An idempotency key is REQUIRED for exactly-once ingest (S1): an empty ExternalID would make every
+	// keyless observation from a source collapse onto one dedupe row, silently dropping all but the first.
+	if env.ExternalID == "" {
+		return 0, false, fmt.Errorf("ingest: empty external_id (an idempotency key is required for exactly-once ingest, S1)")
+	}
 	var seq int64
 	var dup bool
 	err := s.WithTx(func(tx *Tx) error {

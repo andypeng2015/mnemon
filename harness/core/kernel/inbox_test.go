@@ -38,3 +38,15 @@ func TestIngestObservationDedupes(t *testing.T) {
 		t.Fatalf("distinct external_id must append a new event; got (%d,%v,%v)", seq3, dup3, err)
 	}
 }
+
+// S1: an empty ExternalID must be rejected (fail-loud) — else two DISTINCT observations from the same source
+// with no key would collapse on the ("",source) dedupe row and silently drop the second.
+func TestIngestObservationRejectsEmptyExternalID(t *testing.T) {
+	s := newTestStore(t)
+	if _, _, err := s.IngestObservation(contract.ObservationEnvelope{Source: "agent", ExternalID: "", Event: contract.Event{Type: "memory.observed"}}); err == nil {
+		t.Fatal("an empty ExternalID must be rejected (S1: an idempotency key is required for exactly-once ingest)")
+	}
+	if evs, _ := s.PendingEvents(0); len(evs) != 0 {
+		t.Fatalf("a rejected empty-key ingest must append nothing; got %d", len(evs))
+	}
+}
