@@ -8,6 +8,7 @@ import (
 	"net/http"
 
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
+	"github.com/mnemon-dev/mnemon/harness/core/projection"
 )
 
 // principalHeader carries the AUTHENTICATED edge identity. The server trusts THIS, never the request body
@@ -43,6 +44,25 @@ func NewHTTPHandler(api ServerAPI) http.Handler {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ingestResponse{Seq: seq, Dup: dup})
+	})
+	mux.HandleFunc("/projection", func(w http.ResponseWriter, r *http.Request) {
+		principal := contract.ActorID(r.Header.Get(principalHeader))
+		if principal == "" {
+			http.Error(w, "missing authenticated principal", http.StatusUnauthorized)
+			return
+		}
+		var sub contract.Subscription
+		if err := json.NewDecoder(r.Body).Decode(&sub); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		proj, err := api.PullProjection(principal, sub)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden) // identity/scope violation
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(proj)
 	})
 	return mux
 }
@@ -88,4 +108,34 @@ func (c *Client) Ingest(_ contract.ActorID, env contract.ObservationEnvelope) (i
 		return 0, false, err
 	}
 	return out.Seq, out.Dup, nil
+}
+
+// PullProjection fetches the actor's scoped view from the server. The principal argument is ignored: the
+// subscription's actor is sent in the body and the server cross-checks it against the bound credential header,
+// so an edge cannot pull another actor's scope (D7/S9).
+func (c *Client) PullProjection(_ contract.ActorID, sub contract.Subscription) (projection.Projection, error) {
+	body, err := json.Marshal(sub)
+	if err != nil {
+		return projection.Projection{}, err
+	}
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/projection", bytes.NewReader(body))
+	if err != nil {
+		return projection.Projection{}, err
+	}
+	req.Header.Set(principalHeader, string(c.principal))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return projection.Projection{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return projection.Projection{}, fmt.Errorf("pull failed: %s: %s", resp.Status, string(b))
+	}
+	var proj projection.Projection
+	if err := json.NewDecoder(resp.Body).Decode(&proj); err != nil {
+		return projection.Projection{}, err
+	}
+	return proj, nil
 }

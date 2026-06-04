@@ -25,6 +25,7 @@ const serverDispatchCursor = "server_dispatch"
 // PullProjection (P2), ClaimJob/FinishJob (P3).
 type ServerAPI interface {
 	Ingest(principal contract.ActorID, env contract.ObservationEnvelope) (seq int64, dup bool, err error)
+	PullProjection(principal contract.ActorID, sub contract.Subscription) (projection.Projection, error)
 }
 
 var _ ServerAPI = (*ControlServer)(nil)
@@ -64,6 +65,15 @@ func (cs *ControlServer) Ingest(principal contract.ActorID, env contract.Observa
 	return cs.store.IngestObservation(env)
 }
 
+// PullProjection serves an actor's scoped, server-built view. The subscription's actor MUST equal the
+// authenticated principal (S9/D7): a client can never name another actor's scope on the wire.
+func (cs *ControlServer) PullProjection(principal contract.ActorID, sub contract.Subscription) (projection.Projection, error) {
+	if sub.Actor != principal {
+		return projection.Projection{}, fmt.Errorf("subscription actor %q does not match authenticated principal %q", sub.Actor, principal)
+	}
+	return projection.ScopedView(cs.store, sub), nil
+}
+
 // Tick runs one governed cycle:
 //  1. DISPATCH: scan events past the durable dispatch cursor; for each OBSERVED event, build its actor's
 //     scoped view, run the rule pre-gate, turn the verdict into trusted events — a propose -> bridged
@@ -98,6 +108,13 @@ func (cs *ControlServer) Tick() ([]contract.Decision, error) {
 // still advances past them, so each event is consumed exactly once.
 func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, error) {
 	view := cs.scopedView(ev.Actor)
+	// S10/D8 readback: if the edge echoed the digest it claims to have read, it MUST match the current
+	// canonical content digest. A mismatch means the edge acted on tampered/stale content — block the
+	// dependent proposal (no write) and surface a stage:readback diagnostic.
+	if ev.ContextDigest != "" && ev.ContextDigest != view.Digest {
+		return []contract.Event{cs.diagnosticEvent(ev, contract.Diagnostic{
+			Stage: "readback", Reason: fmt.Sprintf("echoed digest %q != current %q", ev.ContextDigest, view.Digest), Ref: string(ev.Actor)})}, nil
+	}
 	dec, diags := cs.rules.Evaluate(rule.RuleInput{Event: ev, View: view})
 	var stamped []contract.Event
 	for _, dg := range diags { // S7: every rule error is a durable diagnostic.
@@ -130,8 +147,7 @@ func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, error
 // scopedView builds the actor's scoped projection. (P2 strengthens the scoping + digest behind this seam;
 // the call site stays stable.)
 func (cs *ControlServer) scopedView(actor contract.ActorID) projection.Projection {
-	sub := cs.subs[actor]
-	return projection.Build(cs.store, sub.Refs, actor)
+	return projection.ScopedView(cs.store, cs.subs[actor])
 }
 
 // proposerBinding finds the rule that produced a proposal (deterministic, by rule order) so the bridge stamps
