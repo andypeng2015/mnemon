@@ -6,6 +6,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/mnemon-dev/mnemon/harness/core/config"
@@ -86,7 +87,7 @@ func (cs *ControlServer) Tick() ([]contract.Decision, error) {
 		}
 	}
 	decisions := cs.reconciler.RunOnce(cs.modes)
-	if err := cs.enqueueInvalidations(decisions); err != nil {
+	if err := cs.handleDecisions(decisions); err != nil {
 		return nil, err
 	}
 	return decisions, nil
@@ -166,23 +167,51 @@ func (cs *ControlServer) diagnosticEvent(trigger contract.Event, dg contract.Dia
 	}
 }
 
-// enqueueInvalidations records an outbox invalidation per Accepted decision (S2 downstream propagation). The
-// DecisionID is the idempotency key, so a replayed decision never double-enqueues.
-func (cs *ControlServer) enqueueInvalidations(decisions []contract.Decision) error {
+// handleDecisions consumes each reconcile decision: an Accepted one enqueues an outbox invalidation (S2
+// downstream propagation); a non-Accepted one surfaces a durable diagnostic naming WHY (S7 — no silent drop,
+// for the kernel's reject classes: schema, authz, and CAS/read-stale conflict).
+func (cs *ControlServer) handleDecisions(decisions []contract.Decision) error {
 	for _, d := range decisions {
-		if d.Status != contract.Accepted {
+		if d.Status == contract.Accepted {
+			if err := cs.enqueueInvalidation(d); err != nil {
+				return err
+			}
 			continue
 		}
-		payload, _ := json.Marshal(d.NewVersions)
-		key := "inv_" + d.DecisionID
-		if err := cs.store.WithTx(func(tx *kernel.Tx) error {
-			return tx.EnqueueOutbox(kernel.OutboxRow{
-				ID: key, Kind: "invalidation", EventSeq: d.IngestSeq,
-				Target: "projection", Payload: string(payload), IdempotencyKey: key,
-			})
-		}); err != nil {
+		if _, err := cs.store.AppendEvent(cs.rejectDiagnostic(d)); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+// enqueueInvalidation records an outbox invalidation for one Accepted decision. The DecisionID is the
+// idempotency key, so a replayed decision never double-enqueues.
+func (cs *ControlServer) enqueueInvalidation(d contract.Decision) error {
+	payload, _ := json.Marshal(d.NewVersions)
+	key := "inv_" + d.DecisionID
+	return cs.store.WithTx(func(tx *kernel.Tx) error {
+		return tx.EnqueueOutbox(kernel.OutboxRow{
+			ID: key, Kind: "invalidation", EventSeq: d.IngestSeq,
+			Target: "projection", Payload: string(payload), IdempotencyKey: key,
+		})
+	})
+}
+
+// rejectDiagnostic turns a kernel reject/defer into a durable "*.diagnostic" event (S7). A CAS/read-stale
+// conflict names the raced ResourceVersion (kind/id@actual); a schema/authz reject carries the kernel's
+// reason, which already names actor×kind/field. The domain is the conflict's resource kind when present.
+func (cs *ControlServer) rejectDiagnostic(d contract.Decision) contract.Event {
+	stage, reason, ref, domain := "kernel", d.Reason, string(d.Actor), "control"
+	if len(d.Conflicts) > 0 {
+		c := d.Conflicts[0]
+		reason = fmt.Sprintf("conflict on %s/%s: expected v%d, actual v%d (%s)", c.Ref.Kind, c.Ref.ID, c.ExpectedVersion, c.ActualVersion, c.Kind)
+		ref = fmt.Sprintf("%s/%s@%d", c.Ref.Kind, c.Ref.ID, c.ActualVersion)
+		domain = string(c.Ref.Kind)
+	}
+	return contract.Event{
+		SchemaVersion: 1, ID: cs.newID(), TS: cs.now(),
+		Type: domain + ".diagnostic", Actor: d.Actor, CorrelationID: d.CorrelationID, CausedBy: d.OpID,
+		Payload: map[string]any{"stage": stage, "reason": reason, "ref": ref, "decision": string(d.Status)},
+	}
 }
