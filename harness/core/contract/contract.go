@@ -199,4 +199,5 @@ var (
 // the kernel silently accepts — an unknown kind has no required fields, so SchemaGuard.Validate passes).
 // Invariant: keys(kernel.DefaultSchemaGuard().Required) == KindCatalog (enforced by a kernel test).
 // lease/budget are first-class versioned resources (D3): their per-resource Version is the fence / CAS counter.
-var KindCatalog = map[ResourceKind]bool{"memory": true, "goal": true, "skill": true, "lease": true, "budget": true}
+// receipt is the durable record of an external effect (S4: the job lane writes a receipt resource via CAS).
+var KindCatalog = map[ResourceKind]bool{"memory": true, "goal": true, "skill": true, "lease": true, "budget": true, "receipt": true}
