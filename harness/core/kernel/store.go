@@ -10,16 +10,31 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-type Store struct{ db *sql.DB }
+type Store struct {
+	db      *sql.DB
+	release func() error // single-writer lock release; no-op for :memory: (S11)
+}
 type Tx struct{ tx *sql.Tx }
 
-func OpenStore(path string) (*Store, error) {
-	dsn := path
-	if path != ":memory:" {
-		dsn = path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)"
+// dsnFor builds the connection DSN. File-backed stores pin synchronous(FULL) (durability: every commit
+// fsyncs before returning, closing the WAL crash-window) on top of busy_timeout + WAL. :memory: stays bare.
+func dsnFor(path string) string {
+	if path == ":memory:" {
+		return path
 	}
-	db, err := sql.Open("sqlite", dsn)
+	return path + "?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(FULL)"
+}
+
+func OpenStore(path string) (*Store, error) {
+	// S11: single-writer lock + anti-NFS guard (skipped for :memory:). Acquire BEFORE opening the DB so a
+	// second writer is rejected before it can touch the WAL.
+	release, err := openGuard(path, defaultStatFS)
 	if err != nil {
+		return nil, err
+	}
+	db, err := sql.Open("sqlite", dsnFor(path))
+	if err != nil {
+		_ = release()
 		return nil, err
 	}
 	db.SetMaxOpenConns(1) // kernel is the sole serializer (Invariant #2): one conn => no lock races, no per-conn :memory: split
@@ -31,6 +46,7 @@ func OpenStore(path string) (*Store, error) {
 	} {
 		if _, err := db.Exec(s); err != nil {
 			db.Close()
+			_ = release()
 			return nil, err
 		}
 	}
@@ -40,12 +56,21 @@ func OpenStore(path string) (*Store, error) {
 	for _, col := range []string{"correlation_id TEXT", "next_action TEXT"} {
 		if _, err := db.Exec(`ALTER TABLE decisions ADD COLUMN ` + col); err != nil && !strings.Contains(err.Error(), "duplicate column") {
 			db.Close()
+			_ = release()
 			return nil, err
 		}
 	}
-	return &Store{db: db}, nil
+	return &Store{db: db, release: release}, nil
 }
-func (s *Store) Close() error { return s.db.Close() }
+func (s *Store) Close() error {
+	err := s.db.Close()
+	if s.release != nil {
+		if rerr := s.release(); err == nil {
+			err = rerr
+		}
+	}
+	return err
+}
 
 func (s *Store) WithTx(fn func(*Tx) error) error { // the atomic boundary: check+write are one op (Invariant #3,#5)
 	tx, err := s.db.Begin()
