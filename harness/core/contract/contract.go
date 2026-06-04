@@ -148,4 +148,5 @@ var (
 // scope reference, a kind the schema guard does not know (else config could DEFINE a phantom kind that
 // the kernel silently accepts — an unknown kind has no required fields, so SchemaGuard.Validate passes).
 // Invariant: keys(kernel.DefaultSchemaGuard().Required) == KindCatalog (enforced by a kernel test).
-var KindCatalog = map[ResourceKind]bool{"memory": true, "goal": true, "skill": true}
+// lease/budget are first-class versioned resources (D3): their per-resource Version is the fence / CAS counter.
+var KindCatalog = map[ResourceKind]bool{"memory": true, "goal": true, "skill": true, "lease": true, "budget": true}

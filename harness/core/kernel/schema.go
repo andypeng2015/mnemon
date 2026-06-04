@@ -11,7 +11,15 @@ type SchemaGuard struct {
 }
 
 func DefaultSchemaGuard() SchemaGuard {
-	return SchemaGuard{Required: map[contract.ResourceKind][]string{"memory": {"content"}, "goal": {"statement"}, "skill": {"name"}}}
+	return SchemaGuard{Required: map[contract.ResourceKind][]string{
+		"memory": {"content"},
+		"goal":   {"statement"},
+		"skill":  {"name"},
+		// lease/budget are versioned resources (D3); their required fields back the fenced claim (S5) and the
+		// atomic budget reserve (S6). Must stay in lockstep with contract.KindCatalog (kind_catalog_test).
+		"lease":  {"job_id", "owner", "fence_until"},
+		"budget": {"limit_usd", "spent_usd"},
+	}}
 }
 func (g SchemaGuard) Validate(kind contract.ResourceKind, fields map[string]any) error {
 	required, known := g.Required[kind]
