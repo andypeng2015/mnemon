@@ -8,9 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/core/config"
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
+	"github.com/mnemon-dev/mnemon/harness/core/job"
 	"github.com/mnemon-dev/mnemon/harness/core/kernel"
 	"github.com/mnemon-dev/mnemon/harness/core/projection"
 	"github.com/mnemon-dev/mnemon/harness/core/reconcile"
@@ -41,6 +43,12 @@ type ControlServer struct {
 	modes      contract.Modes
 	newID      func() string
 	now        func() string
+
+	// effectful job lane (S4/S5): nil runner = no lane (P0–P2). Configured via WithLane.
+	runner    job.Runner
+	laneOwner contract.ActorID
+	laneTTL   int64
+	nowUnix   func() int64
 }
 
 func New(s *kernel.Store, k *kernel.Kernel, rules rule.RuleSet, subs map[contract.ActorID]contract.Subscription, modes contract.Modes, newID, now func() string) *ControlServer {
@@ -55,6 +63,22 @@ func New(s *kernel.Store, k *kernel.Kernel, rules rule.RuleSet, subs map[contrac
 		newID:      newID,
 		now:        now,
 	}
+}
+
+// WithLane enables the effectful job lane: jobs the rule pre-gate enqueues are run by runner under leases
+// owned by owner (fenced for ttl seconds; nowUnix is the injectable clock). Returns the server for chaining.
+func (cs *ControlServer) WithLane(runner job.Runner, owner contract.ActorID, nowUnix func() int64, ttl int64) *ControlServer {
+	cs.runner, cs.laneOwner, cs.nowUnix, cs.laneTTL = runner, owner, nowUnix, ttl
+	return cs
+}
+
+// jobPayload is the outbox payload for an enqueued job: the spec plus the trusted lineage (originating actor,
+// trigger, correlation) the lane uses to mint a trusted proposal candidate.
+type jobPayload struct {
+	Spec        contract.JobSpec
+	Actor       contract.ActorID
+	TriggerID   string
+	Correlation string
 }
 
 // Ingest records an observation exactly-once (S1). Source and Event.Actor are stamped from the AUTHENTICATED
@@ -88,35 +112,59 @@ func (cs *ControlServer) Tick() ([]contract.Decision, error) {
 		return nil, err // fail-stop on a corrupt log (consistent with RunOnce)
 	}
 	for _, ev := range evs {
-		stamped, derr := cs.dispatchOne(ev)
+		stamped, jobs, derr := cs.dispatchOne(ev)
 		if derr != nil {
 			return nil, derr
 		}
-		if err := cs.store.DispatchTx(stamped, serverDispatchCursor, ev.IngestSeq); err != nil {
+		// S2: this observed event's produced events + enqueued jobs + the cursor advance are ONE tx.
+		if err := cs.store.WithTx(func(tx *kernel.Tx) error {
+			for _, e := range stamped {
+				if err := tx.AppendEvent(e); err != nil {
+					return err
+				}
+			}
+			for _, j := range jobs {
+				if err := tx.EnqueueOutbox(j); err != nil {
+					return err
+				}
+			}
+			return tx.SetCursor(serverDispatchCursor, ev.IngestSeq)
+		}); err != nil {
 			return nil, err
 		}
 	}
+	// 1) decide the rule proposals.
 	decisions := cs.reconciler.RunOnce(cs.modes)
 	if err := cs.handleDecisions(decisions); err != nil {
 		return nil, err
 	}
-	return decisions, nil
+	// 2) run the effectful job lane (no-op without a runner); it mints proposal candidates as *.proposed.
+	if err := cs.runJobLane(); err != nil {
+		return nil, err
+	}
+	// 3) decide the lane-minted proposals so the full chain closes in one Tick.
+	laneDecisions := cs.reconciler.RunOnce(cs.modes)
+	if err := cs.handleDecisions(laneDecisions); err != nil {
+		return nil, err
+	}
+	return append(decisions, laneDecisions...), nil
 }
 
 // dispatchOne runs the rule pre-gate for one event and returns the trusted events to append (proposals +
 // diagnostics). Events no rule handles (proposals, diagnostics, other domains) produce nothing — the cursor
 // still advances past them, so each event is consumed exactly once.
-func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, error) {
+func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, []kernel.OutboxRow, error) {
 	view := cs.scopedView(ev.Actor)
 	// S10/D8 readback: if the edge echoed the digest it claims to have read, it MUST match the current
 	// canonical content digest. A mismatch means the edge acted on tampered/stale content — block the
 	// dependent proposal (no write) and surface a stage:readback diagnostic.
 	if ev.ContextDigest != "" && ev.ContextDigest != view.Digest {
 		return []contract.Event{cs.diagnosticEvent(ev, contract.Diagnostic{
-			Stage: "readback", Reason: fmt.Sprintf("echoed digest %q != current %q", ev.ContextDigest, view.Digest), Ref: string(ev.Actor)})}, nil
+			Stage: "readback", Reason: fmt.Sprintf("echoed digest %q != current %q", ev.ContextDigest, view.Digest), Ref: string(ev.Actor)})}, nil, nil
 	}
 	dec, diags := cs.rules.Evaluate(rule.RuleInput{Event: ev, View: view})
 	var stamped []contract.Event
+	var jobs []kernel.OutboxRow
 	for _, dg := range diags { // S7: every rule error is a durable diagnostic.
 		stamped = append(stamped, cs.diagnosticEvent(ev, dg))
 	}
@@ -139,9 +187,62 @@ func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, error
 	case contract.VerdictDeny:
 		stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "rule", Reason: strings.Join(dec.Reasons, "; "), Ref: ev.Type}))
 	case contract.VerdictEnqueueJob, contract.VerdictRequestEvidence:
-		// the effectful job lane is wired in P3; for now these verdicts produce no proposal.
+		// S4: enqueue an outbox job. The idempotency key dedupes a retried request (UNIQUE no-op).
+		if dec.Job != nil {
+			payload, _ := json.Marshal(jobPayload{Spec: *dec.Job, Actor: ev.Actor, TriggerID: ev.ID, Correlation: ev.CorrelationID})
+			jobs = append(jobs, kernel.OutboxRow{
+				ID: "job_" + dec.Job.IdempotencyKey, Kind: "job", EventSeq: ev.IngestSeq,
+				Target: dec.Job.Kind, Payload: string(payload), IdempotencyKey: dec.Job.IdempotencyKey})
+		}
 	}
-	return stamped, nil
+	return stamped, jobs, nil
+}
+
+// runJobLane is one pass of the effectful job lane (S4/S5). It claims pending outbox jobs, for each takes a
+// FENCED lease (job.Claim), runs the injected Runner, writes a receipt + releases the lease (job.Finish),
+// then mints the runner's proposal candidate into a TRUSTED *.proposed event (via the bridge, stamped as the
+// originating actor) and acks the outbox. The kernel never performs the effect — it only commits the receipt
+// and decides the minted proposal. No-op when no runner is configured.
+func (cs *ControlServer) runJobLane() error {
+	if cs.runner == nil {
+		return nil
+	}
+	claimed, err := cs.store.ClaimOutbox(string(cs.laneOwner), time.Duration(cs.laneTTL)*time.Second)
+	if err != nil {
+		return err
+	}
+	for _, row := range claimed {
+		if row.Kind != "job" {
+			continue // invalidations etc. are not job-lane work
+		}
+		var jp jobPayload
+		if err := json.Unmarshal([]byte(row.Payload), &jp); err != nil {
+			continue
+		}
+		lease, err := job.Claim(cs.kernel, row.ID, cs.laneOwner, cs.nowUnix(), cs.laneTTL)
+		if err != nil {
+			continue // another worker holds the fenced lease
+		}
+		result, err := cs.runner.Run(jp.Spec)
+		if err != nil {
+			continue
+		}
+		if err := job.Finish(cs.kernel, lease, result, cs.nowUnix()); err != nil {
+			continue // stale fence / duplicate effect -> skip (at-least-once, never double-commit)
+		}
+		if result.ProposalCandidate != nil {
+			view := cs.scopedView(jp.Actor)
+			b := config.ResolvedBinding{Actor: jp.Actor, Emits: result.ProposalCandidate.Type}
+			trigger := contract.Event{ID: jp.TriggerID, CorrelationID: jp.Correlation}
+			if e, serr := cs.bridge.Stamp(b, view, trigger, *result.ProposalCandidate); serr == nil {
+				if _, aerr := cs.store.AppendEvent(e); aerr != nil {
+					return aerr
+				}
+			}
+		}
+		_ = cs.store.AckOutbox(row.ID, string(cs.laneOwner))
+	}
+	return nil
 }
 
 // scopedView builds the actor's scoped projection. (P2 strengthens the scoping + digest behind this seam;

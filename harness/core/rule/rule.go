@@ -104,7 +104,8 @@ func (rs RuleSet) Evaluate(in RuleInput) (contract.RuleDecision, []contract.Diag
 		if d.Verdict == contract.VerdictPropose && out.Proposal == nil {
 			out.Proposal = d.Proposal
 		}
-		if d.Verdict == contract.VerdictEnqueueJob && out.Job == nil {
+		// carry the first Job for an enqueue_job/request_evidence verdict (both spawn a job-lane effect).
+		if d.Job != nil && out.Job == nil {
 			out.Job = d.Job
 		}
 	}
