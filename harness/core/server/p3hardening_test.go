@@ -1,0 +1,168 @@
+package server
+
+import (
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/mnemon-dev/mnemon/harness/core/contract"
+	"github.com/mnemon-dev/mnemon/harness/core/job"
+	"github.com/mnemon-dev/mnemon/harness/core/kernel"
+	"github.com/mnemon-dev/mnemon/harness/core/rule"
+)
+
+type erroringRunner struct{}
+
+func (erroringRunner) Run(contract.JobSpec) (job.Result, error) { return job.Result{}, errors.New("runner boom") }
+
+// #9: PullProjection must serve only the actor's CONFIGURED scope; client-named out-of-scope refs are denied.
+func TestPullProjectionEnforcesConfiguredScope(t *testing.T) {
+	_, k, cs := newServerWith(t, rule.NewRuleSet(proposeRule()))
+	// a resource the agent is NOT configured to see (agentSubs scope = {m1}).
+	if d := k.Apply(contract.KernelOp{OpID: "secret", Actor: "agent", Writes: []contract.ResourceWrite{
+		{Ref: contract.ResourceRef{Kind: "memory", ID: "secret"}, Kind: contract.OpCreate, Fields: map[string]any{"content": "top"}}}}, p0Modes()); d.Status != contract.Accepted {
+		t.Fatalf("seed secret: %s", d.Reason)
+	}
+	proj, err := cs.PullProjection("agent", contract.Subscription{Actor: "agent", Refs: []contract.ResourceRef{{Kind: "memory", ID: "secret"}}})
+	if err != nil {
+		t.Fatalf("pull: %v", err)
+	}
+	for _, rv := range proj.Resources {
+		if rv.Ref.ID == "secret" {
+			t.Fatal("a client-named out-of-scope ref must NOT be served (S9: server enforces the configured scope)")
+		}
+	}
+}
+
+// #3: a job with an EMPTY idempotency key must not collide on the outbox id PK and poison the dispatch loop.
+func TestEmptyIdempotencyKeyJobDoesNotPoison(t *testing.T) {
+	emptyKeyRule := rule.NewNativeRule("ek", "agent", "memory.write.proposed", []string{"memory.observed"},
+		func(rule.RuleInput) (contract.RuleDecision, error) {
+			return contract.RuleDecision{Verdict: contract.VerdictEnqueueJob, Job: &contract.JobSpec{Kind: "gather", IdempotencyKey: ""}}, nil
+		})
+	s, cs := newServerWithLane(t, rule.NewRuleSet(emptyKeyRule), job.NewFakeRunner(nil))
+	for _, id := range []string{"e1", "e2"} {
+		if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: id, Event: contract.Event{Type: "memory.observed", CorrelationID: "c-" + id}}); err != nil {
+			t.Fatalf("ingest %s: %v", id, err)
+		}
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("two empty-key jobs must not poison the dispatch loop; got %v", err)
+	}
+	// both observations consumed (no memory.observed remains past the dispatch cursor — the lane may have
+	// appended its own diagnostics, which is fine).
+	evs, _ := s.PendingEvents(s.GetCursor("server_dispatch"))
+	for _, ev := range evs {
+		if ev.Type == "memory.observed" {
+			t.Fatal("an observed event was not dispatched (poison loop)")
+		}
+	}
+}
+
+// #2/#4: a job whose receipt already exists (e.g. effect ran before a crash pre-ack) must NOT re-run; the
+// outbox row drains (idempotent recovery, no infinite re-run wedge).
+func TestLaneSkipsJobWithExistingReceipt(t *testing.T) {
+	runner := job.NewFakeRunner(laneProposal())
+	s, cs := newServerWithLane(t, rule.NewRuleSet(requestEvidenceRule()), runner)
+	// pre-write the receipt keyed by the idempotency key (the deterministic dedup identity).
+	lk := kernel.NewKernel(s, kernel.DefaultSchemaGuard(), kernel.AuthorityRules{Allow: map[contract.ActorID][]contract.ResourceKind{"lane": {"receipt"}}})
+	if d := lk.Apply(contract.KernelOp{OpID: "pre", Actor: "lane", Writes: []contract.ResourceWrite{
+		{Ref: contract.ResourceRef{Kind: "receipt", ID: "ev-job"}, Kind: contract.OpCreate, Fields: map[string]any{"job_id": "job_ev-job", "effect_id": "ev-job", "outcome": "ok"}}}},
+		contract.Modes{Conflict: contract.ConflictReject, Isolation: contract.IsolationWriteCAS, Authz: contract.AuthzStrict}); d.Status != contract.Accepted {
+		t.Fatalf("pre-write receipt: %s", d.Reason)
+	}
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if runner.Calls() != 0 {
+		t.Fatalf("a job whose receipt already exists must NOT re-run; got %d runs", runner.Calls())
+	}
+	claimed, _ := s.ClaimOutbox("probe", time.Minute)
+	for _, r := range claimed {
+		if r.Kind == "job" {
+			t.Fatal("the job outbox row must be acked (drained) after an idempotent skip, not re-claimable")
+		}
+	}
+}
+
+// #6: a job-lane runner failure must emit a durable diagnostic (no silent drop, S7).
+func TestLaneRunnerFailureEmitsDiagnostic(t *testing.T) {
+	s, cs := newServerWithLane(t, rule.NewRuleSet(requestEvidenceRule()), erroringRunner{})
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if !hasDiagStage(t, s, "runner") {
+		t.Fatal("a runner failure must emit a stage:runner diagnostic (no silent drop)")
+	}
+}
+
+// #7: an out-of-scope lane-minted proposal dropped by the bridge must emit a diagnostic (no silent drop).
+func TestLaneOutOfScopeProposalEmitsDiagnostic(t *testing.T) {
+	evil := job.NewFakeRunner(&contract.ProposedEvent{Type: "memory.write.proposed", Payload: map[string]any{
+		"writes": []contract.ResourceWrite{{Ref: contract.ResourceRef{Kind: "memory", ID: "m-evil"}, Kind: contract.OpCreate, Fields: map[string]any{"content": "x"}}}}})
+	s, cs := newServerWithLane(t, rule.NewRuleSet(requestEvidenceRule()), evil)
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if !hasDiagStage(t, s, "bridge") {
+		t.Fatal("an out-of-scope lane proposal must emit a stage:bridge diagnostic")
+	}
+	if v, _ := s.GetVersion(contract.ResourceRef{Kind: "memory", ID: "m-evil"}); v != 0 {
+		t.Fatalf("out-of-scope lane write must not be created; got v%d", v)
+	}
+}
+
+// #8: an enqueue_job/request_evidence verdict carrying a nil Job must emit a diagnostic (no silent drop).
+func TestNilJobVerdictEmitsDiagnostic(t *testing.T) {
+	nilJob := rule.NewNativeRule("nj", "agent", "memory.write.proposed", []string{"memory.observed"},
+		func(rule.RuleInput) (contract.RuleDecision, error) {
+			return contract.RuleDecision{Verdict: contract.VerdictRequestEvidence}, nil // no Job
+		})
+	s, _, cs := newServerWith(t, rule.NewRuleSet(nilJob))
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if len(diagEvents(t, s)) == 0 {
+		t.Fatal("a request_evidence/enqueue_job verdict with a nil Job must emit a diagnostic (no silent drop)")
+	}
+}
+
+// #5: concurrent Tick must be data-race-free and never double-dispatch (run under -race).
+func TestConcurrentTickIsSafe(t *testing.T) {
+	s, _, cs := newServerWith(t, rule.NewRuleSet(proposeRule()))
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() { defer wg.Done(); _, _ = cs.Tick() }()
+	}
+	wg.Wait()
+	if v, _ := s.GetVersion(contract.ResourceRef{Kind: "memory", ID: "m1"}); v != 2 {
+		t.Fatalf("concurrent Tick must dispatch the observation exactly once (m1 @2); got %d", v)
+	}
+}
+
+func hasDiagStage(t *testing.T, s *kernel.Store, stage string) bool {
+	t.Helper()
+	for _, dg := range diagEvents(t, s) {
+		if dg.Payload["stage"] == stage {
+			return true
+		}
+	}
+	return false
+}

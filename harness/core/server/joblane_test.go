@@ -71,8 +71,9 @@ func TestJobLaneEndToEnd(t *testing.T) {
 	if v, _ := s.GetVersion(contract.ResourceRef{Kind: "memory", ID: "m1"}); v != 2 {
 		t.Fatalf("lane-minted proposal must advance m1 to @2; got %d", v)
 	}
-	if v, fields, _ := s.GetResource(contract.ResourceRef{Kind: "receipt", ID: "effect_ev-job"}); v != 1 || fields["outcome"] != "ok" {
-		t.Fatalf("the effect must write a receipt; got v%d %v", v, fields)
+	// the receipt is keyed by the idempotency key (the deterministic dedup identity), not the runner effect id.
+	if v, fields, _ := s.GetResource(contract.ResourceRef{Kind: "receipt", ID: "ev-job"}); v != 1 || fields["outcome"] != "ok" {
+		t.Fatalf("the effect must write a receipt keyed by the idempotency key; got v%d %v", v, fields)
 	}
 }
 

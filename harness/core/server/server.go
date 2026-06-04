@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/core/config"
@@ -34,6 +35,7 @@ var _ ServerAPI = (*ControlServer)(nil)
 
 // ControlServer is the one single-writer governed loop. Tick is its deterministic, restart-safe driver.
 type ControlServer struct {
+	tickMu     sync.Mutex // serializes Tick: closes the GetCursor->dispatch TOCTOU + the reconciler-cursor race
 	store      *kernel.Store
 	kernel     *kernel.Kernel
 	reconciler *reconcile.Reconciler
@@ -95,7 +97,25 @@ func (cs *ControlServer) PullProjection(principal contract.ActorID, sub contract
 	if sub.Actor != principal {
 		return projection.Projection{}, fmt.Errorf("subscription actor %q does not match authenticated principal %q", sub.Actor, principal)
 	}
-	return projection.ScopedView(cs.store, sub), nil
+	// S9: serve ONLY the actor's server-CONFIGURED scope. The client may NARROW (request a subset) but never
+	// widen — requested refs are intersected with the configured scope, so a client-named out-of-scope ref is
+	// never materialized. An empty request defaults to the whole configured scope.
+	configured := cs.subs[principal]
+	allowed := make(map[contract.ResourceRef]bool, len(configured.Refs))
+	for _, r := range configured.Refs {
+		allowed[r] = true
+	}
+	want := sub.Refs
+	if len(want) == 0 {
+		want = configured.Refs
+	}
+	var refs []contract.ResourceRef
+	for _, r := range want {
+		if allowed[r] {
+			refs = append(refs, r)
+		}
+	}
+	return projection.ScopedView(cs.store, contract.Subscription{Actor: principal, Refs: refs, PrivacyTier: configured.PrivacyTier}), nil
 }
 
 // Tick runs one governed cycle:
@@ -106,6 +126,8 @@ func (cs *ControlServer) PullProjection(principal contract.ActorID, sub contract
 //  2. RECONCILE: the kernel decides the pending *.proposed events (the kernel is the only writer).
 //  3. INVALIDATE: each Accepted decision enqueues an outbox invalidation (downstream projections are stale).
 func (cs *ControlServer) Tick() ([]contract.Decision, error) {
+	cs.tickMu.Lock() // single-writer: Tick is serialized (the in-memory reconciler cursor is not concurrency-safe)
+	defer cs.tickMu.Unlock()
 	cur := cs.store.GetCursor(serverDispatchCursor)
 	evs, err := cs.store.PendingEvents(cur)
 	if err != nil {
@@ -187,13 +209,22 @@ func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, []ker
 	case contract.VerdictDeny:
 		stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "rule", Reason: strings.Join(dec.Reasons, "; "), Ref: ev.Type}))
 	case contract.VerdictEnqueueJob, contract.VerdictRequestEvidence:
-		// S4: enqueue an outbox job. The idempotency key dedupes a retried request (UNIQUE no-op).
-		if dec.Job != nil {
-			payload, _ := json.Marshal(jobPayload{Spec: *dec.Job, Actor: ev.Actor, TriggerID: ev.ID, Correlation: ev.CorrelationID})
-			jobs = append(jobs, kernel.OutboxRow{
-				ID: "job_" + dec.Job.IdempotencyKey, Kind: "job", EventSeq: ev.IngestSeq,
-				Target: dec.Job.Kind, Payload: string(payload), IdempotencyKey: dec.Job.IdempotencyKey})
+		if dec.Job == nil {
+			// S7: a job verdict with no spec is diagnosed, never silently dropped.
+			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "rule", Reason: "verdict " + string(dec.Verdict) + " carried no job spec", Ref: ev.Type}))
+			break
 		}
+		// S4: enqueue an outbox job. A non-empty idempotency key dedupes a retried request (UNIQUE no-op). An
+		// EMPTY key would make the outbox id ("job_") collide on the id PK and poison the dispatch loop, so a
+		// keyless job gets a unique per-observation id from the durable IngestSeq.
+		id := "job_" + dec.Job.IdempotencyKey
+		if dec.Job.IdempotencyKey == "" {
+			id = fmt.Sprintf("job_seq_%d", ev.IngestSeq)
+		}
+		payload, _ := json.Marshal(jobPayload{Spec: *dec.Job, Actor: ev.Actor, TriggerID: ev.ID, Correlation: ev.CorrelationID})
+		jobs = append(jobs, kernel.OutboxRow{
+			ID: id, Kind: "job", EventSeq: ev.IngestSeq,
+			Target: dec.Job.Kind, Payload: string(payload), IdempotencyKey: dec.Job.IdempotencyKey})
 	}
 	return stamped, jobs, nil
 }
@@ -219,25 +250,50 @@ func (cs *ControlServer) runJobLane() error {
 		if err := json.Unmarshal([]byte(row.Payload), &jp); err != nil {
 			continue
 		}
+		trigger := contract.Event{ID: jp.TriggerID, Type: "job.observed", Actor: jp.Actor, CorrelationID: jp.Correlation}
+		effectKey := jp.Spec.IdempotencyKey
+		// Idempotent recovery: if the effect's receipt already exists (it ran, perhaps before a crash that
+		// preceded the ack), do NOT re-run — just ack so the row drains. This closes the infinite-re-run wedge
+		// and makes delivery dedup keyed on the idempotency key, not the runner's effect id.
+		if effectKey != "" {
+			if v, _, _ := cs.store.GetResource(contract.ResourceRef{Kind: "receipt", ID: contract.ResourceID(effectKey)}); v != 0 {
+				_ = cs.store.AckOutbox(row.ID, string(cs.laneOwner))
+				continue
+			}
+		}
 		lease, err := job.Claim(cs.kernel, row.ID, cs.laneOwner, cs.nowUnix(), cs.laneTTL)
 		if err != nil {
-			continue // another worker holds the fenced lease
+			continue // another worker holds the fenced lease (contention, not a drop)
 		}
 		result, err := cs.runner.Run(jp.Spec)
 		if err != nil {
+			// S7: a runner failure is durable, not silent. The row stays claimed -> retried after lease expiry.
+			if _, aerr := cs.store.AppendEvent(cs.diagnosticEvent(trigger, contract.Diagnostic{Stage: "runner", Reason: err.Error(), Ref: jp.Spec.Kind})); aerr != nil {
+				return aerr
+			}
 			continue
 		}
+		// Key the receipt by the idempotency key (the deterministic dedup identity), not the runner's effect id.
+		if effectKey != "" {
+			result.EffectID = effectKey
+		}
 		if err := job.Finish(cs.kernel, lease, result, cs.nowUnix()); err != nil {
-			continue // stale fence / duplicate effect -> skip (at-least-once, never double-commit)
+			// S7: a stale-fence / duplicate-effect finish is diagnosed (and the row is not acked -> retried).
+			if _, aerr := cs.store.AppendEvent(cs.diagnosticEvent(trigger, contract.Diagnostic{Stage: "finish", Reason: err.Error(), Ref: row.ID})); aerr != nil {
+				return aerr
+			}
+			continue
 		}
 		if result.ProposalCandidate != nil {
 			view := cs.scopedView(jp.Actor)
 			b := config.ResolvedBinding{Actor: jp.Actor, Emits: result.ProposalCandidate.Type}
-			trigger := contract.Event{ID: jp.TriggerID, CorrelationID: jp.Correlation}
-			if e, serr := cs.bridge.Stamp(b, view, trigger, *result.ProposalCandidate); serr == nil {
-				if _, aerr := cs.store.AppendEvent(e); aerr != nil {
+			if e, serr := cs.bridge.Stamp(b, view, trigger, *result.ProposalCandidate); serr != nil {
+				// S7: an out-of-scope lane proposal is dropped with a diagnostic, never silently.
+				if _, aerr := cs.store.AppendEvent(cs.diagnosticEvent(trigger, contract.Diagnostic{Stage: "bridge", Reason: serr.Error(), Ref: string(jp.Actor)})); aerr != nil {
 					return aerr
 				}
+			} else if _, aerr := cs.store.AppendEvent(e); aerr != nil {
+				return aerr
 			}
 		}
 		_ = cs.store.AckOutbox(row.ID, string(cs.laneOwner))
