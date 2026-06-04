@@ -123,6 +123,53 @@ func Finish(k *kernel.Kernel, lease Lease, result Result, now int64) error {
 	return nil
 }
 
+// reserveModes uses projection_read_set so the budget@v read-set is re-validated under the write tx (S6).
+func reserveModes() contract.Modes {
+	return contract.Modes{Conflict: contract.ConflictReject, Isolation: contract.IsolationProjectionReadSet, Authz: contract.AuthzStrict}
+}
+
+// Reserve atomically reserves cost against budget/budgetID AND performs dataWrite in ONE all-or-nothing op
+// (S6): the budget OpUpdate (spent+=cost, CAS based_on the read version) and the data write commit together,
+// with budget@v in the read-set. It refuses locally if cost would exceed limit_usd; and a concurrent reserve
+// that already moved the budget makes this op's read-set stale -> the whole op (data write included) is
+// rejected. No overshoot, no partial write. (The local check + the kernel CAS together close the TOCTOU.)
+func Reserve(k *kernel.Kernel, budgetID string, actor contract.ActorID, cost float64, dataWrite contract.ResourceWrite) (contract.Decision, error) {
+	ref := contract.ResourceRef{Kind: "budget", ID: contract.ResourceID(budgetID)}
+	version, fields, err := k.Store().GetResource(ref)
+	if err != nil {
+		return contract.Decision{}, err
+	}
+	if version == 0 {
+		return contract.Decision{}, fmt.Errorf("budget %q does not exist", budgetID)
+	}
+	limit, spent := asFloat(fields["limit_usd"]), asFloat(fields["spent_usd"])
+	if spent+cost > limit {
+		return contract.Decision{}, fmt.Errorf("over budget: spent %.2f + cost %.2f > limit %.2f", spent, cost, limit)
+	}
+	op := contract.KernelOp{
+		OpID:  "reserve_" + budgetID + "_" + string(dataWrite.Ref.Kind) + "_" + string(dataWrite.Ref.ID),
+		Actor: actor,
+		Writes: []contract.ResourceWrite{
+			{Ref: ref, Kind: contract.OpUpdate, BasedOn: version, Fields: map[string]any{"limit_usd": limit, "spent_usd": spent + cost}},
+			dataWrite,
+		},
+		ReadSet: []contract.ResourceVersion{{Ref: ref, Version: version}},
+	}
+	return k.Apply(op, reserveModes()), nil
+}
+
+func asFloat(v any) float64 {
+	switch n := v.(type) {
+	case float64:
+		return n
+	case int64:
+		return float64(n)
+	case int:
+		return float64(n)
+	}
+	return 0
+}
+
 func asInt64(v any) int64 {
 	switch n := v.(type) {
 	case float64:
