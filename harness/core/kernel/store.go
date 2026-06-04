@@ -125,6 +125,53 @@ func (t *Tx) ReadVersion(ref contract.ResourceRef) (contract.Version, error) {
 	return v, err
 }
 
+// GetResource returns a resource's current version AND decoded field content (review #5). The content digest
+// (D8/S10), budget reserve (S6), and lease TTL read all need the fields, not just the version. Absent ->
+// (0, nil, nil), consistent with GetVersion.
+func (s *Store) GetResource(ref contract.ResourceRef) (contract.Version, map[string]any, error) {
+	return scanResource(s.db.QueryRow(`SELECT version, fields FROM resources WHERE kind=? AND id=?`, string(ref.Kind), string(ref.ID)))
+}
+
+// ReadResource is GetResource inside a caller's txn — required by the read-modify-write lease/budget claims
+// (S5/S6), which read the current version+fields and CAS in the same transaction.
+func (t *Tx) ReadResource(ref contract.ResourceRef) (contract.Version, map[string]any, error) {
+	return scanResource(t.tx.QueryRow(`SELECT version, fields FROM resources WHERE kind=? AND id=?`, string(ref.Kind), string(ref.ID)))
+}
+
+// scanResource decodes a (version, fields) row, mapping ErrNoRows to the absent (0, nil, nil) form. The
+// rowScanner seam lets both the Store and Tx variants share decode + JSON-unmarshal logic.
+func scanResource(row rowScanner) (contract.Version, map[string]any, error) {
+	var v contract.Version
+	var b string
+	if err := row.Scan(&v, &b); err != nil {
+		if err == sql.ErrNoRows {
+			return 0, nil, nil
+		}
+		return 0, nil, err
+	}
+	var fields map[string]any
+	if err := json.Unmarshal([]byte(b), &fields); err != nil {
+		return 0, nil, err
+	}
+	return v, fields, nil
+}
+
+type rowScanner interface{ Scan(dest ...any) error }
+
+// AppendEventReturningSeq appends an event INSIDE a caller's txn and returns its durable LSN (events.rowid).
+// IngestObservation (S1) needs append + LSN-read in one transaction so the dedupe row records the same seq.
+func (t *Tx) AppendEventReturningSeq(ev contract.Event) (int64, error) {
+	b, err := json.Marshal(ev) // never write a garbage payload silently (mirrors Store.AppendEvent)
+	if err != nil {
+		return 0, err
+	}
+	res, err := t.tx.Exec(`INSERT INTO events (payload) VALUES (?)`, string(b))
+	if err != nil {
+		return 0, err
+	}
+	return res.LastInsertId()
+}
+
 // AppendDecisionTx writes a decision INSIDE a caller's txn (used for accepted ops — crash-safe atomicity, Invariant #7).
 func (t *Tx) AppendDecisionTx(d contract.Decision) error {
 	b, _ := json.Marshal(d)
