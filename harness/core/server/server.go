@@ -88,7 +88,18 @@ type jobPayload struct {
 
 // Ingest records an observation exactly-once (S1). Source and Event.Actor are stamped from the AUTHENTICATED
 // principal — the client's payload claim is overwritten, never trusted (D7/S9).
+//
+// Trust boundary (R11/S9/S10): the wire admits ONLY observations. A *.proposed / *.diagnostic is an INTERNAL,
+// trusted event class — a *.proposed is minted EXCLUSIVELY by the bridge after the rule pre-gate + write-scope
+// check, a *.diagnostic only by the server. The reconciler trusts every *.proposed in the log, and dispatchOne
+// SKIPS reserved types (so they bypass the rule pre-gate, bridge write-scope, and readback). Admitting a
+// client-supplied one would let an edge write any resource of an authorized KIND outside its dispatched scope
+// (a within-kind cross-resource / cross-principal escalation) and dodge the S10 content digest. Reject it at
+// the door, before it can enter the canonical log.
 func (cs *ControlServer) Ingest(principal contract.ActorID, env contract.ObservationEnvelope) (int64, bool, error) {
+	if t := env.Event.Type; strings.HasSuffix(t, ".proposed") || strings.HasSuffix(t, ".diagnostic") {
+		return 0, false, fmt.Errorf("ingest: event type %q is internal-only; the wire admits observations, never proposals/diagnostics (R11/S9)", t)
+	}
 	env.Source = principal
 	env.Event.Actor = principal
 	return cs.store.IngestObservation(env)
