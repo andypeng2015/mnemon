@@ -48,15 +48,22 @@ func Replay(events []contract.Event, candidate rule.RuleSet) []contract.Decision
 }
 
 // Shadow asks the governance question "would promoting this candidate rule set change behavior?" by RE-RUNNING
-// both policies' rules over the OBSERVED events of the log and diffing their rule decisions (S8). This is the
+// both policies' rules over the OBSERVED events of the log and diffing their rule results (S8). This is the
 // faithful model: a rule handles OBSERVED events and EMITS proposals/denies/jobs — so the candidate's behavior
 // change lives in observed->decision, NOT in re-reconciling the already-minted *.proposed events (the prior
 // model never ran the candidate's rules at all, so every real rule change passed Clean).
 //
-// It seeds a throwaway kernel with the canonical state (the logged proposals) so each rule sees realistic
-// resource state, then for every observed event evaluates live and candidate against the same scoped view and
-// compares verdict + proposal (type + payload) + job + trusted origin actor. The seeded kernel is NEVER mutated
-// by the comparison (read-only, S8). It reports diffs, never pass/fail (the operator gates promotion on Clean).
+// View TIMING matches the server, which evaluates rules at DISPATCH time — BEFORE that tick's reconcile. Shadow
+// walks the log in IngestSeq order on a throwaway kernel: a logged *.proposed event is applied (reconciled) to
+// evolve canonical state; an OBSERVED event is evaluated against the state BUILT FROM THE PROPOSALS THAT PRECEDE
+// IT in the log — i.e. the dispatch-time state, not the final state (evaluating against final state yields a
+// false-clean for any version-sensitive rule that diverges at @1 but agrees at @2). Only the logged proposals
+// mutate the kernel; the rule evaluations are read-only (S8).
+//
+// The comparison covers verdict + proposal (type+payload) + job + trusted origin actor AND the rule
+// DIAGNOSTICS — a candidate that errors or returns a borrowed-emit proposal reduces to Verdict allow but emits
+// a durable diagnostic, which is a behavior change the Clean gate must catch. It reports diffs, never pass/fail
+// (the operator gates promotion on Clean).
 func Shadow(events []contract.Event, subs map[contract.ActorID]contract.Subscription, live, candidate rule.RuleSet) rule.ShadowReport {
 	s, err := kernel.OpenStore(":memory:")
 	if err != nil {
@@ -65,39 +72,45 @@ func Shadow(events []contract.Event, subs map[contract.ActorID]contract.Subscrip
 	defer s.Close()
 	k := kernel.NewKernel(s, kernel.DefaultSchemaGuard(), permissiveAuthority(events))
 	r := reconcile.NewReconciler(s, k)
-	for _, ev := range events {
-		if _, err := s.AppendEvent(ev); err != nil {
-			continue
-		}
-	}
-	r.RunOnce(canonicalModes) // apply the logged proposals -> canonical resource state for the views below
 
 	diffs := 0
 	for _, ev := range events {
-		if isProposal(ev) || strings.HasSuffix(ev.Type, ".diagnostic") {
-			continue // only OBSERVED events drive the rules
+		if isProposal(ev) {
+			// evolve the canonical state at dispatch granularity: apply this proposal so observed events LATER in
+			// the log see it, while observed events BEFORE it (already compared) saw the pre-proposal state.
+			if _, err := s.AppendEvent(ev); err == nil {
+				r.RunOnce(canonicalModes)
+			}
+			continue
 		}
+		if strings.HasSuffix(ev.Type, ".diagnostic") {
+			continue
+		}
+		// OBSERVED event: evaluate BOTH policies against the current (dispatch-time) scoped view.
 		view := projection.ScopedView(s, subs[ev.Actor])
 		in := rule.RuleInput{Event: ev, View: view}
-		ld, _ := live.Evaluate(in)
-		cd, _ := candidate.Evaluate(in)
-		if canonicalRuleDecision(ld) != canonicalRuleDecision(cd) {
+		ld, ldiag := live.Evaluate(in)
+		cd, cdiag := candidate.Evaluate(in)
+		if canonicalRuleResult(ld, ldiag) != canonicalRuleResult(cd, cdiag) {
 			diffs++
 		}
 	}
 	return rule.ShadowReport{Clean: diffs == 0, Diffs: diffs}
 }
 
-// canonicalRuleDecision serializes the behaviorally-meaningful fields of a rule decision (verdict, proposal
-// type+payload, job, and the trusted origin actor) to a stable string for comparison. Advisory Reasons are
-// excluded (they do not change behavior). json.Marshal sorts map keys, so equal payloads compare equal.
-func canonicalRuleDecision(d contract.RuleDecision) string {
+// canonicalRuleResult serializes the behaviorally-meaningful output of a rule evaluation — the decision
+// (verdict, proposal type+payload, job, trusted origin actor) AND the durable diagnostics — to a stable string
+// for comparison. Advisory Reasons are excluded (they do not change behavior); diagnostics are durable events,
+// so a candidate that produces a diagnostic where live produces none is a divergence. json.Marshal sorts map
+// keys, so equal payloads compare equal.
+func canonicalRuleResult(d contract.RuleDecision, diags []contract.Diagnostic) string {
 	b, _ := json.Marshal(struct {
-		Verdict  contract.RuleVerdict
-		Proposal *contract.ProposedEvent
-		Job      *contract.JobSpec
-		Actor    contract.ActorID
-	}{d.Verdict, d.Proposal, d.Job, d.ProposalActor})
+		Verdict     contract.RuleVerdict
+		Proposal    *contract.ProposedEvent
+		Job         *contract.JobSpec
+		Actor       contract.ActorID
+		Diagnostics []contract.Diagnostic
+	}{d.Verdict, d.Proposal, d.Job, d.ProposalActor, diags})
 	return string(b)
 }
 
