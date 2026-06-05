@@ -21,7 +21,10 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/core/runtime"
 )
 
-const serverDispatchCursor = "server_dispatch"
+const (
+	serverDispatchCursor = "server_dispatch"
+	decisionSinkCursor   = "decision_sink" // tracks decisions whose S2/S7 side-effects are produced (recoverable)
+)
 
 // ServerAPI is the edge<->server boundary (D5). Production HTTP/gRPC+mTLS is a thin adapter over it
 // (httpapi.go); the in-process implementation is *ControlServer. It grows by phase: Ingest (P0),
@@ -157,16 +160,16 @@ func (cs *ControlServer) Tick() ([]contract.Decision, error) {
 	}
 	// 1) decide the rule proposals.
 	decisions := cs.reconciler.RunOnce(cs.modes)
-	if err := cs.handleDecisions(decisions); err != nil {
-		return nil, err
-	}
 	// 2) run the effectful job lane (no-op without a runner); it mints proposal candidates as *.proposed.
 	if err := cs.runJobLane(); err != nil {
 		return nil, err
 	}
 	// 3) decide the lane-minted proposals so the full chain closes in one Tick.
 	laneDecisions := cs.reconciler.RunOnce(cs.modes)
-	if err := cs.handleDecisions(laneDecisions); err != nil {
+	// 4) produce each decision's side-effects (S2 invalidation / S7 diagnostic) from the durable decision log,
+	//    advancing a sink cursor — so a crash between a decision commit and its side-effects is RECOVERABLE on
+	//    the next Tick (the reconciler cursor alone would skip past the un-effected decision).
+	if err := cs.processDecisionSideEffects(); err != nil {
 		return nil, err
 	}
 	return append(decisions, laneDecisions...), nil
@@ -376,35 +379,40 @@ func (cs *ControlServer) diagnosticEvent(trigger contract.Event, dg contract.Dia
 	}
 }
 
-// handleDecisions consumes each reconcile decision: an Accepted one enqueues an outbox invalidation (S2
-// downstream propagation); a non-Accepted one surfaces a durable diagnostic naming WHY (S7 — no silent drop,
-// for the kernel's reject classes: schema, authz, and CAS/read-stale conflict).
-func (cs *ControlServer) handleDecisions(decisions []contract.Decision) error {
-	for _, d := range decisions {
-		if d.Status == contract.Accepted {
-			if err := cs.enqueueInvalidation(d); err != nil {
-				return err
+// processDecisionSideEffects produces every not-yet-effected decision's side-effects from the DURABLE decision
+// log: an Accepted decision enqueues an outbox invalidation (S2 downstream propagation); a non-Accepted one
+// appends a diagnostic naming WHY (S7 — no silent drop). Each decision's side-effect AND the sink-cursor
+// advance are ONE tx, so a crash leaves the sink exactly at what committed: on restart the gap decisions are
+// re-derived (the invalidation is idempotent via its UNIQUE key; the diagnostic, being atomic with the sink
+// advance, is appended exactly once). Direct (non-reconciler) applies carry IngestSeq 0 and produce no
+// side-effect — the sink just advances past them.
+func (cs *ControlServer) processDecisionSideEffects() error {
+	cur := cs.store.GetCursor(decisionSinkCursor)
+	decs, err := cs.store.DecisionsAfter(cur)
+	if err != nil {
+		return err
+	}
+	for _, dr := range decs {
+		d := dr.Decision
+		rid := dr.Rowid
+		if e := cs.store.WithTx(func(tx *kernel.Tx) error {
+			if d.IngestSeq > 0 {
+				if d.Status == contract.Accepted {
+					payload, _ := json.Marshal(d.NewVersions)
+					key := "inv_" + d.DecisionID
+					if err := tx.EnqueueOutbox(kernel.OutboxRow{ID: key, Kind: "invalidation", EventSeq: d.IngestSeq, Target: "projection", Payload: string(payload), IdempotencyKey: key}); err != nil {
+						return err
+					}
+				} else if err := tx.AppendEvent(cs.rejectDiagnostic(d)); err != nil {
+					return err
+				}
 			}
-			continue
-		}
-		if _, err := cs.store.AppendEvent(cs.rejectDiagnostic(d)); err != nil {
-			return err
+			return tx.SetCursor(decisionSinkCursor, rid)
+		}); e != nil {
+			return e
 		}
 	}
 	return nil
-}
-
-// enqueueInvalidation records an outbox invalidation for one Accepted decision. The DecisionID is the
-// idempotency key, so a replayed decision never double-enqueues.
-func (cs *ControlServer) enqueueInvalidation(d contract.Decision) error {
-	payload, _ := json.Marshal(d.NewVersions)
-	key := "inv_" + d.DecisionID
-	return cs.store.WithTx(func(tx *kernel.Tx) error {
-		return tx.EnqueueOutbox(kernel.OutboxRow{
-			ID: key, Kind: "invalidation", EventSeq: d.IngestSeq,
-			Target: "projection", Payload: string(payload), IdempotencyKey: key,
-		})
-	})
 }
 
 // rejectDiagnostic turns a kernel reject/defer into a durable "*.diagnostic" event (S7). A CAS/read-stale

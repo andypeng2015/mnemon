@@ -257,6 +257,36 @@ func TestLaneDoesNotLeaseInvalidationRows(t *testing.T) {
 	}
 }
 
+// re-verify MED: a decision the kernel committed (advancing the reconciler cursor) but whose side-effects the
+// server crashed before producing must be RECOVERABLE from the durable decision log — the S2 invalidation is
+// not permanently lost.
+func TestDecisionSideEffectsRecoveredFromLog(t *testing.T) {
+	s, k, cs := newServerWith(t, rule.NewRuleSet(proposeRule()))
+	// simulate a committed-but-unprocessed decision: apply it directly (a reconciler-style Accepted decision
+	// with IngestSeq>0), bypassing the server's side-effect step ("crash" before handleDecisions).
+	d := k.Apply(contract.KernelOp{OpID: "p", Actor: "agent", IngestSeq: 99, Writes: []contract.ResourceWrite{
+		{Ref: contract.ResourceRef{Kind: "memory", ID: "m1"}, Kind: contract.OpUpdate, BasedOn: 1, Fields: map[string]any{"content": "x"}}}}, p0Modes())
+	if d.Status != contract.Accepted {
+		t.Fatalf("setup apply: %s", d.Reason)
+	}
+	if c, _ := s.ClaimOutbox("probe", time.Minute, "invalidation"); len(c) != 0 {
+		t.Fatalf("precondition: no invalidation should exist yet; got %d", len(c))
+	}
+	if _, err := cs.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	claimed, _ := s.ClaimOutbox("invalidation-worker", time.Minute, "invalidation")
+	found := false
+	for _, r := range claimed {
+		if r.IdempotencyKey == "inv_"+d.DecisionID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("a committed decision's invalidation must be recoverable from the decision log; got %+v", claimed)
+	}
+}
+
 // re-verify LOW: a VerdictWarn must surface its reasons as a diagnostic, not be silently dropped.
 func TestWarnVerdictEmitsDiagnostic(t *testing.T) {
 	warnRule := rule.NewNativeRule("w", "agent", "memory.write.proposed", []string{"memory.observed"},

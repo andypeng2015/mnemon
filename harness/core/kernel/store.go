@@ -227,8 +227,9 @@ func (t *Tx) insertDedupe(source contract.ActorID, externalID string, seq int64)
 }
 
 // OutboxRow is one pending external effect (a projection invalidation, a job to run). The outbox is the
-// transactional-outbox substrate (S2: enqueued in the SAME tx as the decision that produced it; S4: delivery
-// is at-least-once with a per-row lease + an idempotency key, NEVER exactly-once).
+// transactional-outbox substrate (S2: an invalidation is produced from the durable decision log under a sink
+// cursor, so it survives a crash between the decision commit and its side-effect — RECOVERABLE, not lost;
+// S4: delivery is at-least-once with a per-row lease + an idempotency key, NEVER exactly-once).
 type OutboxRow struct {
 	ID             string
 	Kind           string
@@ -450,6 +451,38 @@ func (s *Store) DeferralCount(correlationID string) int {
 	var n int
 	_ = s.db.QueryRow(`SELECT COUNT(*) FROM decisions WHERE correlation_id=? AND status='deferred' AND next_action='rebase'`, correlationID).Scan(&n)
 	return n
+}
+
+// DecisionRow is a decision plus its durable append order (the implicit rowid). The server's side-effect
+// sink advances by Rowid, so it can RE-DERIVE invalidations/diagnostics from the decision log after a crash.
+type DecisionRow struct {
+	Rowid    int64
+	Decision contract.Decision
+}
+
+// DecisionsAfter returns decisions appended after rowid, in append order. It lets the server produce a
+// decision's side-effects (S2 invalidation / S7 diagnostic) idempotently from the durable log rather than
+// only from a single RunOnce return — closing the crash window between the decision commit and its effects.
+func (s *Store) DecisionsAfter(rowid int64) ([]DecisionRow, error) {
+	rows, err := s.db.Query(`SELECT rowid, payload FROM decisions WHERE rowid>? ORDER BY rowid`, rowid)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []DecisionRow
+	for rows.Next() {
+		var rid int64
+		var p string
+		if err := rows.Scan(&rid, &p); err != nil {
+			return nil, err
+		}
+		var d contract.Decision
+		if err := json.Unmarshal([]byte(p), &d); err != nil {
+			return nil, err
+		}
+		out = append(out, DecisionRow{Rowid: rid, Decision: d})
+	}
+	return out, rows.Err()
 }
 
 // DecisionsForActor returns this actor's deferred decisions (the pull-feedback source, Invariant #8).
