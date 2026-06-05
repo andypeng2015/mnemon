@@ -60,10 +60,12 @@ func Replay(events []contract.Event, candidate rule.RuleSet) []contract.Decision
 // false-clean for any version-sensitive rule that diverges at @1 but agrees at @2). Only the logged proposals
 // mutate the kernel; the rule evaluations are read-only (S8).
 //
-// The comparison covers verdict + proposal (type+payload) + job + trusted origin actor AND the rule
-// DIAGNOSTICS — a candidate that errors or returns a borrowed-emit proposal reduces to Verdict allow but emits
-// a durable diagnostic, which is a behavior change the Clean gate must catch. It reports diffs, never pass/fail
-// (the operator gates promotion on Clean).
+// The comparison covers verdict + proposal (type+payload) + job + trusted origin actor + the decision REASONS
+// + the rule DIAGNOSTICS. Reasons are NOT advisory: the server writes them verbatim into durable *.diagnostic
+// events for deny/warn (the auditable S7 trail), so a Reasons-only reword (e.g. blanking a security deny
+// reason) IS a behavior change. Diagnostics likewise are durable: a candidate that errors or returns a
+// borrowed-emit proposal reduces to Verdict allow but emits one. It reports diffs, never pass/fail (the
+// operator gates promotion on Clean).
 func Shadow(events []contract.Event, subs map[contract.ActorID]contract.Subscription, live, candidate rule.RuleSet) rule.ShadowReport {
 	s, err := kernel.OpenStore(":memory:")
 	if err != nil {
@@ -99,18 +101,18 @@ func Shadow(events []contract.Event, subs map[contract.ActorID]contract.Subscrip
 }
 
 // canonicalRuleResult serializes the behaviorally-meaningful output of a rule evaluation — the decision
-// (verdict, proposal type+payload, job, trusted origin actor) AND the durable diagnostics — to a stable string
-// for comparison. Advisory Reasons are excluded (they do not change behavior); diagnostics are durable events,
-// so a candidate that produces a diagnostic where live produces none is a divergence. json.Marshal sorts map
-// keys, so equal payloads compare equal.
+// (verdict, proposal type+payload, job, trusted origin actor), the REASONS (the server writes these verbatim
+// into durable deny/warn *.diagnostic events, so they are auditable state, not advisory), AND the durable
+// diagnostics — to a stable string for comparison. json.Marshal sorts map keys, so equal payloads compare equal.
 func canonicalRuleResult(d contract.RuleDecision, diags []contract.Diagnostic) string {
 	b, _ := json.Marshal(struct {
 		Verdict     contract.RuleVerdict
 		Proposal    *contract.ProposedEvent
 		Job         *contract.JobSpec
 		Actor       contract.ActorID
+		Reasons     []string
 		Diagnostics []contract.Diagnostic
-	}{d.Verdict, d.Proposal, d.Job, d.ProposalActor, diags})
+	}{d.Verdict, d.Proposal, d.Job, d.ProposalActor, d.Reasons, diags})
 	return string(b)
 }
 

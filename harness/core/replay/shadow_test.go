@@ -133,3 +133,24 @@ func TestShadowComparesDiagnostics(t *testing.T) {
 		t.Fatalf("a candidate that errors (a durable diagnostic) must NOT compare equal to live's clean allow; got %+v", rep)
 	}
 }
+
+// S8/S7 (Reasons): the server writes a decision's Reasons verbatim into durable *.diagnostic events (deny/warn
+// audit trail). A candidate that changes ONLY the Reasons (e.g. blanking a security-relevant deny reason)
+// rewrites the auditable trail — a behavior change the Clean gate must catch, not certify.
+func TestShadowComparesDenyReasons(t *testing.T) {
+	events, subs := observedLog()
+	denyWithReason := func(reason string) rule.Rule {
+		return rule.NewNativeRule("d", "agent", "memory.write.proposed", []string{"memory.observed"},
+			func(rule.RuleInput) (contract.RuleDecision, error) {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{reason}}, nil
+			})
+	}
+	rep := Shadow(events, subs, rule.NewRuleSet(denyWithReason("SECURITY: cross-tenant leak blocked")), rule.NewRuleSet(denyWithReason("ok")))
+	if rep.Clean {
+		t.Fatalf("a candidate that rewrites the durable deny reason must NOT be clean (S7 audit trail); got %+v", rep)
+	}
+	// identical reasons -> still clean (no false positive).
+	if c := Shadow(events, subs, rule.NewRuleSet(denyWithReason("same")), rule.NewRuleSet(denyWithReason("same"))); !c.Clean {
+		t.Fatalf("identical reasons must stay clean; got %+v", c)
+	}
+}
