@@ -186,6 +186,11 @@ func parseImports(b []byte, p, end int) ([]string, error) {
 			return nil, fmt.Errorf("import descriptor overruns section")
 		}
 	}
+	// The declared count must span the WHOLE section: trailing bytes mean the count UNDERCOUNTS the physical
+	// entries (a smuggled extra import the parser would otherwise skip). Reject — never trust the count alone.
+	if p != end {
+		return nil, fmt.Errorf("import section length mismatch: %d declared imports do not span the section (trailing bytes)", len(out))
+	}
 	return out, nil
 }
 

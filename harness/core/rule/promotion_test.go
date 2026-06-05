@@ -72,6 +72,28 @@ func TestPromotionRejectsSecondImportSection(t *testing.T) {
 	}
 }
 
+// re-audit MED: an import section whose DECLARED count undercounts its physical entries must be rejected —
+// a count-trusting parser would otherwise skip the trailing (extra) import and admit an over-capable module.
+func undercountModule() []byte {
+	header := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
+	entry := func(mod, fld string) []byte {
+		b := append([]byte{byte(len(mod))}, mod...)
+		b = append(b, byte(len(fld)))
+		b = append(b, fld...)
+		return append(b, 0x00, 0x00) // func desc, typeidx 0
+	}
+	body := append([]byte{0x01}, entry("env", "read_state_view")...) // DECLARED count = 1 (a lie)
+	body = append(body, entry("env", "extra")...)                    // but TWO entries are physically present
+	return append(header, append([]byte{0x02, byte(len(body))}, body...)...)
+}
+
+func TestPromotionRejectsUndercountedImportSection(t *testing.T) {
+	bad := undercountModule()
+	if err := NewRegistry().Promote(bad, buildOK("b"), Manifest{SHA256: sha(bad)}, ShadowReport{Clean: true}); err == nil {
+		t.Fatal("an import section whose declared count undercounts its entries must be rejected (trailing extra import smuggled)")
+	}
+}
+
 // adversarial #5: the rule that goes active must be BUILT FROM the verified bytes — a build failure rejects,
 // and the build's result (not an unrelated candidate) is what is admitted.
 func TestPromoteBuildsRuleFromBytes(t *testing.T) {
