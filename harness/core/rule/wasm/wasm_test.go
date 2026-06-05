@@ -58,18 +58,47 @@ func TestWasmRunawayIsKilledByDeadline(t *testing.T) {
 	}
 }
 
-// adversarial #1: a deadline-kill closes the SHARED module — the long-lived seat must recover (re-instantiate)
-// on the next call rather than stay permanently bricked.
-func TestWasmSeatRecoversAfterModuleClose(t *testing.T) {
+// adversarial #1 (re-verify): the seat instantiates a FRESH instance per call, so a deadline kill closes only
+// that throwaway instance and can never brick the long-lived seat. Every subsequent call serves the correct
+// input-dependent verdict, call after call (no shared state to corrupt or recover).
+func TestWasmSeatServesEveryCallIndependently(t *testing.T) {
 	ctx := context.Background()
 	r, err := New(ctx, readBytes(t, "testdata/rule_allow_if_evidence.wasm"), Limits{Timeout: 100 * time.Millisecond, MemPages: 16})
 	if err != nil {
 		t.Fatalf("new: %v", err)
 	}
-	r.(*wasmRule).mod.Close(ctx) // simulate a deadline kill closing the shared module
-	d, err := r.Evaluate(rule.RuleInput{Event: evWith(map[string]any{"evidence": "x"})})
-	if err != nil || d.Verdict != contract.VerdictPropose {
-		t.Fatalf("the seat must recover after a module close, not stay bricked; got %q err=%v", d.Verdict, err)
+	for i := 0; i < 3; i++ {
+		if d, err := r.Evaluate(rule.RuleInput{Event: evWith(nil)}); err != nil || d.Verdict != contract.VerdictDeny {
+			t.Fatalf("call %d (no evidence) must deny; got %q err=%v", i, d.Verdict, err)
+		}
+		if d, err := r.Evaluate(rule.RuleInput{Event: evWith(map[string]any{"evidence": "x"})}); err != nil || d.Verdict != contract.VerdictPropose {
+			t.Fatalf("call %d (evidence) must propose; got %q err=%v", i, d.Verdict, err)
+		}
+	}
+}
+
+// S12: a wasm rule is a PURE function of its typed input. A gate-compliant module that carries mutable guest
+// state (a global flip / linear memory) must NOT leak it across calls: identical input must yield identical
+// verdicts. A reused module instance leaks the state (propose,deny,propose,...); a fresh instance per call
+// resets it (propose,propose,...).
+func TestWasmRuleIsDeterministicAcrossCalls(t *testing.T) {
+	ctx := context.Background()
+	r, err := New(ctx, readBytes(t, "testdata/stateful.wasm"), Limits{Timeout: 50 * time.Millisecond, MemPages: 16})
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+	first, err := r.Evaluate(rule.RuleInput{Event: evWith(nil)})
+	if err != nil {
+		t.Fatalf("eval: %v", err)
+	}
+	for i := 0; i < 4; i++ {
+		d, err := r.Evaluate(rule.RuleInput{Event: evWith(nil)})
+		if err != nil {
+			t.Fatalf("eval %d: %v", i, err)
+		}
+		if d.Verdict != first.Verdict {
+			t.Fatalf("a wasm rule must be a pure fn of input; identical input gave %q then %q — mutable guest state leaked across calls (S12)", first.Verdict, d.Verdict)
+		}
 	}
 }
 

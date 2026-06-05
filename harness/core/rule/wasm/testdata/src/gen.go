@@ -187,6 +187,31 @@ func main() {
 	impA := section(2, vec(1, cat(name("env"), name("read_state_view"), []byte{0x00, 0x00})))
 	impB := section(2, vec(1, cat(name("env"), name("extra"), []byte{0x00, 0x00})))
 	write("harness/core/rule/wasm/testdata/two_import_sections.wasm", cat(header, voidType, impA, impB))
+
+	// stateful.wasm: gate-COMPLIANT (imports only env.read_state_view; exports memory/alloc/evaluate) but
+	// carries a MUTABLE global that flips the verdict each call, IGNORING input — a non-deterministic rule. It
+	// proves the wasm seat must instantiate a FRESH instance per call (S12 "pure fn of typed input"): a reused
+	// instance leaks this global across calls (propose,deny,propose,...), while a fresh instance resets it to 0
+	// every call (propose,propose,...). global0 = bump allocator (4096), global1 = flip (0).
+	statefulGlobalSec := section(6, vec(2, cat(
+		cat([]byte{tI32, 0x01}, i32c(bumpStart), []byte{opEnd}), // global0: mut i32 bump = 4096
+		cat([]byte{tI32, 0x01}, i32c(0), []byte{opEnd}),         // global1: mut i32 flip = 0
+	)))
+	// evaluate: if flip==0 { flip=1; return propose } else { flip=0; return deny }  (no locals, ignores input)
+	statefulEvalLocals := vec(0, nil)
+	statefulEvalBody := cat(
+		globalGet(1), i32c(0), []byte{opEq},
+		[]byte{opIf, tI64},
+		i32c(1), globalSet(1), i64c(packedPropose),
+		[]byte{opElse},
+		i32c(0), globalSet(1), i64c(packedDeny),
+		[]byte{opEnd},
+		[]byte{opEnd},
+	)
+	statefulEvalCode := append(uleb(uint64(len(statefulEvalLocals)+len(statefulEvalBody))), append(statefulEvalLocals, statefulEvalBody...)...)
+	statefulCodeSec := section(10, vec(2, cat(allocCode, statefulEvalCode)))
+	statefulMod := cat(header, typeSec, importSec, funcSec, memSec, statefulGlobalSec, exportSec, statefulCodeSec, dataSec)
+	write("harness/core/rule/wasm/testdata/stateful.wasm", statefulMod)
 }
 
 func write(path string, b []byte) {
