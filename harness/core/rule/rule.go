@@ -4,6 +4,8 @@
 package rule
 
 import (
+	"fmt"
+
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
 	"github.com/mnemon-dev/mnemon/harness/core/projection"
 )
@@ -106,11 +108,24 @@ func (rs RuleSet) Evaluate(in RuleInput) (contract.RuleDecision, []contract.Diag
 			continue
 		}
 		reasons = append(reasons, d.Reasons...)
+		// A rule may only emit its DECLARED type. An empty proposal Type defaults to the rule's Emits; a NON-empty
+		// type that differs is a rule trying to borrow ANOTHER rule's identity at the bridge — reject it (zero
+		// intent + a diagnostic, S7), and do not let a propose verdict stand on a rejected proposal.
+		if d.Verdict == contract.VerdictPropose && d.Proposal != nil {
+			if d.Proposal.Type == "" {
+				d.Proposal.Type = r.Emits()
+			}
+			if d.Proposal.Type != r.Emits() {
+				diags = append(diags, contract.Diagnostic{Stage: "rule", Reason: fmt.Sprintf("rule %q proposed type %q != declared emits %q", r.ID(), d.Proposal.Type, r.Emits()), Ref: r.ID()})
+				continue
+			}
+		}
 		if verdictRank[d.Verdict] > verdictRank[out.Verdict] {
 			out.Verdict = d.Verdict
 		}
-		if d.Verdict == contract.VerdictPropose && out.Proposal == nil {
+		if d.Verdict == contract.VerdictPropose && d.Proposal != nil && out.Proposal == nil {
 			out.Proposal = d.Proposal
+			out.ProposalActor = r.Actor() // TRUSTED origin: the server stamps the bridge identity from this
 		}
 		// carry the first Job for an enqueue_job/request_evidence verdict (both spawn a job-lane effect).
 		if d.Job != nil && out.Job == nil {

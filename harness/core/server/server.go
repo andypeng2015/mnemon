@@ -219,11 +219,14 @@ func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, []ker
 			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "rule", Reason: "verdict propose carried no proposal", Ref: ev.Type}))
 			break
 		}
-		b, ok := cs.proposerBinding(ev, dec)
-		if !ok {
-			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "bridge", Reason: "no rule owns the proposal type", Ref: dec.Proposal.Type}))
+		// The bridge write identity comes from the TRUSTED origin the reducer carried (the producing rule's
+		// Actor) + the proposal's type (which the reducer enforced == that rule's Emits) — NOT a guess by
+		// scanning for any rule with a matching Handles/Emits, which could stamp a different rule's actor.
+		if dec.ProposalActor == "" {
+			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "bridge", Reason: "no rule owns the proposal", Ref: dec.Proposal.Type}))
 			break
 		}
+		b := config.ResolvedBinding{EventType: ev.Type, Actor: dec.ProposalActor, Emits: dec.Proposal.Type}
 		e, serr := cs.bridge.Stamp(b, view, ev, *dec.Proposal)
 		if serr != nil {
 			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "bridge", Reason: serr.Error(), Ref: string(b.Actor)}))
@@ -374,20 +377,6 @@ func (cs *ControlServer) remintFromReceipt(jp jobPayload, receiptFields map[stri
 // the call site stays stable.)
 func (cs *ControlServer) scopedView(actor contract.ActorID) projection.Projection {
 	return projection.ScopedView(cs.store, cs.subs[actor])
-}
-
-// proposerBinding finds the rule that produced a proposal (deterministic, by rule order) so the bridge stamps
-// the trusted write identity (Actor) + authorized type (Emits) from the RULE, never the payload.
-func (cs *ControlServer) proposerBinding(ev contract.Event, dec contract.RuleDecision) (config.ResolvedBinding, bool) {
-	if dec.Proposal == nil {
-		return config.ResolvedBinding{}, false
-	}
-	for _, r := range cs.rules.Rules() {
-		if r.Handles(ev.Type) && r.Emits() == dec.Proposal.Type {
-			return config.ResolvedBinding{EventType: ev.Type, Actor: r.Actor(), Emits: r.Emits()}, true
-		}
-	}
-	return config.ResolvedBinding{}, false
 }
 
 // diagnosticEvent builds a durable "*.diagnostic" event in the trigger's domain (S7). Domain = the prefix of

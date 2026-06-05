@@ -133,6 +133,11 @@ type RuleDecision struct {
 	Reasons  []string
 	Proposal *ProposedEvent
 	Job      *JobSpec
+	// ProposalActor is the TRUSTED origin actor of the carried Proposal — stamped by the RuleSet reducer from
+	// the producing rule's Actor(), never by a rule's own output (json:"-" so an untrusted wasm rule cannot
+	// forge it: the field is dropped on decode and re-set from the trusted Rule.Actor()). The server stamps the
+	// bridge write identity from this instead of guessing the producer by scanning Handles/Emits.
+	ProposalActor ActorID `json:"-"`
 }
 
 // JobSpec describes an effectful job for the at-least-once job lane. IdempotencyKey backs provider idempotency
