@@ -200,7 +200,9 @@ func readName(b []byte, p, end int) (string, int, error) {
 		return "", 0, fmt.Errorf("bad name length")
 	}
 	p += n
-	if p+int(ln) > end {
+	// Compare as uint64 (never p+int(ln)): a huge ln makes the signed sum overflow NEGATIVE, defeating a
+	// `> end` guard and panicking the slice. p<=end is invariant here; reject any ln beyond the remaining span.
+	if p > end || ln > uint64(end-p) {
 		return "", 0, fmt.Errorf("name overruns section")
 	}
 	return string(b[p : p+int(ln)]), p + int(ln), nil

@@ -87,6 +87,22 @@ func undercountModule() []byte {
 	return append(header, append([]byte{0x02, byte(len(body))}, body...)...)
 }
 
+// re-audit HIGH: a huge name-length LEB128 must be rejected, never panic (signed-int overflow in p+int(ln)
+// must not defeat the bounds guard). The promotion gate parses attacker-controlled bytes and must not crash.
+func hugeNameModule() []byte {
+	header := []byte{0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00}
+	hugeLen := []byte{0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x7f} // a name length near 2^63
+	body := append([]byte{0x01}, hugeLen...)                                     // count=1, then a huge module-name length
+	return append(header, append([]byte{0x02, byte(len(body))}, body...)...)
+}
+
+func TestPromotionRejectsHugeNameLengthWithoutPanic(t *testing.T) {
+	bad := hugeNameModule()
+	if err := NewRegistry().Promote(bad, buildOK("b"), Manifest{SHA256: sha(bad)}, ShadowReport{Clean: true}); err == nil {
+		t.Fatal("a huge name length must be rejected (and must not panic the gate)")
+	}
+}
+
 func TestPromotionRejectsUndercountedImportSection(t *testing.T) {
 	bad := undercountModule()
 	if err := NewRegistry().Promote(bad, buildOK("b"), Manifest{SHA256: sha(bad)}, ShadowReport{Clean: true}); err == nil {
