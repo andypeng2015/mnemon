@@ -87,10 +87,12 @@ const (
 func main() {
 	const (
 		proposeAt = 1100
-		denyAt    = 1300
+		denyAt    = 1400
 		bumpStart = 4096
 	)
-	propose := []byte(`{"Verdict":"propose","Proposal":{"Type":"memory.write.proposed"}}`)
+	// propose carries a concrete write so the bridge+kernel can ACCEPT it (and two edges proposing it conflict
+	// on m1). deny is the no-evidence path.
+	propose := []byte(`{"Verdict":"propose","Proposal":{"Type":"memory.write.proposed","Payload":{"writes":[{"Ref":{"Kind":"memory","ID":"m1"},"Kind":"update","BasedOn":1,"Fields":{"content":"from-wasm"}}]}}}`)
 	deny := []byte(`{"Verdict":"deny"}`)
 	packed := func(ptr, ln int) int64 { return int64(uint64(ptr)<<32 | uint64(ln)) }
 	packedPropose := packed(proposeAt, len(propose))
