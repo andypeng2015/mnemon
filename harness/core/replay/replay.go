@@ -56,34 +56,57 @@ func Shadow(events []contract.Event, live, candidate rule.RuleSet) rule.ShadowRe
 	return rule.ShadowReport{Clean: diffs == 0, Diffs: diffs}
 }
 
-// diffDecisions counts the decisions that differ between two replays, keyed by OpID and compared on the
-// masked, outcome-bearing fields (a missing or differing decision on either side is one diff).
+// diffDecisions counts the decisions that differ between two replays, keyed by the durable IngestSeq and
+// compared on the masked, outcome-bearing fields (a missing or differing decision on either side is one diff).
+// The key is IngestSeq — the event's autoincrement rowid, unique per decision — NOT OpID (= the
+// client-controllable Event.ID, which can collide): keying by a non-unique field collapsed two decisions that
+// shared an id to the last one (last-write-wins), hiding a real divergence and producing a FALSE-CLEAN report
+// the Promote gate trusts (S8).
 func diffDecisions(a, b []contract.Decision) int {
-	index := func(ds []contract.Decision) map[string]contract.Decision {
-		m := make(map[string]contract.Decision, len(ds))
+	index := func(ds []contract.Decision) map[int64]contract.Decision {
+		m := make(map[int64]contract.Decision, len(ds))
 		for _, d := range ds {
-			m[d.OpID] = maskDynamic(d)
+			m[d.IngestSeq] = maskDynamic(d)
 		}
 		return m
 	}
 	am, bm := index(a), index(b)
 	diffs := 0
-	for op, ad := range am {
-		if bd, ok := bm[op]; !ok || !sameOutcome(ad, bd) {
+	for seq, ad := range am {
+		if bd, ok := bm[seq]; !ok || !sameOutcome(ad, bd) {
 			diffs++
 		}
 	}
-	for op := range bm {
-		if _, ok := am[op]; !ok {
+	for seq := range bm {
+		if _, ok := am[seq]; !ok {
 			diffs++
 		}
 	}
 	return diffs
 }
 
+// sameOutcome compares the masked, non-dynamic decision fields by CONTENT — not just the COUNT of
+// Conflicts/NewVersions. A length-only compare reported a candidate that re-derived a divergent conflict
+// (different raced ref/version) or a different resulting version as equal, defeating the S8/D1 equivalence the
+// Clean gate provides. maskDynamic sorts both slices, so the element-wise compare is order-insensitive.
 func sameOutcome(a, b contract.Decision) bool {
-	return a.Status == b.Status && a.NextAction == b.NextAction && a.IngestSeq == b.IngestSeq &&
-		len(a.Conflicts) == len(b.Conflicts) && len(a.NewVersions) == len(b.NewVersions)
+	if a.Status != b.Status || a.NextAction != b.NextAction || a.IngestSeq != b.IngestSeq {
+		return false
+	}
+	if len(a.Conflicts) != len(b.Conflicts) || len(a.NewVersions) != len(b.NewVersions) {
+		return false
+	}
+	for i := range a.Conflicts {
+		if a.Conflicts[i] != b.Conflicts[i] {
+			return false
+		}
+	}
+	for i := range a.NewVersions {
+		if a.NewVersions[i] != b.NewVersions[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // drive replays the events on a throwaway kernel and returns the reconciler's decisions. If filter is
