@@ -179,6 +179,13 @@ func (cs *ControlServer) Tick() ([]contract.Decision, error) {
 // diagnostics). Events no rule handles (proposals, diagnostics, other domains) produce nothing — the cursor
 // still advances past them, so each event is consumed exactly once.
 func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, []kernel.OutboxRow, error) {
+	// Only OBSERVED events go through the readback check + rule pre-gate. Internal events — a *.proposed event
+	// (decided by the reconciler) carries a PROVENANCE digest, a *.diagnostic carries none — must NOT be
+	// readback-checked: re-scanning a proposal on a later Tick (its stamped digest now stale vs the current
+	// view) would otherwise spuriously trip the readback diagnostic.
+	if strings.HasSuffix(ev.Type, ".proposed") || strings.HasSuffix(ev.Type, ".diagnostic") {
+		return nil, nil, nil
+	}
 	view := cs.scopedView(ev.Actor)
 	// S10/D8 readback: if the edge echoed the digest it claims to have read, it MUST match the current
 	// canonical content digest. A mismatch means the edge acted on tampered/stale content — block the

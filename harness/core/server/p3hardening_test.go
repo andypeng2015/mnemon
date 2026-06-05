@@ -338,6 +338,34 @@ func TestWarnReasonsSurfacedWhenProposeWins(t *testing.T) {
 	}
 }
 
+// adversarial: re-scanning a *.proposed event (which carries a provenance digest, not an edge echo) on a
+// later Tick must NOT emit a spurious stage:readback diagnostic.
+func TestProposedEventReScanEmitsNoSpuriousReadback(t *testing.T) {
+	s, _, cs := newServerWith(t, rule.NewRuleSet(proposeRule()))
+	if _, _, err := cs.Ingest("agent", contract.ObservationEnvelope{ExternalID: "e1", Event: contract.Event{Type: "memory.observed", CorrelationID: "c1"}}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := cs.Tick(); err != nil { // propose accepted; a *.proposed event (with a stamped digest) is logged
+		t.Fatalf("tick1: %v", err)
+	}
+	countReadback := func() int {
+		n := 0
+		for _, dg := range diagEvents(t, s) {
+			if dg.Payload["stage"] == "readback" {
+				n++
+			}
+		}
+		return n
+	}
+	before := countReadback()
+	if _, err := cs.Tick(); err != nil { // re-scans the *.proposed event
+		t.Fatalf("tick2: %v", err)
+	}
+	if countReadback() != before {
+		t.Fatalf("re-scanning a *.proposed event must not emit a spurious readback diagnostic; %d -> %d", before, countReadback())
+	}
+}
+
 func hasDiagStage(t *testing.T, s *kernel.Store, stage string) bool {
 	t.Helper()
 	for _, dg := range diagEvents(t, s) {
