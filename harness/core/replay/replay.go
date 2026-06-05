@@ -45,6 +45,47 @@ func Replay(events []contract.Event, candidate rule.RuleSet) []contract.Decision
 	return drive(events, nil)
 }
 
+// Shadow replays the same event log under the LIVE and the CANDIDATE policies (each on its own throwaway
+// kernel) and reports the diff — never committing to a live store or advancing a cursor (S8). A candidate
+// that denies writes the live policy accepted yields a non-clean report; an identical candidate is clean. It
+// reports diffs, never pass/fail (the operator gates promotion on Clean).
+func Shadow(events []contract.Event, live, candidate rule.RuleSet) rule.ShadowReport {
+	liveDecs := drive(events, &live)
+	candDecs := drive(events, &candidate)
+	diffs := diffDecisions(liveDecs, candDecs)
+	return rule.ShadowReport{Clean: diffs == 0, Diffs: diffs}
+}
+
+// diffDecisions counts the decisions that differ between two replays, keyed by OpID and compared on the
+// masked, outcome-bearing fields (a missing or differing decision on either side is one diff).
+func diffDecisions(a, b []contract.Decision) int {
+	index := func(ds []contract.Decision) map[string]contract.Decision {
+		m := make(map[string]contract.Decision, len(ds))
+		for _, d := range ds {
+			m[d.OpID] = maskDynamic(d)
+		}
+		return m
+	}
+	am, bm := index(a), index(b)
+	diffs := 0
+	for op, ad := range am {
+		if bd, ok := bm[op]; !ok || !sameOutcome(ad, bd) {
+			diffs++
+		}
+	}
+	for op := range bm {
+		if _, ok := am[op]; !ok {
+			diffs++
+		}
+	}
+	return diffs
+}
+
+func sameOutcome(a, b contract.Decision) bool {
+	return a.Status == b.Status && a.NextAction == b.NextAction && a.IngestSeq == b.IngestSeq &&
+		len(a.Conflicts) == len(b.Conflicts) && len(a.NewVersions) == len(b.NewVersions)
+}
+
 // drive replays the events on a throwaway kernel and returns the reconciler's decisions. If filter is
 // non-nil, a *.proposed event the filter would DENY is neutralized (re-typed so the reconciler skips it,
 // preserving every other event's durable seq) — this is how Shadow diffs a candidate policy without re-

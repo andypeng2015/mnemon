@@ -61,6 +61,14 @@ func (r NativeRule) Evaluate(in RuleInput) (contract.RuleDecision, error) {
 	return d, nil
 }
 
+// ShadowReport is the diff of a candidate policy vs the live policy over the same event log (S8). It is owned
+// HERE (not replay) so replay->rule stays one-way (D11/blocker #4): replay imports rule.ShadowReport, while
+// rule never imports replay. It reports diffs, never pass/fail.
+type ShadowReport struct {
+	Clean bool
+	Diffs int
+}
+
 // RuleSet is an ordered set of rules reduced by a DENY-PRIORITY policy.
 type RuleSet struct{ rules []Rule }
 
