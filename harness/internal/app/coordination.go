@@ -296,6 +296,11 @@ func (h *Harness) applyCoordinationProposal(out io.Writer, store *proposalstore.
 	// event — re-applying an already-satisfied op changes nothing.
 	var emitted []string
 	if outcome == applyApplies {
+		// P2.2 (D1, route 3/3): lower the topology mutation through the kernel single-writer
+		// before emitting the host mirror topology events.
+		if err := h.governCoordinationMutation(item.ID, spec); err != nil {
+			return err
+		}
 		emitted, err = h.emitCoordinationMutation(item, spec, auditResult.Ref, now)
 		if err != nil {
 			return err
@@ -327,6 +332,28 @@ const (
 	applySatisfied = "already_satisfied"
 	applyInvalid   = "invalid"
 )
+
+// governCoordinationMutation lowers an approved coordination op through the kernel (route
+// 3/3): the op is recorded as a governed coordination-kind resource (keyed proposalID:op) so
+// the mutation flows through ServerAPI.Ingest -> rule pre-gate -> bridge -> Kernel.Apply
+// before the host emits its mirror topology events. A kernel denial aborts the apply.
+func (h *Harness) governCoordinationMutation(applyID string, spec coordinationSpec) error {
+	engine, err := h.coreEngine()
+	if err != nil {
+		return err
+	}
+	res, err := engine.AdmitCreate(applyID, "coordination", applyID+":"+spec.Operation, map[string]any{
+		"operation": spec.Operation,
+		"target":    spec.Target,
+	})
+	if err != nil {
+		return fmt.Errorf("lower coordination mutation to kernel: %w", err)
+	}
+	if !res.Accepted {
+		return fmt.Errorf("kernel denied coordination %s: %s", spec.Operation, res.Reason)
+	}
+	return nil
+}
 
 func (h *Harness) currentCoordinationView() (coordination.View, error) {
 	store, err := eventlog.New(h.root)

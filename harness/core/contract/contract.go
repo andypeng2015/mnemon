@@ -205,4 +205,7 @@ var (
 // Invariant: keys(kernel.DefaultSchemaGuard().Required) == KindCatalog (enforced by a kernel test).
 // lease/budget are first-class versioned resources (D3): their per-resource Version is the fence / CAS counter.
 // receipt is the durable record of an external effect (S4: the job lane writes a receipt resource via CAS).
-var KindCatalog = map[ResourceKind]bool{"memory": true, "goal": true, "skill": true, "lease": true, "budget": true, "receipt": true}
+// coordination is the host-lifecycle teamwork-topology kind (P2.2 route 3/3): an approved
+// coordination op is recorded as a governed coordination resource so the mutation flows
+// through the kernel single-writer before the host emits its mirror topology events.
+var KindCatalog = map[ResourceKind]bool{"memory": true, "goal": true, "skill": true, "lease": true, "budget": true, "receipt": true, "coordination": true}

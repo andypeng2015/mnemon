@@ -21,6 +21,9 @@ func DefaultSchemaGuard() SchemaGuard {
 		"lease":   {"job_id", "owner", "fence_until"},
 		"budget":  {"limit_usd", "spent_usd"},
 		"receipt": {"job_id", "effect_id", "outcome"},
+		// coordination records a governed teamwork-topology op (P2.2 route 3/3); operation is the
+		// minimal required field. Must stay in lockstep with contract.KindCatalog (kind_catalog_test).
+		"coordination": {"operation"},
 	}}
 }
 func (g SchemaGuard) Validate(kind contract.ResourceKind, fields map[string]any) error {
