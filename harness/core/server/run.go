@@ -5,8 +5,35 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
+
+// DiscoverProjectStore resolves the canonical control-store path for the project that contains the
+// current working directory. It walks up from the CWD for an existing `.mnemon` directory (the
+// project marker, like git's `.git`) and resolves DefaultStorePath under that project root — so the
+// channel server lands on the SAME store the lifecycle/app apply surface uses (which resolves
+// DefaultStorePath under the project root) regardless of WHICH subdirectory the server is booted
+// from. With no `.mnemon` ancestor it falls back to DefaultStorePath under the CWD; an operator
+// running the server detached from the project tree must pass an explicit --store. OpenRuntime
+// absolutizes the result, so the boot log + status report the canonical path.
+func DiscoverProjectStore() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return DefaultStorePath
+	}
+	for dir := cwd; ; {
+		if fi, err := os.Stat(filepath.Join(dir, ".mnemon")); err == nil && fi.IsDir() {
+			return filepath.Join(dir, DefaultStorePath)
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return filepath.Join(cwd, DefaultStorePath)
+		}
+		dir = parent
+	}
+}
 
 // DefaultStorePath is the ONE canonical kernel-store path the harness control plane defaults to.
 // It is the single source of truth shared by `mnemon-harness server` and the lifecycle/app apply
@@ -39,7 +66,7 @@ func RunHTTPServer(ctx context.Context, addr, storePath string, out io.Writer) e
 	srv := &http.Server{Addr: addr, Handler: NewRuntimeHandler(rt, HeaderAuthenticator{})}
 	errc := make(chan error, 1)
 	go func() {
-		fmt.Fprintf(out, "mnemon-harness server: listening on %s (store %s)\n", addr, storePath)
+		fmt.Fprintf(out, "mnemon-harness server: listening on %s (store %s)\n", addr, rt.StorePath())
 		if serveErr := srv.ListenAndServe(); serveErr != nil && serveErr != http.ErrServerClosed {
 			errc <- serveErr
 			return

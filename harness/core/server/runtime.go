@@ -76,6 +76,13 @@ func OpenRuntime(storePath string, cfg RuntimeConfig) (*Runtime, error) {
 	if storePath == "" {
 		storePath = DefaultStorePath
 	}
+	// Absolutize so the store ref + the single-writer lockfile are keyed on the CANONICAL path: a
+	// relative and an absolute form of the same store must not be treated as two disjoint owners
+	// (otherwise the S11 lock cannot catch a split). Callers that want CWD-independent resolution use
+	// DiscoverProjectStore to pick the path before calling here.
+	if abs, err := filepath.Abs(storePath); err == nil {
+		storePath = abs
+	}
 	if dir := filepath.Dir(storePath); dir != "" && dir != "." {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return nil, fmt.Errorf("create control store dir: %w", err)
@@ -162,6 +169,7 @@ type ChannelStatus struct {
 // require the pull verb.
 func (r *Runtime) Status(principal contract.ActorID) (ChannelStatus, error) {
 	var kind ActorKind
+	sub := contract.Subscription{Actor: principal}
 	if r.bindings != nil {
 		b, ok := r.bindings.Binding(principal)
 		if !ok {
@@ -171,8 +179,13 @@ func (r *Runtime) Status(principal contract.ActorID) (ChannelStatus, error) {
 			return ChannelStatus{}, fmt.Errorf("principal %q is not bound to status", principal)
 		}
 		kind = b.ActorKind
+		// Clamp the status digest/count to the binding scope (the auditable ceiling), not the broader
+		// engine cfg.Subs — mirroring the empty-ref pull path.
+		if len(b.SubscriptionScope) > 0 {
+			sub.Refs = append([]contract.ResourceRef(nil), b.SubscriptionScope...)
+		}
 	}
-	proj, err := r.cs.PullProjection(principal, contract.Subscription{Actor: principal})
+	proj, err := r.cs.PullProjection(principal, sub)
 	if err != nil {
 		return ChannelStatus{}, err
 	}

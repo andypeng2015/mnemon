@@ -19,7 +19,15 @@ var serverCmd = &cobra.Command{
 	Short: "Run the core control-plane channel (observe/pull) over httpapi",
 	Long:  "Boot a ControlServer over a persistent kernel store and serve the channel (ServerAPI: observe via Ingest, pull via PullProjection) over httpapi until interrupted.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return server.RunHTTPServer(cmd.Context(), serverAddr, serverStorePath, cmd.OutOrStdout())
+		// When the operator did not pass an explicit --store, discover the project's canonical store by
+		// walking up from the CWD for the .mnemon marker, so the server lands on the SAME store the
+		// lifecycle/app apply surface uses regardless of which subdirectory it is booted from (no CWD
+		// store split). An explicit --store is honored verbatim (OpenRuntime absolutizes it).
+		storePath := serverStorePath
+		if !cmd.Flags().Changed("store") {
+			storePath = server.DiscoverProjectStore()
+		}
+		return server.RunHTTPServer(cmd.Context(), serverAddr, storePath, cmd.OutOrStdout())
 	},
 }
 
