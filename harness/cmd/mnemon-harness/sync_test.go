@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -99,6 +102,89 @@ func TestSyncPushOnceAcksPendingLocalCommits(t *testing.T) {
 	}
 }
 
+func TestSyncPullOnceImportsRemoteMemoryThroughLocalMnemon(t *testing.T) {
+	restoreSyncFlags(t)
+	root := t.TempDir()
+	storePath := filepath.Join(root, server.DefaultStorePath)
+	ref := contract.ResourceRef{Kind: "memory", ID: "project"}
+	localReplica := server.ReplicaAgentBinding("replica@project", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
+	otherReplica := server.ReplicaAgentBinding("replica@other", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
+	remote, err := server.OpenRuntime(filepath.Join(t.TempDir(), "remote.db"), server.RuntimeConfig{
+		Bindings: []server.ChannelBinding{localReplica, otherReplica},
+		Subs:     server.SubsFromBindings([]server.ChannelBinding{localReplica, otherReplica}),
+	})
+	if err != nil {
+		t.Fatalf("open remote runtime: %v", err)
+	}
+	defer remote.Close()
+	remoteSrv := httptest.NewServer(server.NewRuntimeHandler(remote, server.TokenAuthenticator{Tokens: map[string]contract.ActorID{
+		"local-token": "replica@project",
+		"other-token": "replica@other",
+	}}))
+	defer remoteSrv.Close()
+
+	fields := remoteMemoryFields("remote-entry-1", "Remote synced memory appears locally")
+	remoteCommit := contract.LocalCommit{
+		OriginReplicaID: "other-replica",
+		LocalDecisionID: "dec-remote-1",
+		LocalIngestSeq:  7,
+		Actor:           "codex@other",
+		ResourceRef:     ref,
+		ResourceVersion: 1,
+		FieldsDigest:    syncTestDigest(fields),
+		Fields:          fields,
+		DecidedAt:       "2026-06-06T00:00:00Z",
+		Status:          "pending",
+	}
+	if resp, err := server.NewClientWithToken(remoteSrv.URL, "other-token").SyncPush(server.SyncPushRequest{
+		ReplicaID: "other-replica",
+		BatchID:   "remote-batch",
+		Commits:   []contract.LocalCommit{remoteCommit},
+	}); err != nil || len(resp.Accepted) != 1 {
+		t.Fatalf("seed remote commit: resp=%+v err=%v", resp, err)
+	}
+
+	syncRoot = root
+	syncStorePath = storePath
+	syncRemoteID = "workspace"
+	syncRemoteURL = remoteSrv.URL
+	syncRemoteToken = "local-token"
+	var out bytes.Buffer
+	cmd := mustTestCommand(t)
+	cmd.SetOut(&out)
+	if err := runSyncPull(cmd, nil); err != nil {
+		t.Fatalf("sync pull once: %v", err)
+	}
+	if !strings.Contains(out.String(), "Sync pull: 1 commits") {
+		t.Fatalf("unexpected pull output: %s", out.String())
+	}
+	content := localMemoryContentForTest(t, storePath, ref)
+	if !strings.Contains(content, "Remote synced memory appears locally") {
+		t.Fatalf("pulled memory not visible through local projection:\n%s", content)
+	}
+	st, err := syncStatusForTest(storePath)
+	if err != nil {
+		t.Fatalf("status after pull: %v", err)
+	}
+	if st.SyncPending != 0 {
+		t.Fatalf("remote import must not create outbound pending echo, got %+v", st)
+	}
+
+	out.Reset()
+	cmd = mustTestCommand(t)
+	cmd.SetOut(&out)
+	if err := runSyncPull(cmd, nil); err != nil {
+		t.Fatalf("second sync pull: %v", err)
+	}
+	if !strings.Contains(out.String(), "Sync pull: 0 commits") {
+		t.Fatalf("second pull must be cursor-idempotent, got %s", out.String())
+	}
+	content = localMemoryContentForTest(t, storePath, ref)
+	if strings.Count(content, "Remote synced memory appears locally") != 1 {
+		t.Fatalf("duplicate pull must not duplicate memory:\n%s", content)
+	}
+}
+
 func TestSyncRemoteConfigLoadsCredentialRef(t *testing.T) {
 	restoreSyncFlags(t)
 	root := t.TempDir()
@@ -169,4 +255,47 @@ func syncStatusForTest(storePath string) (server.ChannelStatus, error) {
 	}
 	defer rt.Close()
 	return rt.Status("status@test")
+}
+
+func localMemoryContentForTest(t *testing.T, storePath string, ref contract.ResourceRef) string {
+	t.Helper()
+	binding := server.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
+	rt, err := server.OpenLocalRuntime(storePath, server.LoadedBindings{Bindings: []server.ChannelBinding{binding}})
+	if err != nil {
+		t.Fatalf("open local runtime for projection: %v", err)
+	}
+	defer rt.Close()
+	proj, err := rt.API().PullProjection("codex@project", contract.Subscription{Actor: "codex@project"})
+	if err != nil {
+		t.Fatalf("pull local projection: %v", err)
+	}
+	for _, item := range proj.Content {
+		if item.Ref == ref {
+			if content, ok := item.Fields["content"].(string); ok {
+				return content
+			}
+		}
+	}
+	return ""
+}
+
+func remoteMemoryFields(entryID, content string) map[string]any {
+	entries := []any{map[string]any{
+		"id":         entryID,
+		"content":    content,
+		"source":     "remote",
+		"confidence": "high",
+		"actor":      "codex@other",
+		"ingest_seq": float64(7),
+	}}
+	return map[string]any{
+		"content": "# Local Memory\n- " + content,
+		"entries": entries,
+	}
+}
+
+func syncTestDigest(fields map[string]any) string {
+	data, _ := json.Marshal(fields)
+	sum := sha256.Sum256(data)
+	return hex.EncodeToString(sum[:])
 }

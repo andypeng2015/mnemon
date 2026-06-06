@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"regexp"
@@ -16,7 +17,9 @@ import (
 
 const (
 	MemoryWriteCandidateObserved = "memory.write_candidate_observed"
+	RemoteMemoryCommitObserved   = "remote.memory.commit_observed"
 	MemoryWriteProposed          = "memory.write.proposed"
+	SyncImportActor              = contract.ActorID("sync@local")
 )
 
 var localProjectMemoryRef = contract.ResourceRef{Kind: "memory", ID: "project"}
@@ -89,6 +92,22 @@ func LocalMemoryRules(bindings []ChannelBinding) []rule.Rule {
 	return rules
 }
 
+func OpenSyncImportRuntime(storePath string, refs []contract.ResourceRef) (*Runtime, error) {
+	return OpenRuntime(storePath, SyncImportRuntimeConfig(refs))
+}
+
+func SyncImportRuntimeConfig(refs []contract.ResourceRef) RuntimeConfig {
+	return RuntimeConfig{
+		Subs: map[contract.ActorID]contract.Subscription{
+			SyncImportActor: {Actor: SyncImportActor, Refs: refs},
+		},
+		Rules: rule.NewRuleSet(remoteMemoryImportRule(SyncImportActor)),
+		Authority: kernel.AuthorityRules{Allow: map[contract.ActorID][]contract.ResourceKind{
+			SyncImportActor: {"memory"},
+		}},
+	}
+}
+
 func memoryRefForBinding(b ChannelBinding) (contract.ResourceRef, bool) {
 	for _, ref := range b.SubscriptionScope {
 		if ref == localProjectMemoryRef {
@@ -139,6 +158,95 @@ func memoryAdmissionRule(principal contract.ActorID, ref contract.ResourceRef) r
 				Payload: map[string]any{"writes": []contract.ResourceWrite{write}},
 			}}, nil
 		})
+}
+
+func remoteMemoryImportRule(principal contract.ActorID) rule.Rule {
+	return rule.NewNativeRule("remote-memory-import:"+string(principal), principal, MemoryWriteProposed, []string{RemoteMemoryCommitObserved},
+		func(in rule.RuleInput) (contract.RuleDecision, error) {
+			if in.Event.Actor != principal {
+				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+			}
+			commit, err := decodeRemoteMemoryCommit(in.Event.Payload)
+			if err != nil {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{err.Error()}}, nil
+			}
+			if commit.ResourceRef.Kind != "memory" {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote memory import denied: non-memory resource"}}, nil
+			}
+			incoming := memoryEntriesFromFields(commit.Fields)
+			if len(incoming) == 0 {
+				if content := strings.TrimSpace(stringField(commit.Fields, "content")); content != "" {
+					incoming = []memoryEntry{{
+						ID:         remoteMemoryEntryID(commit),
+						Content:    content,
+						Source:     "remote",
+						Confidence: "remote",
+						Actor:      string(commit.Actor),
+						IngestSeq:  commit.LocalIngestSeq,
+					}}
+				}
+			}
+			if len(incoming) == 0 {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote memory import denied: no memory entries"}}, nil
+			}
+			version, fields := resourceFromProjection(in.View, commit.ResourceRef)
+			existing := memoryEntriesFromFields(fields)
+			byID := make(map[string]memoryEntry, len(existing))
+			for _, entry := range existing {
+				byID[entry.ID] = entry
+			}
+			var additions []memoryEntry
+			for _, entry := range incoming {
+				if current, ok := byID[entry.ID]; ok {
+					if current.Content != entry.Content {
+						return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote memory conflict: entry " + entry.ID + " already exists with different content"}}, nil
+					}
+					continue
+				}
+				additions = append(additions, entry)
+			}
+			if len(additions) == 0 {
+				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+			}
+			entries := append(append([]memoryEntry(nil), existing...), additions...)
+			newFields := map[string]any{
+				"content":    renderMemoryContent(entries),
+				"entries":    entries,
+				"updated_by": string(in.Event.Actor),
+			}
+			write := contract.ResourceWrite{Ref: commit.ResourceRef, Kind: contract.OpCreate, Fields: newFields}
+			if version > 0 {
+				write.Kind = contract.OpUpdate
+				write.BasedOn = version
+			}
+			return contract.RuleDecision{Verdict: contract.VerdictPropose, Proposal: &contract.ProposedEvent{
+				Type:    MemoryWriteProposed,
+				Payload: map[string]any{"writes": []contract.ResourceWrite{write}},
+			}}, nil
+		})
+}
+
+func decodeRemoteMemoryCommit(payload map[string]any) (contract.LocalCommit, error) {
+	raw, ok := payload["commit"]
+	if !ok {
+		return contract.LocalCommit{}, fmt.Errorf("remote memory import denied: missing commit")
+	}
+	data, err := json.Marshal(raw)
+	if err != nil {
+		return contract.LocalCommit{}, fmt.Errorf("remote memory import denied: encode commit: %w", err)
+	}
+	var commit contract.LocalCommit
+	if err := json.Unmarshal(data, &commit); err != nil {
+		return contract.LocalCommit{}, fmt.Errorf("remote memory import denied: decode commit: %w", err)
+	}
+	if strings.TrimSpace(commit.OriginReplicaID) == "" || strings.TrimSpace(commit.LocalDecisionID) == "" {
+		return contract.LocalCommit{}, fmt.Errorf("remote memory import denied: missing provenance")
+	}
+	return commit, nil
+}
+
+func remoteMemoryEntryID(commit contract.LocalCommit) string {
+	return "remote/" + sanitizeEntryIDPart(commit.OriginReplicaID) + "/" + sanitizeEntryIDPart(commit.LocalDecisionID)
 }
 
 type memoryCandidate struct {

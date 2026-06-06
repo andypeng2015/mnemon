@@ -449,8 +449,10 @@ func (cs *ControlServer) processDecisionSideEffects() error {
 					if err := tx.EnqueueOutbox(kernel.OutboxRow{ID: key, Kind: "invalidation", EventSeq: d.IngestSeq, Target: "projection", Payload: string(payload), IdempotencyKey: key}); err != nil {
 						return err
 					}
-					if err := tx.RecordSyncCommitsTx(d, syncableResourceKinds); err != nil {
-						return err
+					if d.Actor != SyncImportActor {
+						if err := tx.RecordSyncCommitsTx(d, syncableResourceKinds); err != nil {
+							return err
+						}
 					}
 				} else if err := tx.AppendEvent(cs.rejectDiagnostic(d)); err != nil {
 					return err
