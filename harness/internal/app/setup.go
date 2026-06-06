@@ -1,6 +1,7 @@
 package app
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"encoding/hex"
@@ -38,6 +39,10 @@ type SetupResult struct {
 
 func channelBase(projectRoot string) string {
 	return filepath.Join(projectRoot, ".mnemon", "harness", "channel")
+}
+
+func localBase(projectRoot string) string {
+	return filepath.Join(projectRoot, ".mnemon", "harness", "local")
 }
 
 func sanitizePrincipal(p string) string {
@@ -86,14 +91,16 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 	if opts.DryRun {
 		hostArgs = []string{"--dry-run"}
 	}
-	if err := h.LoopProject(ctx, out, errw, action, projectRoot, opts.Host, opts.Loops, hostArgs); err != nil {
+	var projectorOut bytes.Buffer
+	if err := h.LoopProject(ctx, &projectorOut, errw, action, projectRoot, opts.Host, opts.Loops, hostArgs); err != nil {
 		return SetupResult{}, fmt.Errorf("setup: loop install: %w", err)
 	}
 
 	// 2. Channel artifacts.
 	base := channelBase(projectRoot)
 	bindingFile := filepath.Join(base, "bindings.json")
-	envFile := filepath.Join(base, "env.sh")
+	envFile := filepath.Join(localBase(projectRoot), "env.sh")
+	compatEnvFile := filepath.Join(base, "env.sh")
 	tokenRel := ""
 	tokenFile := ""
 	if opts.UseToken {
@@ -107,13 +114,12 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 	if opts.DryRun {
 		res.Changes = append(res.Changes,
 			fmt.Sprintf("would upsert channel binding for %s in %s", opts.Principal, bindingFile),
-			fmt.Sprintf("would write channel runtime env %s", envFile))
+			fmt.Sprintf("would write Local Mnemon env %s", envFile),
+			fmt.Sprintf("would write compatibility env %s", compatEnvFile))
 		if opts.UseToken {
 			res.Changes = append(res.Changes, fmt.Sprintf("would write bearer token file %s", tokenFile))
 		}
-		for _, c := range res.Changes {
-			fmt.Fprintf(out, "setup(dry-run): %s\n", c)
-		}
+		writeSetupSummary(out, opts, true)
 		return res, nil
 	}
 
@@ -127,14 +133,39 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 		return res, fmt.Errorf("setup: upsert binding: %w", err)
 	}
 	res.Changes = append(res.Changes, "upserted channel binding for "+opts.Principal+" in "+bindingFile)
-	if err := writeChannelEnv(envFile, opts, tokenRel); err != nil {
+	if err := writeLocalEnv(envFile, opts, tokenRel); err != nil {
 		return res, err
 	}
-	res.Changes = append(res.Changes, "wrote channel runtime env "+envFile)
-	for _, c := range res.Changes {
-		fmt.Fprintf(out, "setup: %s\n", c)
+	res.Changes = append(res.Changes, "wrote Local Mnemon env "+envFile)
+	if err := writeLocalEnv(compatEnvFile, opts, tokenRel); err != nil {
+		return res, err
 	}
+	res.Changes = append(res.Changes, "wrote compatibility env "+compatEnvFile)
+	writeSetupSummary(out, opts, false)
 	return res, nil
+}
+
+func writeSetupSummary(out io.Writer, opts SetupOptions, dryRun bool) {
+	action := "installed"
+	local := "ready"
+	if dryRun {
+		action = "dry-run install"
+		local = "would be ready"
+	}
+	fmt.Fprintf(out, "Agent Integration: %s for %s (%s)\n", action, displayHost(opts.Host), strings.Join(opts.Loops, ", "))
+	fmt.Fprintf(out, "Local Mnemon: %s\n", local)
+	fmt.Fprintln(out, "Remote Workspace: not connected")
+}
+
+func displayHost(host string) string {
+	switch host {
+	case "codex":
+		return "Codex"
+	case "claude-code":
+		return "Claude Code"
+	default:
+		return host
+	}
 }
 
 func (h *Harness) channelBinding(opts SetupOptions) server.ChannelBinding {
@@ -171,9 +202,9 @@ func writeTokenFile(path string) error {
 	return os.WriteFile(path, []byte(hex.EncodeToString(buf)+"\n"), 0o600)
 }
 
-func writeChannelEnv(path string, opts SetupOptions, tokenRel string) error {
+func writeLocalEnv(path string, opts SetupOptions, tokenRel string) error {
 	var b strings.Builder
-	b.WriteString("# Managed by mnemon-harness setup — channel runtime env (source before host hooks).\n")
+	b.WriteString("# Managed by mnemon-harness setup - Local Mnemon environment.\n")
 	b.WriteString(exportLine("MNEMON_HARNESS_BIN", "mnemon-harness"))
 	b.WriteString(exportLine("MNEMON_CONTROL_ADDR", opts.ControlURL))
 	b.WriteString(exportLine("MNEMON_CONTROL_PRINCIPAL", opts.Principal))
@@ -193,33 +224,40 @@ func exportLine(key, value string) string {
 	return fmt.Sprintf("export %s=%q\n", key, value)
 }
 
-// SetupStatus reports channel binding health for the project: whether the principal has a binding,
-// whether its token file exists, and the recorded control endpoint.
+// SetupStatus reports the public setup state without exposing local transport
+// details. Debug/internal commands can inspect binding files directly.
 func (h *Harness) SetupStatus(projectRoot, principal string) ([]string, error) {
 	if projectRoot == "" {
 		projectRoot = h.root
 	}
 	bindingFile := filepath.Join(channelBase(projectRoot), "bindings.json")
-	lines := []string{"channel binding status:", "  binding file: " + bindingFile}
 	loaded, err := server.LoadBindingFile(projectRoot, bindingFile)
 	if err != nil {
-		lines = append(lines, "  bindings: MISSING or invalid ("+err.Error()+")")
-		return lines, nil
+		return []string{
+			"Agent Integration: not installed",
+			"Local Mnemon: not configured",
+			"Remote Workspace: not connected",
+		}, nil
 	}
-	found := false
+	found := principal == ""
 	for _, b := range loaded.Bindings {
-		mark := ""
 		if principal != "" && string(b.Principal) == principal {
 			found = true
-			mark = " <-"
+			break
 		}
-		lines = append(lines, fmt.Sprintf("  principal=%s kind=%s endpoint=%s verbs=%d scope=%d%s",
-			b.Principal, b.ActorKind, b.Endpoint, len(b.AllowedVerbs), len(b.SubscriptionScope), mark))
 	}
-	if principal != "" && !found {
-		lines = append(lines, "  principal "+principal+": NOT bound")
+	if !found {
+		return []string{
+			"Agent Integration: installed",
+			"Local Mnemon: not configured for this agent",
+			"Remote Workspace: not connected",
+		}, nil
 	}
-	return lines, nil
+	return []string{
+		"Agent Integration: installed",
+		"Local Mnemon: ready",
+		"Remote Workspace: not connected",
+	}, nil
 }
 
 // SetupUninstall reverses setup: it uninstalls the loop projections (the existing projector) and

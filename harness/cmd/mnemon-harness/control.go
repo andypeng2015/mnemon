@@ -119,8 +119,10 @@ var controlStatusCmd = &cobra.Command{
 			enc.SetIndent("", "  ")
 			return enc.Encode(st)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "channel OK: principal=%s kind=%s digest=%s resources=%d store=%s mode=%s\n",
-			st.Principal, st.ActorKind, st.Digest, st.Resources, st.StoreRef, st.Mode)
+		fmt.Fprintf(cmd.OutOrStdout(), "Agent Integration: %s\n", st.Principal)
+		fmt.Fprintf(cmd.OutOrStdout(), "Local Mnemon: ready (resources=%d, digest=%s)\n", st.Resources, st.Digest)
+		fmt.Fprintln(cmd.OutOrStdout(), "Remote Workspace: disconnected")
+		fmt.Fprintln(cmd.OutOrStdout(), "Sync: local accepted, remote pending")
 		return nil
 	},
 }

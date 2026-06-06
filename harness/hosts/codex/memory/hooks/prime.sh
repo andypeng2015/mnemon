@@ -23,30 +23,48 @@ fi
 ASSET_DIR="${MNEMON_MEMORY_LOOP_DIR:-${CONFIG_DIR}/mnemon-memory}"
 PROJECT_ROOT="$(cd "${CONFIG_DIR}/.." && pwd)"
 
-if command -v mnemon >/dev/null 2>&1; then
-  mnemon event emit session.observed \
-    --root "${PROJECT_ROOT}" \
-    --loop memory \
-    --host codex \
-    --payload '{"hook":"SessionStart"}' \
-    >/dev/null 2>&1 || true
+# Local Mnemon env (MNEMON_HARNESS_BIN / MNEMON_CONTROL_*), written by `mnemon-harness setup`.
+LOCAL_ENV="${PROJECT_ROOT}/.mnemon/harness/local/env.sh"
+if [[ -f "${LOCAL_ENV}" ]]; then
+  # shellcheck source=/dev/null
+  source "${LOCAL_ENV}"
+fi
+
+HARNESS_BIN="${MNEMON_HARNESS_BIN:-mnemon-harness}"
+CONTROL_ADDR="${MNEMON_CONTROL_ADDR:-http://127.0.0.1:8787}"
+CONTROL_PRINCIPAL="${MNEMON_CONTROL_PRINCIPAL:-}"
+TOKEN_ARGS=()
+if [[ -n "${MNEMON_CONTROL_TOKEN_FILE:-}" ]]; then
+  TOKEN_PATH="${MNEMON_CONTROL_TOKEN_FILE}"
+  if [[ "${TOKEN_PATH}" != /* ]]; then
+    TOKEN_PATH="${PROJECT_ROOT}/${TOKEN_PATH}"
+  fi
+  TOKEN_ARGS=(--token-file "${TOKEN_PATH}")
 fi
 
 echo "[mnemon-memory] Prime"
 echo
-echo "MNEMON_MEMORY_LOOP_ENV=${ENV_PATH}"
 echo "MNEMON_MEMORY_LOOP_DIR=${ASSET_DIR}"
-echo "Working memory path: ${ASSET_DIR}/MEMORY.md"
-echo "Guide path: ${ASSET_DIR}/GUIDE.md"
 echo
-echo "Load the following working memory and guide. Do not recall Mnemon during Prime."
+echo "Load the following working memory and guide. Do not pull Local Mnemon during Prime."
 echo
 
-if ! command -v mnemon >/dev/null 2>&1; then
-  echo "Warning: mnemon binary is not available in PATH."
+# Best-effort: announce this session to Local Mnemon and check reachability. Failures are non-fatal.
+if command -v "${HARNESS_BIN}" >/dev/null 2>&1; then
+  "${HARNESS_BIN}" control observe \
+    --type session.observed \
+    --addr "${CONTROL_ADDR}" \
+    --principal "${CONTROL_PRINCIPAL}" \
+    ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} \
+    --external-id "prime-${SESSION_ID:-session}" \
+    --payload '{"hook":"SessionStart"}' \
+    >/dev/null 2>&1 || true
+  "${HARNESS_BIN}" control status \
+    --addr "${CONTROL_ADDR}" \
+    --principal "${CONTROL_PRINCIPAL}" \
+    ${TOKEN_ARGS[@]+"${TOKEN_ARGS[@]}"} 2>/dev/null || echo "Warning: Local Mnemon status unavailable."
 else
-  echo "Mnemon binary is available."
-  mnemon status 2>/dev/null || true
+  echo "Warning: ${HARNESS_BIN} binary is not available in PATH."
 fi
 
 if [[ -f "${ASSET_DIR}/MEMORY.md" ]]; then

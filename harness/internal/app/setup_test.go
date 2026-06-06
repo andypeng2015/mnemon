@@ -3,8 +3,10 @@ package app
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -75,6 +77,7 @@ func TestSetupProjectsLoopAndWiresChannel(t *testing.T) {
 	if _, err := h.Setup(context.Background(), &out, &errw, opts); err != nil {
 		t.Fatalf("setup: %v\nstderr=%s", err, errw.String())
 	}
+	assertPublicSetupOutput(t, out.String())
 
 	// projector ran: managed hooks + skill projected.
 	hooksJSON := filepath.Join(root, ".codex", "hooks.json")
@@ -84,6 +87,7 @@ func TestSetupProjectsLoopAndWiresChannel(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, ".codex", "skills", "memory-get", "SKILL.md")); err != nil {
 		t.Fatalf("projected SKILL.md missing: %v", err)
 	}
+	assertProjectedAssetsHaveNoRemoteWorkspace(t, filepath.Join(root, ".codex"))
 
 	// channel artifacts: binding entry, token file, runtime env.
 	bindingFile := filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json")
@@ -91,7 +95,7 @@ func TestSetupProjectsLoopAndWiresChannel(t *testing.T) {
 	if err != nil {
 		t.Fatalf("setup status: %v", err)
 	}
-	_ = loaded
+	assertPublicStatusLines(t, loaded)
 	bf, err := os.ReadFile(bindingFile)
 	if err != nil || !strings.Contains(string(bf), "codex@project") || !strings.Contains(string(bf), "127.0.0.1:8787") {
 		t.Fatalf("bindings.json must record the principal + endpoint; err=%v content=%s", err, string(bf))
@@ -155,6 +159,7 @@ func TestSetupDryRunWritesNothing(t *testing.T) {
 	if !strings.Contains(out.String(), "dry-run") {
 		t.Fatalf("dry-run must announce changes; got:\n%s", out.String())
 	}
+	assertPublicSetupOutput(t, out.String())
 	if _, err := os.Stat(filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json")); !os.IsNotExist(err) {
 		t.Fatalf("dry-run must not write the binding file; err=%v", err)
 	}
@@ -179,6 +184,20 @@ func TestSetupRejectsUnsupportedProductLoop(t *testing.T) {
 	}
 }
 
+func TestAgentIntegrationAssetsDoNotReferenceRemoteWorkspace(t *testing.T) {
+	root := repoRoot(t)
+	for _, rel := range []string{
+		"harness/hosts/codex/memory/hooks",
+		"harness/hosts/codex/skill/hooks",
+		"harness/hosts/claude-code/memory/hooks",
+		"harness/hosts/claude-code/skill/hooks",
+		"harness/loops/memory/skills",
+		"harness/loops/skill/skills",
+	} {
+		assertProjectedAssetsHaveNoRemoteWorkspace(t, filepath.Join(root, rel))
+	}
+}
+
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)
@@ -186,4 +205,68 @@ func mustRead(t *testing.T, path string) []byte {
 		t.Fatalf("read %s: %v", path, err)
 	}
 	return b
+}
+
+func repoRoot(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve test file path")
+	}
+	return filepath.Clean(filepath.Join(filepath.Dir(file), "..", "..", ".."))
+}
+
+func assertPublicSetupOutput(t *testing.T, output string) {
+	t.Helper()
+	for _, want := range []string{"Agent Integration:", "Local Mnemon:", "Remote Workspace:"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("setup output must include %q:\n%s", want, output)
+		}
+	}
+	for _, blocked := range []string{"channel", "binding", "runtime", "kernel", "cursor", "outbox", "projection"} {
+		if strings.Contains(strings.ToLower(output), blocked) {
+			t.Fatalf("setup output leaked internal term %q:\n%s", blocked, output)
+		}
+	}
+}
+
+func assertPublicStatusLines(t *testing.T, lines []string) {
+	t.Helper()
+	joined := strings.Join(lines, "\n")
+	for _, want := range []string{"Agent Integration:", "Local Mnemon:", "Remote Workspace:"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("setup status must include %q:\n%s", want, joined)
+		}
+	}
+	for _, blocked := range []string{"channel", "binding", "runtime", "kernel", "cursor", "outbox", "projection"} {
+		if strings.Contains(strings.ToLower(joined), blocked) {
+			t.Fatalf("setup status leaked internal term %q:\n%s", blocked, joined)
+		}
+	}
+}
+
+func assertProjectedAssetsHaveNoRemoteWorkspace(t *testing.T, root string) {
+	t.Helper()
+	blocked := []string{"remote workspace", "remote token", "remote credential", "mnemon_remote", "remote_workspace", "https://"}
+	if err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		lower := strings.ToLower(string(data))
+		for _, term := range blocked {
+			if strings.Contains(lower, term) {
+				t.Fatalf("projected Agent Integration asset %s leaked %q", path, term)
+			}
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("scan projected assets: %v", err)
+	}
 }

@@ -21,7 +21,7 @@ $MNEMON_MEMORY_LOOP_DIR/MEMORY.md
 
 If `MNEMON_MEMORY_LOOP_DIR` is not available, use the path injected by the Prime
 hook. Do not guess a repository-root `MEMORY.md`, `~/.mnemon/MEMORY.md`, or a
-runtime-specific default unless the HostAgent has explicitly provided that path.
+host-specific default unless the HostAgent has explicitly provided that path.
 
 ## Procedure
 

@@ -39,7 +39,12 @@ func TestControlTokenFileAuth(t *testing.T) {
 	controlToken = ""
 	controlTokenFile = tokFile
 	controlStatusJSON = false
-	t.Cleanup(func() { controlAddr = "http://127.0.0.1:8787"; controlPrincipal = ""; controlToken = ""; controlTokenFile = "" })
+	t.Cleanup(func() {
+		controlAddr = "http://127.0.0.1:8787"
+		controlPrincipal = ""
+		controlToken = ""
+		controlTokenFile = ""
+	})
 
 	var buf bytes.Buffer
 	controlStatusCmd.SetOut(&buf)
@@ -48,6 +53,11 @@ func TestControlTokenFileAuth(t *testing.T) {
 	}
 	if !strings.Contains(buf.String(), "codex@project") {
 		t.Fatalf("status output must name the token-resolved principal; got %q", buf.String())
+	}
+	for _, want := range []string{"Local Mnemon: ready", "Remote Workspace: disconnected", "local accepted, remote pending"} {
+		if !strings.Contains(buf.String(), want) {
+			t.Fatalf("status output must include %q; got %q", want, buf.String())
+		}
 	}
 
 	// wrong token => authenticated rejection.
