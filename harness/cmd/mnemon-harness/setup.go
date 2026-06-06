@@ -26,18 +26,19 @@ var (
 // an optional bearer token file, and the runtime env (MNEMON_CONTROL_* / MNEMON_HARNESS_BIN) — so a
 // projected host agent reaches the governed control plane through one channel.
 var setupCmd = &cobra.Command{
-	Use:   "setup --host HOST (--memory | --skills | --loop LOOP) --control-url URL --principal PRINCIPAL",
+	Use:   "setup --host HOST (--memory | --skills | --loop LOOP)",
 	Short: "Install Agent Integration for memory and skill",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, err := app.New(setupRoot).Setup(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), app.SetupOptions{
-			Host:        setupHost,
-			Loops:       selectedSetupLoops(),
-			ControlURL:  setupControlURL,
-			Principal:   setupPrincipal,
-			ActorKind:   setupActorKind,
-			UseToken:    setupUseToken,
-			ProjectRoot: setupProjectRoot,
-			DryRun:      setupDryRun,
+			Host:          setupHost,
+			Loops:         selectedSetupLoops(),
+			ControlURL:    setupControlURL,
+			Principal:     setupPrincipal,
+			ActorKind:     setupActorKind,
+			UseToken:      setupUseToken,
+			TokenExplicit: cmd.Flags().Changed("token"),
+			ProjectRoot:   setupProjectRoot,
+			DryRun:        setupDryRun,
 		})
 		return err
 	},
@@ -82,7 +83,7 @@ func init() {
 
 	setupCmd.Flags().StringVar(&setupControlURL, "control-url", "", "Local Mnemon endpoint URL")
 	setupCmd.Flags().StringVar(&setupActorKind, "actor-kind", "host-agent", "agent kind: host-agent or control-agent")
-	setupCmd.Flags().BoolVar(&setupUseToken, "token", false, "generate a local access token")
+	setupCmd.Flags().BoolVar(&setupUseToken, "token", true, "generate a local access token")
 	setupCmd.Flags().BoolVar(&setupDryRun, "dry-run", false, "print changes without writing")
 
 	setupCmd.AddCommand(setupStatusCmd, setupUninstallCmd)

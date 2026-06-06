@@ -20,14 +20,15 @@ import (
 // AND wire the channel (binding entry + optional token + runtime env), so a host agent reaches the
 // governed control plane through one channel.
 type SetupOptions struct {
-	Host        string   // host runtime id, e.g. "codex"
-	Loops       []string // loops to project, e.g. ["memory"]
-	ControlURL  string   // channel endpoint, e.g. "http://127.0.0.1:8787"
-	Principal   string   // authenticated principal, e.g. "codex@project"
-	ActorKind   string   // "host-agent" (default) or "control-agent"
-	UseToken    bool     // generate + reference a bearer token file (vs trusted-header auth)
-	ProjectRoot string   // host projection working dir (defaults to the facade root)
-	DryRun      bool     // print all projection + channel changes without writing
+	Host          string   // host runtime id, e.g. "codex"
+	Loops         []string // loops to project, e.g. ["memory"]
+	ControlURL    string   // channel endpoint, e.g. "http://127.0.0.1:8787"
+	Principal     string   // authenticated principal, e.g. "codex@project"
+	ActorKind     string   // "host-agent" (default) or "control-agent"
+	UseToken      bool     // generate + reference a bearer token file (vs trusted-header auth)
+	TokenExplicit bool     // true when the caller explicitly set UseToken
+	ProjectRoot   string   // host projection working dir (defaults to the facade root)
+	DryRun        bool     // print all projection + channel changes without writing
 }
 
 // SetupResult records the channel artifact paths setup wrote (or would write, on dry-run).
@@ -73,19 +74,17 @@ func validateProductLoops(loops []string) error {
 // second projector) and writes the channel artifacts. On DryRun it prints every projection + channel
 // change without writing.
 func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOptions) (SetupResult, error) {
-	if opts.Host == "" || opts.Principal == "" || opts.ControlURL == "" {
-		return SetupResult{}, fmt.Errorf("setup requires --host, --principal, and --control-url")
+	opts = h.defaultSetupOptions(opts)
+	if opts.Host == "" {
+		return SetupResult{}, fmt.Errorf("setup requires --host")
 	}
 	if len(opts.Loops) == 0 {
-		return SetupResult{}, fmt.Errorf("setup requires at least one --loop")
+		return SetupResult{}, fmt.Errorf("setup requires --memory, --skills, or at least one --loop")
 	}
 	if err := validateProductLoops(opts.Loops); err != nil {
 		return SetupResult{}, err
 	}
 	projectRoot := opts.ProjectRoot
-	if projectRoot == "" {
-		projectRoot = h.root
-	}
 
 	// 1. Wrap the existing loop install path (declaration-driven projector). Dry-run lowers to the
 	//    projector's own --dry-run so projection changes print without writing.
@@ -151,6 +150,26 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 	res.Changes = append(res.Changes, "wrote compatibility env "+compatEnvFile)
 	writeSetupSummary(out, opts, false)
 	return res, nil
+}
+
+func (h *Harness) defaultSetupOptions(opts SetupOptions) SetupOptions {
+	opts.Host = strings.TrimSpace(opts.Host)
+	if opts.ProjectRoot == "" {
+		opts.ProjectRoot = h.root
+	}
+	if opts.Principal == "" && opts.Host != "" {
+		opts.Principal = opts.Host + "@project"
+	}
+	if opts.ControlURL == "" {
+		opts.ControlURL = "http://127.0.0.1:8787"
+	}
+	if opts.ActorKind == "" {
+		opts.ActorKind = string(server.KindHostAgent)
+	}
+	if !opts.TokenExplicit {
+		opts.UseToken = true
+	}
+	return opts
 }
 
 func writeSetupSummary(out io.Writer, opts SetupOptions, dryRun bool) {

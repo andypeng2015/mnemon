@@ -1,0 +1,138 @@
+package main
+
+import (
+	"encoding/json"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/mnemon-dev/mnemon/harness/core/contract"
+	"github.com/mnemon-dev/mnemon/harness/core/server"
+)
+
+func TestProductStatusBeforeAndAfterSetup(t *testing.T) {
+	projectRoot := t.TempDir()
+	restoreStatusFlags(t)
+	statusRoot = cmdRepoRoot(t)
+	statusProjectRoot = projectRoot
+
+	cmd, output := testCommand()
+	if err := runProductStatus(cmd, nil); err != nil {
+		t.Fatalf("status before setup: %v", err)
+	}
+	before := output.String()
+	for _, want := range []string{
+		"Agent Integration: not installed",
+		"Local Mnemon: not configured",
+		"Remote Workspace: not connected",
+		"Sync: 0 pending, 0 synced, 0 conflicts",
+	} {
+		if !strings.Contains(before, want) {
+			t.Fatalf("status before setup missing %q:\n%s", want, before)
+		}
+	}
+
+	setupProductIntegration(t, projectRoot)
+	output.Reset()
+	if err := runProductStatus(cmd, nil); err != nil {
+		t.Fatalf("status after setup: %v", err)
+	}
+	after := output.String()
+	for _, want := range []string{
+		"Agent Integration: installed",
+		"Local Mnemon: ready",
+		"Remote Workspace: not connected",
+		"Sync: 0 pending, 0 synced, 0 conflicts",
+	} {
+		if !strings.Contains(after, want) {
+			t.Fatalf("status after setup missing %q:\n%s", want, after)
+		}
+	}
+	for _, blocked := range []string{"binding", "channel", "projection", "kernel", "runtime", "cursor", "token"} {
+		if strings.Contains(strings.ToLower(after), blocked) {
+			t.Fatalf("status leaked internal term %q:\n%s", blocked, after)
+		}
+	}
+}
+
+func TestProductStatusUsesReachableLocalMnemon(t *testing.T) {
+	projectRoot := t.TempDir()
+	setupProductIntegration(t, projectRoot)
+	restoreLocalFlags(t)
+	localRoot = projectRoot
+	boot, err := resolveLocalBoot()
+	if err != nil {
+		t.Fatalf("resolve local boot: %v", err)
+	}
+	rt, err := server.OpenLocalRuntime(boot.StorePath, boot.Loaded)
+	if err != nil {
+		t.Fatalf("open local runtime: %v", err)
+	}
+	defer rt.Close()
+	if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+		ExternalID: "status-pending",
+		Event: contract.Event{Type: server.MemoryWriteCandidateObserved, Payload: map[string]any{
+			"content":    "Status should read pending sync from the live Local Mnemon service.",
+			"source":     "test",
+			"confidence": "high",
+		}},
+	}); err != nil {
+		t.Fatalf("seed memory candidate: %v", err)
+	}
+	if _, err := rt.Tick(); err != nil {
+		t.Fatalf("tick local runtime: %v", err)
+	}
+
+	srv := httptest.NewServer(server.NewRuntimeHandler(rt, server.TokenAuthenticator{Tokens: boot.Loaded.Tokens}))
+	defer srv.Close()
+	cfg := boot.Config
+	cfg.Endpoint = srv.URL
+	writeLocalConfigForTest(t, projectRoot, cfg)
+
+	restoreStatusFlags(t)
+	statusRoot = cmdRepoRoot(t)
+	statusProjectRoot = projectRoot
+	cmd, output := testCommand()
+	if err := runProductStatus(cmd, nil); err != nil {
+		t.Fatalf("status while local reachable: %v", err)
+	}
+	got := output.String()
+	for _, want := range []string{
+		"Agent Integration: installed",
+		"Local Mnemon: ready",
+		"Sync: 1 pending, 0 synced, 0 conflicts",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("reachable status missing %q:\n%s", want, got)
+		}
+	}
+}
+
+func restoreStatusFlags(t *testing.T) {
+	t.Helper()
+	oldRoot := statusRoot
+	oldProjectRoot := statusProjectRoot
+	oldPrincipal := statusPrincipal
+	t.Cleanup(func() {
+		statusRoot = oldRoot
+		statusProjectRoot = oldProjectRoot
+		statusPrincipal = oldPrincipal
+	})
+	statusRoot = "."
+	statusProjectRoot = ""
+	statusPrincipal = ""
+}
+
+func writeLocalConfigForTest(t *testing.T, projectRoot string, cfg localConfig) {
+	t.Helper()
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(projectRoot, ".mnemon", "harness", "local", "config.json")
+	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
+		t.Fatalf("write Local Mnemon config: %v", err)
+	}
+}

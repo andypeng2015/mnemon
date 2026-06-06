@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"os"
 	"path/filepath"
 
 	"github.com/mnemon-dev/mnemon/harness/core/server"
@@ -25,18 +28,13 @@ var localRunCmd = &cobra.Command{
 	Use:   "run",
 	Short: "Run Local Mnemon",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		storePath := resolvedLocalStorePath()
+		boot, err := resolveLocalBoot()
+		if err != nil {
+			return err
+		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Local Mnemon: ready")
 		fmt.Fprintln(cmd.OutOrStdout(), "Remote Workspace: disconnected")
-		if localBindingsPath != "" {
-			bindingsPath := resolvedLocalPath(localBindingsPath)
-			loaded, err := server.LoadBindingFile(projectRoot(), bindingsPath)
-			if err != nil {
-				return err
-			}
-			return server.RunLocalHTTPServerWithBindings(cmd.Context(), localAddr, storePath, loaded, io.Discard)
-		}
-		return server.RunHTTPServer(cmd.Context(), localAddr, storePath, io.Discard)
+		return server.RunLocalHTTPServerWithBindings(cmd.Context(), localAddr, boot.StorePath, boot.Loaded, io.Discard)
 	},
 }
 
@@ -88,8 +86,85 @@ func resolvedLocalStorePath() string {
 }
 
 func resolvedLocalPath(path string) string {
+	return resolveProjectPath(projectRoot(), path)
+}
+
+func resolveProjectPath(root, path string) string {
 	if filepath.IsAbs(path) {
 		return filepath.Clean(path)
 	}
-	return filepath.Join(projectRoot(), path)
+	return filepath.Join(root, path)
+}
+
+const localNotSetupMessage = "Local Mnemon is not set up.\nRun: mnemon-harness setup --host codex --memory --skills"
+
+var errLocalNotSetup = errors.New(localNotSetupMessage)
+
+type localBoot struct {
+	Configured bool
+	StorePath  string
+	Loaded     server.LoadedBindings
+	Config     localConfig
+}
+
+type localConfig struct {
+	SchemaVersion int      `json:"schema_version"`
+	Mode          string   `json:"mode"`
+	Endpoint      string   `json:"endpoint"`
+	Principal     string   `json:"principal"`
+	Loops         []string `json:"loops"`
+	BindingFile   string   `json:"binding_file"`
+	StorePath     string   `json:"store_path"`
+}
+
+func resolveLocalBoot() (localBoot, error) {
+	root := projectRoot()
+	if localBindingsPath != "" {
+		bindingsPath := resolvedLocalPath(localBindingsPath)
+		loaded, err := server.LoadBindingFile(root, bindingsPath)
+		if err != nil {
+			return localBoot{}, err
+		}
+		return localBoot{Configured: true, StorePath: resolvedLocalStorePath(), Loaded: loaded}, nil
+	}
+	cfg, err := readLocalConfig(root)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			return localBoot{}, errLocalNotSetup
+		}
+		return localBoot{}, err
+	}
+	bindingPath := cfg.BindingFile
+	if bindingPath == "" {
+		bindingPath = server.DefaultBindingFile
+	}
+	loaded, err := server.LoadBindingFile(root, resolveProjectPath(root, bindingPath))
+	if err != nil {
+		return localBoot{}, err
+	}
+	storePath := resolvedLocalStorePath()
+	if localStorePath == "" {
+		if cfg.StorePath != "" {
+			storePath = resolveProjectPath(root, cfg.StorePath)
+		} else {
+			storePath = filepath.Join(root, server.DefaultStorePath)
+		}
+	}
+	return localBoot{Configured: true, StorePath: storePath, Loaded: loaded, Config: cfg}, nil
+}
+
+func readLocalConfig(root string) (localConfig, error) {
+	path := filepath.Join(root, ".mnemon", "harness", "local", "config.json")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return localConfig{}, err
+	}
+	var cfg localConfig
+	if err := json.Unmarshal(raw, &cfg); err != nil {
+		return localConfig{}, fmt.Errorf("parse Local Mnemon config: %w", err)
+	}
+	if cfg.SchemaVersion != 1 {
+		return localConfig{}, fmt.Errorf("Local Mnemon config schema_version %d unsupported (want 1)", cfg.SchemaVersion)
+	}
+	return cfg, nil
 }
