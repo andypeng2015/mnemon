@@ -34,10 +34,11 @@ func OpenLocalRuntime(storePath string, loaded LoadedBindings) (*Runtime, error)
 // bindings. The binding remains the source of truth for observe/pull/status scope; this only adds the
 // local admission rules and kernel authority needed to apply accepted local writes.
 func LocalRuntimeConfigFromBindings(bindings []ChannelBinding) RuntimeConfig {
+	rules := append(LocalMemoryRules(bindings), LocalSkillRules(bindings)...)
 	return RuntimeConfig{
 		Bindings:  bindings,
 		Subs:      SubsFromBindings(bindings),
-		Rules:     rule.NewRuleSet(LocalMemoryRules(bindings)...),
+		Rules:     rule.NewRuleSet(rules...),
 		Authority: LocalAuthorityFromBindings(bindings),
 	}
 }

@@ -1,6 +1,6 @@
 ---
 name: skill-manage
-description: Apply approved skill lifecycle and content changes to the canonical Mnemon skill library.
+description: Submit approved skill lifecycle and content changes to Local Mnemon.
 ---
 
 # skill-manage
@@ -10,29 +10,24 @@ explicit host policy.
 
 ## Boundary
 
-This skill modifies canonical Mnemon skill state. It does not modify host
-runtime behavior directly. New active skills become host-visible at the next
-Prime sync.
+This skill submits approved skill declarations to Local Mnemon. It does not edit
+host skill directories or canonical files directly. New active skills become
+host-visible after Local Mnemon accepts the declaration and the host projection
+refreshes.
 
-Resolve canonical directories from:
+Use the Local Mnemon environment installed by setup when it is available:
 
-```text
-$MNEMON_SKILL_LOOP_ACTIVE_DIR
-$MNEMON_SKILL_LOOP_STALE_DIR
-$MNEMON_SKILL_LOOP_ARCHIVED_DIR
+```bash
+source .mnemon/harness/local/env.sh 2>/dev/null || true
 ```
 
 ## Allowed MVP Operations
 
-- create an approved skill under `active/<skill-id>/SKILL.md`
-- apply approved `SKILL.md` content drafted by `skill-author`
-- patch an existing skill in its current lifecycle directory
-- consolidate duplicated skills with an approved replacement
-- move `active -> stale`
-- move `stale -> archived`
-- restore `stale -> active`
-- restore `archived -> stale` or `archived -> active` when explicitly approved
-- update metadata or usage notes needed by the lifecycle
+- submit an approved active skill declaration
+- submit approved `SKILL.md` content drafted by `skill-author`
+- submit a replacement declaration for an existing skill
+- submit lifecycle status changes: `active`, `stale`, or `archived`
+- submit metadata or usage notes needed by the lifecycle
 
 ## Procedure
 
@@ -42,10 +37,22 @@ $MNEMON_SKILL_LOOP_ARCHIVED_DIR
 3. Keep skill ids hyphen-case: lowercase letters, numbers, and `-`. Preserve a
    non-conforming id only when an external host compatibility boundary requires
    it.
-4. Apply the smallest canonical change under the lifecycle directories.
-5. Prefer moving to `archived` over deletion.
-6. Do not edit the host skill surface directly. Let Prime regenerate it.
-7. Record the applied change in the proposal or usage log when useful.
+4. Submit the smallest approved declaration through Local Mnemon:
+
+```bash
+mnemon-harness control observe \
+  --addr "${MNEMON_CONTROL_ADDR:-http://127.0.0.1:8787}" \
+  --principal "$MNEMON_CONTROL_PRINCIPAL" \
+  ${MNEMON_CONTROL_TOKEN_FILE:+--token-file "$MNEMON_CONTROL_TOKEN_FILE"} \
+  --type skill.write_candidate_observed \
+  --external-id "skill-${SKILL_ID}-${STATUS}-${PROPOSAL_ID}" \
+  --payload '{"skill_id":"release-checklist","name":"release-checklist","status":"active","content":"...","source":"approved-proposal","confidence":"high"}'
+```
+
+5. Prefer `status:"archived"` over deletion.
+6. Do not edit the host skill surface directly. Let Local Mnemon and Prime
+   regenerate mirrors.
+7. Record the submitted declaration in the proposal or usage log when useful.
 
 ## Safety
 

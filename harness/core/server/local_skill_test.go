@@ -1,0 +1,64 @@
+package server
+
+import (
+	"net/http/httptest"
+	"path/filepath"
+	"testing"
+
+	"github.com/mnemon-dev/mnemon/harness/core/contract"
+)
+
+func TestLocalSkillCandidateCreatesSyncPendingDeclaration(t *testing.T) {
+	ref := contract.ResourceRef{Kind: "skill", ID: "project"}
+	binding := HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
+	binding.AllowedObservedTypes = []string{SkillWriteCandidateObserved}
+	rt, err := OpenLocalRuntime(filepath.Join(t.TempDir(), "local.db"), LoadedBindings{Bindings: []ChannelBinding{binding}})
+	if err != nil {
+		t.Fatalf("open local runtime: %v", err)
+	}
+	defer rt.Close()
+	srv := httptest.NewServer(NewRuntimeHandler(rt, HeaderAuthenticator{}))
+	defer srv.Close()
+
+	client := NewClient(srv.URL, "codex@project")
+	if _, err := client.IngestObserve("codex@project", contract.ObservationEnvelope{
+		ExternalID: "skill-declare-release-checklist",
+		Event: contract.Event{Type: SkillWriteCandidateObserved, Payload: map[string]any{
+			"skill_id":   "release-checklist",
+			"name":       "release-checklist",
+			"status":     "active",
+			"content":    "Check tests, build, and release notes before shipping.",
+			"source":     "test",
+			"confidence": "high",
+		}},
+	}); err != nil {
+		t.Fatalf("observe skill candidate: %v", err)
+	}
+
+	proj, err := client.PullProjection("codex@project", contract.Subscription{Actor: "codex@project"})
+	if err != nil {
+		t.Fatalf("pull skill projection: %v", err)
+	}
+	if len(proj.Content) != 1 {
+		t.Fatalf("expected skill content, got %+v", proj.Content)
+	}
+	fields := proj.Content[0].Fields
+	if fields["name"] != "project" {
+		t.Fatalf("skill resource must carry project aggregate name, got %+v", fields)
+	}
+	decls, ok := fields["declarations"].([]any)
+	if !ok || len(decls) != 1 {
+		t.Fatalf("expected one skill declaration, got %+v", fields["declarations"])
+	}
+	decl, ok := decls[0].(map[string]any)
+	if !ok || decl["skill_id"] != "release-checklist" || decl["status"] != "active" {
+		t.Fatalf("unexpected declaration: %+v", decls[0])
+	}
+	pending, err := rt.store.PendingSyncCommits()
+	if err != nil {
+		t.Fatalf("pending sync commits: %v", err)
+	}
+	if len(pending) != 1 || pending[0].ResourceRef.Kind != "skill" || pending[0].ResourceRef.ID != "project" {
+		t.Fatalf("skill declaration must become pending sync commit, got %+v", pending)
+	}
+}
