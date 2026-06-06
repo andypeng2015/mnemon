@@ -13,14 +13,10 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/core/rule"
 )
 
-// Runtime is the ONE server-owned governed runtime: it owns the canonical kernel store, the kernel,
-// the ControlServer (the ServerAPI channel boundary), the single Tick driver, and shutdown. Every
-// Agent Surface reaches the engine through this one runtime — never by opening the store itself:
-//
-//   - service mode: a long-lived `mnemon-harness server` owns the runtime; HostAgent / ControlAgent
-//     surfaces call it through server.Client over the channel and never touch the store directly.
-//   - embedded mode: a CLI/app Agent Surface opens the runtime, ingests + processes one operation,
-//     and closes it — no long-lived server owns the store concurrently.
+// Runtime is the server-owned governed runtime: it owns the canonical kernel
+// store, the kernel, the ControlServer channel boundary, the single Tick driver,
+// and shutdown. Host surfaces reach the engine through this runtime over
+// server.Client, rather than opening the store directly.
 //
 // At any instant there is exactly ONE store owner and ONE dispatch-cursor driver (S11 single-writer):
 // the runtime holds the kernel store's single-writer lock for its lifetime, so an embedded opener and
@@ -35,9 +31,8 @@ type Runtime struct {
 
 // RuntimeConfig selects the runtime's policy: the rule pre-gate set, the kernel authority, the
 // per-principal subscription scopes, the reconcile modes, and the id/clock generators. The zero
-// config boots a BARE channel endpoint (empty rules + no preconfigured actors): it records
-// observations and serves scoped projections, which is what `mnemon-harness server` uses. NewID/Now
-// default to uuid/RFC3339; Modes defaults to reject + projection-read-set + strict authz.
+// config boots a bare channel endpoint with no rules or preconfigured actors. NewID/Now default to
+// uuid/RFC3339; Modes defaults to reject + projection-read-set + strict authz.
 type RuntimeConfig struct {
 	Rules     rule.RuleSet
 	Authority kernel.AuthorityRules

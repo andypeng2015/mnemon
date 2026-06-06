@@ -169,3 +169,21 @@ func (c projectorCore) hostHookExists(loopName, phase string) bool {
 	_, err := os.Stat(source)
 	return err == nil
 }
+
+func skillID(skillPath string) string {
+	dir := path.Dir(skillPath)
+	if dir == "." || dir == "/" {
+		return strings.TrimSuffix(path.Base(skillPath), path.Ext(skillPath))
+	}
+	return path.Base(dir)
+}
+
+func agentFile(loopName, subagentPath string) string {
+	base := strings.TrimSuffix(path.Base(subagentPath), path.Ext(subagentPath))
+	switch loopName + "." + base {
+	case "skill.curator":
+		return "mnemon-skill-curator.md"
+	default:
+		return "mnemon-" + base + ".md"
+	}
+}

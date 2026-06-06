@@ -61,10 +61,9 @@ func writeMemoryFixture(t *testing.T, root string) {
   "reconcile": ["read", "write", "no-op"]}`)
 }
 
-// TestSetupProjectsLoopAndWiresChannel is the P4.3 integration test: `setup` wraps the loop install
-// (projector writes hooks.json + SKILL.md) AND wires the channel (binding entry + token + env). It
-// also checks reinstall idempotency, status, and that uninstall removes the managed binding while
-// preserving a user-added one.
+// TestSetupProjectsLoopAndWiresChannel verifies that setup projects loop assets
+// and wires the channel artifacts. It also checks reinstall idempotency, status,
+// and that uninstall removes the managed binding while preserving a user-added one.
 func TestSetupProjectsLoopAndWiresChannel(t *testing.T) {
 	root := t.TempDir()
 	writeMemoryFixture(t, root)

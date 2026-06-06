@@ -19,52 +19,17 @@ func (h *Harness) LoopValidate() ([]string, error) {
 	return result.Lines, nil
 }
 
-// LoopPlan builds the projection plan for a host and writes it to out in the
-// requested format ("text"/"" or "json").
-func (h *Harness) LoopPlan(out io.Writer, projectRoot, host string, loops []string, format string) error {
-	plan, err := hostsurface.BuildPlan(hostsurface.PlanOptions{
-		DeclarationRoot: h.root,
-		ProjectRoot:     projectRoot,
-		Host:            host,
-		Loops:           loops,
-	})
-	if err != nil {
-		return err
-	}
-	switch format {
-	case "text", "":
-		return hostsurface.WritePlanText(out, plan)
-	case "json":
-		return hostsurface.WritePlanJSON(out, plan)
-	default:
-		return fmt.Errorf("unsupported --format %q", format)
-	}
-}
-
-// LoopProject runs a projector action (install/diff/reconcile/status/uninstall)
-// against a host runtime, streaming host output to out/errw. Reconcile output is
-// formatted here so the surface never touches projection result types.
+// LoopProject runs the product projector action against a supported host
+// runtime, streaming host output to out/errw.
 func (h *Harness) LoopProject(ctx context.Context, out, errw io.Writer, action, projectRoot, host string, loops, hostArgs []string) error {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	if action != "install" && action != "uninstall" {
+		return fmt.Errorf("unsupported projector action %q", action)
+	}
 	switch host {
 	case "codex":
-		if action == "reconcile" {
-			result, err := hostsurface.RunCodexReconcile(ctx, hostsurface.CodexOptions{
-				DeclarationRoot: h.root,
-				ProjectRoot:     projectRoot,
-				Loops:           loops,
-				HostArgs:        hostArgs,
-				Stdout:          out,
-				Stderr:          errw,
-			})
-			if err != nil {
-				return err
-			}
-			writeReconcileText(out, result)
-			return nil
-		}
 		return hostsurface.RunCodexProjector(ctx, action, hostsurface.CodexOptions{
 			DeclarationRoot: h.root,
 			ProjectRoot:     projectRoot,
@@ -74,9 +39,6 @@ func (h *Harness) LoopProject(ctx context.Context, out, errw io.Writer, action, 
 			Stderr:          errw,
 		})
 	case "claude-code":
-		if action == "reconcile" {
-			return fmt.Errorf("reconcile is not supported for host %q", host)
-		}
 		return hostsurface.RunClaudeProjector(ctx, action, hostsurface.ClaudeOptions{
 			DeclarationRoot: h.root,
 			ProjectRoot:     projectRoot,
@@ -86,30 +48,6 @@ func (h *Harness) LoopProject(ctx context.Context, out, errw io.Writer, action, 
 			Stderr:          errw,
 		})
 	default:
-		if action == "reconcile" {
-			return fmt.Errorf("reconcile is not supported for host %q", host)
-		}
-		return hostsurface.RunLegacyProjector(ctx, action, hostsurface.LegacyOptions{
-			DeclarationRoot: h.root,
-			ProjectRoot:     projectRoot,
-			Host:            host,
-			Loops:           loops,
-			HostArgs:        hostArgs,
-			Stdout:          out,
-			Stderr:          errw,
-		})
+		return fmt.Errorf("unsupported host %q; setup supports codex and claude-code", host)
 	}
-}
-
-func writeReconcileText(out io.Writer, result hostsurface.ReconcileResult) {
-	if len(result.Items) == 0 {
-		fmt.Fprintf(out, "Codex reconcile: no drift\n")
-		fmt.Fprintf(out, "event: %s\n", result.EventID)
-		return
-	}
-	fmt.Fprintf(out, "Codex reconcile: repaired %d drift item(s)\n", len(result.Repaired))
-	for _, item := range result.Repaired {
-		fmt.Fprintf(out, "  repaired %s\n", item.Text())
-	}
-	fmt.Fprintf(out, "event: %s\n", result.EventID)
 }

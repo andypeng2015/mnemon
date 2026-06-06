@@ -106,18 +106,12 @@ prime.sh projects active canonical skills into the host skill surface.
 Install into the current project:
 
 ```bash
-bash harness/ops/install.sh --host claude-code --loop skill
-```
-
-Install globally:
-
-```bash
-bash harness/ops/install.sh --host claude-code --loop skill --global
+go run ./harness/cmd/mnemon-harness setup --host claude-code --skills --project-root .
 ```
 
 Remove the installed Claude Code integration while preserving the canonical
 skill library:
 
 ```bash
-bash harness/ops/uninstall.sh --host claude-code --loop skill
+go run ./harness/cmd/mnemon-harness setup uninstall --host claude-code --skills --principal claude-code@project --project-root .
 ```

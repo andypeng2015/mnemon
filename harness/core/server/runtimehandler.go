@@ -7,8 +7,8 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
 )
 
-// NewRuntimeHandler is the PRODUCT channel endpoint over a Runtime (what `mnemon-harness server`
-// serves). It differs from the api-only NewHTTPHandler in two ways the Runtime makes possible:
+// NewRuntimeHandler is the Local Mnemon HTTP channel endpoint over a Runtime.
+// It differs from the api-only NewHTTPHandler in two ways the Runtime makes possible:
 //
 //   - P2.2 synchronous local mode: after a successful NEW observation, /ingest drives ONE Tick on the
 //     runtime's single driver, so a lone observe closes the governed loop. The Tick is serialized by

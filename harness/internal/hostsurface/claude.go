@@ -45,6 +45,9 @@ type claudeProjector struct {
 }
 
 func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) error {
+	if action != "install" && action != "uninstall" {
+		return fmt.Errorf("unsupported Claude Code projector action: %s", action)
+	}
 	if opts.DeclarationRoot == "" {
 		opts.DeclarationRoot = "."
 	}
@@ -77,16 +80,7 @@ func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) 
 	}
 	loops := append([]string(nil), opts.Loops...)
 	if len(loops) == 0 {
-		if action != "status" {
-			return errors.New("at least one --loop is required")
-		}
-		loops, err = declaration.LoopsForHost(declarationRoot, "claude-code")
-		if err != nil {
-			return err
-		}
-		if len(loops) == 0 {
-			return errors.New("no bindings found for host \"claude-code\"")
-		}
+		return errors.New("at least one --loop is required")
 	}
 	sort.Strings(loops)
 
@@ -115,16 +109,10 @@ func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) 
 			if err := projector.installLoop(ctx, loop, binding); err != nil {
 				return fmt.Errorf("install claude-code/%s: %w", loopName, err)
 			}
-		case "status":
-			if err := projector.statusLoop(loop); err != nil {
-				return fmt.Errorf("status claude-code/%s: %w", loopName, err)
-			}
 		case "uninstall":
 			if err := projector.uninstallLoop(loop, binding); err != nil {
 				return fmt.Errorf("uninstall claude-code/%s: %w", loopName, err)
 			}
-		default:
-			return fmt.Errorf("unsupported Claude Code projector action: %s", action)
 		}
 	}
 	return nil
@@ -200,7 +188,7 @@ func claudeProjectorPaths(opts claudeHostOptions) corePaths {
 
 func (p claudeProjector) installLoop(ctx context.Context, loop declaration.LoopManifest, binding declaration.BindingManifest) error {
 	switch loop.Name {
-	case "memory", "skill", "goal":
+	case "memory", "skill":
 	default:
 		return fmt.Errorf("unsupported loop for Claude Code: %s", loop.Name)
 	}
@@ -214,15 +202,6 @@ func (p claudeProjector) installLoop(ctx context.Context, loop declaration.LoopM
 		return err
 	}
 	if err := p.copyFile(p.loopAsset(loop, loop.Assets.Guide), pathJoin(binding.RuntimeSurface, "GUIDE.md"), 0o644); err != nil {
-		return err
-	}
-	if err := p.projectProfileFragment(loop, binding); err != nil {
-		return err
-	}
-	if err := p.projectCoordinationFragment(loop, binding); err != nil {
-		return err
-	}
-	if err := p.applyProjectionEnvelope(loop, binding); err != nil {
 		return err
 	}
 	if err := p.projectSkills(loop, binding); err != nil {
@@ -259,56 +238,6 @@ func (p claudeProjector) installLoop(ctx context.Context, loop declaration.LoopM
 	}
 	if hostSkills := p.hostSkillsDir(loop.Name); hostSkills != "" {
 		p.printf("Host skills:  %s\n", hostSkills)
-	}
-	return nil
-}
-
-// projectProfileFragment writes the host+loop-scoped profile fragment onto the
-// Claude Code runtime surface so the next run inherits the applied profile. Like
-// the Codex projector it is a point-in-time snapshot of canonical profile state,
-// removed with the runtime surface on uninstall.
-func (p claudeProjector) projectProfileFragment(loop declaration.LoopManifest, binding declaration.BindingManifest) error {
-	fragment, ok, err := scopedProfileFragment(p.projectRoot, "claude-code", loop.Name)
-	if err != nil || !ok {
-		return err
-	}
-	ref := pathJoin(binding.RuntimeSurface, profileFragmentFile)
-	// Payload only — the projection ACT's provenance (projection.applied) is emitted
-	// once by applyProjectionEnvelope over the combined context, not per fragment.
-	return p.writeJSON(ref, fragment, 0o644)
-}
-
-// projectCoordinationFragment writes the host-scoped coordination fragment onto
-// the Claude Code runtime surface so the next run inherits its claims, group
-// membership, conflicts, and merge decisions.
-func (p claudeProjector) projectCoordinationFragment(loop declaration.LoopManifest, binding declaration.BindingManifest) error {
-	fragment, ok, err := scopedCoordinationFragment(p.projectRoot, "claude-code")
-	if err != nil || !ok {
-		return err
-	}
-	ref := pathJoin(binding.RuntimeSurface, coordinationFragmentFile)
-	return p.writeJSON(ref, fragment, 0o644)
-}
-
-func (p claudeProjector) statusLoop(loop declaration.LoopManifest) error {
-	p.printf("Claude Code %s:\n", loop.Name)
-	p.printf("  config:   %s\n", p.paths.configDir)
-	p.printf("  state:    %s\n", p.stateDir(loop.Name))
-	if p.exists(p.hostManifestPath()) {
-		p.printf("  manifest: %s\n", p.hostManifestPath())
-	} else {
-		p.printf("  manifest: missing\n")
-	}
-	statusPath := pathJoin(p.stateDir(loop.Name), "status.json")
-	if p.exists(statusPath) {
-		p.printf("  status:   %s\n", statusPath)
-	} else {
-		p.printf("  status:   missing\n")
-	}
-	if p.exists(p.stateDir(loop.Name)) {
-		p.printf("  loop:   installed\n")
-	} else {
-		p.printf("  loop:   missing\n")
 	}
 	return nil
 }
@@ -377,15 +306,6 @@ func (p claudeProjector) prepareLoopState(loop declaration.LoopManifest) error {
 				return fmt.Errorf("mkdir %s: %w", dir, err)
 			}
 		}
-	case "goal":
-		for _, dir := range []string{
-			pathJoin(p.paths.mnemonDir, "harness/goals"),
-			pathJoin(p.paths.mnemonDir, "harness/status/goals"),
-		} {
-			if err := os.MkdirAll(p.resolve(dir), 0o755); err != nil {
-				return fmt.Errorf("mkdir %s: %w", dir, err)
-			}
-		}
 	}
 	return nil
 }
@@ -411,15 +331,7 @@ func (p claudeProjector) writeRuntimeEnv(loop declaration.LoopManifest, binding 
 			exportLine("MNEMON_SKILL_LOOP_PROPOSALS_DIR", pathJoin(stateDir, "proposals")),
 			exportLine("MNEMON_SKILL_LOOP_HOST_SKILLS_DIR", hostSkillsDir),
 			`export MNEMON_SKILL_LOOP_REVIEW_MIN_EVENTS="${MNEMON_SKILL_LOOP_REVIEW_MIN_EVENTS:-20}"`,
-			`export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill-observe,skill-curate,skill-author,skill-manage,memory-get,memory-set,mnemon-goal}"`,
-		)
-	case "goal":
-		hostSkillsDir := p.hostSkillsDir(loop.Name)
-		lines = append(lines,
-			exportLine("MNEMON_GOAL_LOOP_ROOT", p.projectRoot),
-			exportLine("MNEMON_GOAL_LOOP_GOALS_DIR", pathJoin(p.paths.mnemonDir, "harness/goals")),
-			exportLine("MNEMON_GOAL_LOOP_STATUS_DIR", pathJoin(p.paths.mnemonDir, "harness/status/goals")),
-			exportLine("MNEMON_GOAL_LOOP_HOST_SKILLS_DIR", hostSkillsDir),
+			`export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill-observe,skill-curate,skill-author,skill-manage,memory-get,memory-set}"`,
 		)
 	}
 	content := strings.Join(lines, "\n") + "\n"
@@ -432,9 +344,6 @@ func (p claudeProjector) projectSkills(loop declaration.LoopManifest, binding de
 		content, err := os.ReadFile(p.loopAsset(loop, skill))
 		if err != nil {
 			return fmt.Errorf("read %s: %w", skill, err)
-		}
-		if loop.Name == "goal" {
-			content = append(content, []byte(claudeGoalRuntimeNote(p.stateDir(loop.Name), pathJoin(binding.RuntimeSurface, "env.sh")))...)
 		}
 		target := pathJoin(hostSkillsDir, skillID(skill), "SKILL.md")
 		if err := p.writeFile(target, content, 0o644); err != nil {
@@ -610,11 +519,6 @@ func (p claudeProjector) removeCanonicalState(loop declaration.LoopManifest) err
 			_ = os.Remove(p.resolve(pathJoin(stateDir, dir)))
 		}
 		_ = os.Remove(p.resolve(stateDir))
-	case "goal":
-		if err := p.removeCommonStateFiles(stateDir); err != nil {
-			return err
-		}
-		_ = os.Remove(p.resolve(stateDir))
 	}
 	return nil
 }
@@ -670,18 +574,4 @@ func (p claudeProjector) hostSkillsDir(loopName string) string {
 		return filepath.ToSlash(p.hostOptions.hostSkillsDir)
 	}
 	return pathJoin(p.paths.configDir, "skills")
-}
-
-func claudeGoalRuntimeNote(canonicalLoopDir, runtimeFile string) string {
-	return fmt.Sprintf(`
-
-## Claude Code Projection
-
-This skill is projected by the Mnemon Claude Code host adapter.
-
-- Canonical loop directory: %s
-- Runtime env file: %s
-- If %s is not already exported, use the canonical loop directory above and
-  the runtime env file above.
-`, markdownCode(canonicalLoopDir), markdownCode(runtimeFile), markdownCode("MNEMON_GOAL_LOOP_DIR"))
 }

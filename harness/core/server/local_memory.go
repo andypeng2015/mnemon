@@ -34,16 +34,7 @@ func OpenLocalRuntime(storePath string, loaded LoadedBindings) (*Runtime, error)
 // bindings. The binding remains the source of truth for observe/pull/status scope; this only adds the
 // local admission rules and kernel authority needed to apply accepted local writes.
 func LocalRuntimeConfigFromBindings(bindings []ChannelBinding) RuntimeConfig {
-	return LocalRuntimeConfigFromBindingsWithPlugins(bindings, LocalPluginRules{})
-}
-
-type LocalPluginRules struct {
-	MemoryAdmission map[contract.ActorID]rule.Rule
-	SkillAdmission  map[contract.ActorID]rule.Rule
-}
-
-func LocalRuntimeConfigFromBindingsWithPlugins(bindings []ChannelBinding, plugins LocalPluginRules) RuntimeConfig {
-	rules := append(LocalMemoryRulesWithPlugins(bindings, plugins), LocalSkillRulesWithPlugins(bindings, plugins)...)
+	rules := append(LocalMemoryRules(bindings), LocalSkillRules(bindings)...)
 	return RuntimeConfig{
 		Bindings:  bindings,
 		Subs:      SubsFromBindings(bindings),
@@ -91,10 +82,6 @@ func LocalAuthorityFromBindings(bindings []ChannelBinding) kernel.AuthorityRules
 // LocalMemoryRules creates one actor-bound admission rule per binding that can submit memory
 // candidates. Each rule only proposes for its own authenticated principal.
 func LocalMemoryRules(bindings []ChannelBinding) []rule.Rule {
-	return LocalMemoryRulesWithPlugins(bindings, LocalPluginRules{})
-}
-
-func LocalMemoryRulesWithPlugins(bindings []ChannelBinding, plugins LocalPluginRules) []rule.Rule {
 	var rules []rule.Rule
 	for _, b := range bindings {
 		if !b.Allows(VerbObserve) || !b.AllowsObservedType(MemoryWriteCandidateObserved) {
@@ -102,10 +89,6 @@ func LocalMemoryRulesWithPlugins(bindings []ChannelBinding, plugins LocalPluginR
 		}
 		ref, ok := memoryRefForBinding(b)
 		if !ok {
-			continue
-		}
-		if plugin := plugins.MemoryAdmission[b.Principal]; plugin != nil {
-			rules = append(rules, plugin)
 			continue
 		}
 		rules = append(rules, memoryAdmissionRule(b.Principal, ref))

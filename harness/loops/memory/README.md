@@ -97,17 +97,11 @@ MEMORY.md is a generated mirror, not a write target.
 Install into the current project:
 
 ```bash
-bash harness/ops/install.sh --host claude-code --loop memory
-```
-
-Install globally:
-
-```bash
-bash harness/ops/install.sh --host claude-code --loop memory --global
+go run ./harness/cmd/mnemon-harness setup --host claude-code --memory --project-root .
 ```
 
 Remove the installed Claude Code integration while preserving `MEMORY.md`:
 
 ```bash
-bash harness/ops/uninstall.sh --host claude-code --loop memory
+go run ./harness/cmd/mnemon-harness setup uninstall --host claude-code --memory --principal claude-code@project --project-root .
 ```

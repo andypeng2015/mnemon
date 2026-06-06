@@ -16,71 +16,7 @@ import (
 	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/declaration"
-	"github.com/mnemon-dev/mnemon/harness/internal/lifecycle/coordination"
-	"github.com/mnemon-dev/mnemon/harness/internal/lifecycle/eventlog"
-	"github.com/mnemon-dev/mnemon/harness/internal/lifecycle/profile"
 )
-
-// profileFragmentFile is the scoped profile fragment the projector writes onto a
-// host's runtime surface so the next run pulls the durable, reviewed profile
-// entries targeted at that host+loop (the pull side of the memory loop).
-const profileFragmentFile = "PROFILE.json"
-
-// coordinationFragmentFile is the host-scoped coordination fragment the projector
-// writes onto a host's runtime surface so the next run inherits its current
-// claims, group membership, conflicts, and merge decisions.
-const coordinationFragmentFile = "COORDINATION.json"
-
-// scopedCoordinationFragment derives the coordination topology and filters it to
-// what a host needs: its owned tasks (including merge decisions that joined its
-// work elsewhere), the groups it belongs to, and conflicts / merge candidates
-// touching its tasks. ok is false when nothing concerns this host. Read-only.
-func scopedCoordinationFragment(projectRoot, host string) (coordination.View, bool, error) {
-	store, err := eventlog.New(projectRoot)
-	if err != nil {
-		return coordination.View{}, false, err
-	}
-	events, _ := store.ReadAll() // best-effort over the readable log
-	full := coordination.DeriveView(events)
-	host = strings.TrimSpace(host)
-
-	frag := coordination.View{}
-	owned := map[string]bool{}
-	for _, t := range full.Tasks {
-		if t.Owner == host {
-			frag.Tasks = append(frag.Tasks, t)
-			owned[t.ID] = true
-		}
-	}
-	for _, g := range full.Groups {
-		for _, m := range g.Members {
-			if m == host {
-				frag.Groups = append(frag.Groups, g)
-				break
-			}
-		}
-	}
-	for _, c := range full.Conflicts {
-		for _, tk := range c.Between {
-			if owned[tk] {
-				frag.Conflicts = append(frag.Conflicts, c)
-				break
-			}
-		}
-	}
-	for _, mc := range full.MergeCandidates {
-		for _, tk := range mc.Tasks {
-			if owned[tk] {
-				frag.MergeCandidates = append(frag.MergeCandidates, mc)
-				break
-			}
-		}
-	}
-	if len(frag.Tasks)+len(frag.Groups)+len(frag.Conflicts) == 0 {
-		return coordination.View{}, false, nil
-	}
-	return frag, true, nil
-}
 
 type CodexOptions struct {
 	DeclarationRoot string
@@ -139,6 +75,9 @@ type projectionOwnership struct {
 }
 
 func RunCodexProjector(ctx context.Context, action string, opts CodexOptions) error {
+	if action != "install" && action != "uninstall" {
+		return fmt.Errorf("unsupported Codex projector action: %s", action)
+	}
 	projector, loops, err := newCodexProjector(action, opts)
 	if err != nil {
 		return err
@@ -163,20 +102,10 @@ func RunCodexProjector(ctx context.Context, action string, opts CodexOptions) er
 			if err := projector.installLoop(ctx, loop, binding); err != nil {
 				return fmt.Errorf("install codex/%s: %w", loopName, err)
 			}
-		case "diff":
-			if _, err := projector.diffLoop(loop, binding, false); err != nil {
-				return fmt.Errorf("diff codex/%s: %w", loopName, err)
-			}
-		case "status":
-			if err := projector.statusLoop(loop); err != nil {
-				return fmt.Errorf("status codex/%s: %w", loopName, err)
-			}
 		case "uninstall":
 			if err := projector.uninstallLoop(loop); err != nil {
 				return fmt.Errorf("uninstall codex/%s: %w", loopName, err)
 			}
-		default:
-			return fmt.Errorf("unsupported Codex projector action: %s", action)
 		}
 	}
 	return nil
@@ -215,16 +144,7 @@ func newCodexProjector(action string, opts CodexOptions) (codexProjector, []stri
 	}
 	loops := append([]string(nil), opts.Loops...)
 	if len(loops) == 0 {
-		if action != "status" && action != "diff" {
-			return codexProjector{}, nil, errors.New("at least one --loop is required")
-		}
-		loops, err = declaration.LoopsForHost(declarationRoot, "codex")
-		if err != nil {
-			return codexProjector{}, nil, err
-		}
-		if len(loops) == 0 {
-			return codexProjector{}, nil, errors.New("no bindings found for host \"codex\"")
-		}
+		return codexProjector{}, nil, errors.New("at least one --loop is required")
 	}
 	sort.Strings(loops)
 
@@ -298,6 +218,9 @@ func codexProjectorPaths(opts codexHostOptions) corePaths {
 }
 
 func (p codexProjector) installLoop(ctx context.Context, loop declaration.LoopManifest, binding declaration.BindingManifest) error {
+	if loop.Name != "memory" && loop.Name != "skill" {
+		return fmt.Errorf("unsupported loop for Codex: %s", loop.Name)
+	}
 	if err := p.copyCommonCanonicalAssets(loop); err != nil {
 		return err
 	}
@@ -311,15 +234,6 @@ func (p codexProjector) installLoop(ctx context.Context, loop declaration.LoopMa
 		return err
 	}
 	if err := p.projectRuntimeMirrors(loop, binding); err != nil {
-		return err
-	}
-	if err := p.projectProfileFragment(loop, binding); err != nil {
-		return err
-	}
-	if err := p.projectCoordinationFragment(loop, binding); err != nil {
-		return err
-	}
-	if err := p.applyProjectionEnvelope(loop, binding); err != nil {
 		return err
 	}
 	if err := p.projectSkills(loop, binding); err != nil {
@@ -350,80 +264,6 @@ func (p codexProjector) installLoop(ctx context.Context, loop declaration.LoopMa
 	p.printf("State:        %s\n", p.stateDir(loop.Name))
 	if hostSkills := p.hostSkillsDir(loop.Name); hostSkills != "" {
 		p.printf("Host skills:  %s\n", hostSkills)
-	}
-	return nil
-}
-
-// scopedProfileFragment loads the durable profile and filters it to the entries
-// projected to (host, loop) via their projection_targets, reusing the store's
-// FilterEntries. ok is false when there is no profile yet or no entry targets
-// this host+loop, so the caller writes nothing. Read-only on the profile store.
-func scopedProfileFragment(projectRoot, host, loop string) (profile.Profile, bool, error) {
-	store, err := profile.New(projectRoot)
-	if err != nil {
-		return profile.Profile{}, false, err
-	}
-	prof, err := store.Load("")
-	if errors.Is(err, profile.ErrProfileNotFound) {
-		return profile.Profile{}, false, nil
-	}
-	if err != nil {
-		return profile.Profile{}, false, err
-	}
-	fragment := store.FilterEntries(prof, host, loop)
-	if len(fragment.Entries) == 0 {
-		return profile.Profile{}, false, nil
-	}
-	return fragment, true, nil
-}
-
-// projectProfileFragment writes the host+loop-scoped profile fragment onto the
-// Codex runtime surface so the next Codex run inherits the applied profile. It is
-// a point-in-time snapshot derived from canonical profile state (data, not a
-// static owned asset), so uninstall removes it with the runtime surface.
-func (p codexProjector) projectProfileFragment(loop declaration.LoopManifest, binding declaration.BindingManifest) error {
-	fragment, ok, err := scopedProfileFragment(p.projectRoot, "codex", loop.Name)
-	if err != nil || !ok {
-		return err
-	}
-	ref := p.displayJoin(binding.RuntimeSurface, profileFragmentFile)
-	// Payload only — the projection ACT's provenance (projection.applied) is emitted
-	// once by applyProjectionEnvelope over the combined context, not per fragment.
-	return p.writeJSON(ref, fragment, 0o644)
-}
-
-// projectCoordinationFragment writes the host-scoped coordination fragment onto
-// the Codex runtime surface so the next run inherits its claims, group
-// membership, conflicts, and merge decisions. A point-in-time snapshot of the
-// event-sourced topology; removed with the runtime surface on uninstall.
-func (p codexProjector) projectCoordinationFragment(loop declaration.LoopManifest, binding declaration.BindingManifest) error {
-	fragment, ok, err := scopedCoordinationFragment(p.projectRoot, "codex")
-	if err != nil || !ok {
-		return err
-	}
-	ref := p.displayJoin(binding.RuntimeSurface, coordinationFragmentFile)
-	return p.writeJSON(ref, fragment, 0o644)
-}
-
-func (p codexProjector) statusLoop(loop declaration.LoopManifest) error {
-	p.printf("Codex %s:\n", loop.Name)
-	p.printf("  config:   %s\n", p.paths.configDir)
-	p.printf("  state:    %s\n", p.stateDir(loop.Name))
-	if p.exists(p.hostManifestPath()) {
-		p.printf("  manifest: %s\n", p.hostManifestPath())
-	} else {
-		p.printf("  manifest: missing\n")
-	}
-	statusPath := p.displayJoin(p.stateDir(loop.Name), "status.json")
-	if p.exists(statusPath) {
-		p.printf("  status:   %s\n", statusPath)
-	} else {
-		p.printf("  status:   missing\n")
-	}
-	if p.exists(p.stateDir(loop.Name)) {
-		p.printf("  loop:   installed\n")
-	} else {
-		p.printf("  loop:   missing\n")
 	}
 	return nil
 }
@@ -496,32 +336,6 @@ func (p codexProjector) prepareLoopState(loop declaration.LoopManifest) error {
 				return fmt.Errorf("mkdir %s: %w", dir, err)
 			}
 		}
-	case "eval":
-		for _, dir := range []string{"scratch", "candidates", "reports", "artifacts", "retired", "scenarios", "suites", "rubrics"} {
-			if err := os.MkdirAll(p.resolve(p.displayJoin(p.stateDir(loop.Name), dir)), 0o755); err != nil {
-				return fmt.Errorf("mkdir %s: %w", dir, err)
-			}
-		}
-		for _, runtimeFile := range loop.Assets.RuntimeFiles {
-			if err := p.copyFile(p.loopAsset(loop, runtimeFile), p.displayJoin(p.stateDir(loop.Name), runtimeFile), 0o644); err != nil {
-				return err
-			}
-		}
-	case "goal":
-		for _, dir := range []string{
-			p.displayJoin(p.paths.mnemonDir, "harness/goals"),
-			p.displayJoin(p.paths.mnemonDir, "harness/status/goals"),
-		} {
-			if err := os.MkdirAll(p.resolve(dir), 0o755); err != nil {
-				return fmt.Errorf("mkdir %s: %w", dir, err)
-			}
-		}
-	default:
-		for _, runtimeFile := range loop.Assets.RuntimeFiles {
-			if err := p.copyFileIfMissing(p.loopAsset(loop, runtimeFile), p.displayJoin(p.stateDir(loop.Name), runtimeFile), 0o644); err != nil {
-				return err
-			}
-		}
 	}
 	return nil
 }
@@ -565,30 +379,7 @@ func (p codexProjector) runtimeEnvContent(loop declaration.LoopManifest, binding
 			exportLine("MNEMON_SKILL_LOOP_PROPOSALS_DIR", p.displayJoin(stateDir, "proposals")),
 			exportLine("MNEMON_SKILL_LOOP_HOST_SKILLS_DIR", hostSkillsDir),
 			`export MNEMON_SKILL_LOOP_REVIEW_MIN_EVENTS="${MNEMON_SKILL_LOOP_REVIEW_MIN_EVENTS:-20}"`,
-			`export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill-observe,skill-curate,skill-author,skill-manage,memory-get,memory-set,mnemon-goal}"`,
-		)
-	case "eval":
-		hostSkillsDir := p.hostSkillsDir(loop.Name)
-		lines = append(lines,
-			exportLine("MNEMON_EVAL_LOOP_SCRATCH_DIR", p.displayJoin(stateDir, "scratch")),
-			exportLine("MNEMON_EVAL_LOOP_CANDIDATES_DIR", p.displayJoin(stateDir, "candidates")),
-			exportLine("MNEMON_EVAL_LOOP_REPORTS_DIR", p.displayJoin(stateDir, "reports")),
-			exportLine("MNEMON_EVAL_LOOP_ARTIFACTS_DIR", p.displayJoin(stateDir, "artifacts")),
-			exportLine("MNEMON_EVAL_LOOP_RETIRED_DIR", p.displayJoin(stateDir, "retired")),
-			exportLine("MNEMON_EVAL_LOOP_SCENARIOS_DIR", p.displayJoin(stateDir, "scenarios")),
-			exportLine("MNEMON_EVAL_LOOP_SUITES_DIR", p.displayJoin(stateDir, "suites")),
-			exportLine("MNEMON_EVAL_LOOP_RUBRICS_DIR", p.displayJoin(stateDir, "rubrics")),
-			exportLine("MNEMON_EVAL_LOOP_HOST_SKILLS_DIR", hostSkillsDir),
-			`export MNEMON_EVAL_LOOP_DEFAULT_HOST="${MNEMON_EVAL_LOOP_DEFAULT_HOST:-codex}"`,
-			`export MNEMON_EVAL_LOOP_DEFAULT_SUITE="${MNEMON_EVAL_LOOP_DEFAULT_SUITE:-smoke}"`,
-		)
-	case "goal":
-		hostSkillsDir := p.hostSkillsDir(loop.Name)
-		lines = append(lines,
-			exportLine("MNEMON_GOAL_LOOP_ROOT", p.projectRoot),
-			exportLine("MNEMON_GOAL_LOOP_GOALS_DIR", p.displayJoin(p.paths.mnemonDir, "harness/goals")),
-			exportLine("MNEMON_GOAL_LOOP_STATUS_DIR", p.displayJoin(p.paths.mnemonDir, "harness/status/goals")),
-			exportLine("MNEMON_GOAL_LOOP_HOST_SKILLS_DIR", hostSkillsDir),
+			`export MNEMON_SKILL_LOOP_PROTECTED_SKILLS="${MNEMON_SKILL_LOOP_PROTECTED_SKILLS:-skill-observe,skill-curate,skill-author,skill-manage,memory-get,memory-set}"`,
 		)
 	}
 	content := strings.Join(lines, "\n") + "\n"
@@ -649,17 +440,13 @@ func (p codexProjector) hookOptions(loopName string) codexHookOptions {
 		return codexHookOptions{Remind: true, Nudge: true, Compact: true}
 	case "skill":
 		return codexHookOptions{Nudge: true, Compact: true}
-	case "goal":
-		return codexHookOptions{Remind: true, Nudge: true, Compact: true}
-	case "eval":
-		return codexHookOptions{Remind: true, Nudge: true, Compact: true}
 	default:
 		return codexHookOptions{}
 	}
 }
 
 func (p codexProjector) codexHooksEnabled(loopName string) bool {
-	return loopName == "memory" || loopName == "skill" || loopName == "goal" || loopName == "eval"
+	return loopName == "memory" || loopName == "skill"
 }
 
 func (p codexProjector) ensureStore(ctx context.Context, storeName string) error {
@@ -799,24 +586,6 @@ func (p codexProjector) removeCanonicalState(loop declaration.LoopManifest) erro
 		}
 		for _, dir := range []string{"reports", "proposals"} {
 			_ = os.Remove(p.resolve(p.displayJoin(stateDir, dir)))
-		}
-		_ = os.Remove(p.resolve(stateDir))
-	case "eval":
-		for _, dir := range []string{"scenarios", "suites", "rubrics"} {
-			if err := os.RemoveAll(p.resolve(p.displayJoin(stateDir, dir))); err != nil {
-				return err
-			}
-		}
-		if err := p.removeCommonStateFiles(stateDir); err != nil {
-			return err
-		}
-		for _, dir := range []string{"retired", "artifacts", "reports", "candidates", "scratch"} {
-			_ = os.Remove(p.resolve(p.displayJoin(stateDir, dir)))
-		}
-		_ = os.Remove(p.resolve(stateDir))
-	case "goal":
-		if err := p.removeCommonStateFiles(stateDir); err != nil {
-			return err
 		}
 		_ = os.Remove(p.resolve(stateDir))
 	default:

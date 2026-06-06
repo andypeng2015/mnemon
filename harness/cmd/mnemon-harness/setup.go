@@ -21,10 +21,8 @@ var (
 	setupDryRun      bool
 )
 
-// setup is the everyday install front door (P4): it wraps the declaration-driven `loop install`
-// projector (no second projector) and additionally wires the channel — the binding manifest entry,
-// an optional bearer token file, and the runtime env (MNEMON_CONTROL_* / MNEMON_HARNESS_BIN) — so a
-// projected host agent reaches the governed control plane through one channel.
+// setup is the everyday install front door: it projects memory/skill assets and
+// wires the Local Mnemon channel artifacts a projected host agent uses.
 var setupCmd = &cobra.Command{
 	Use:   "setup --host HOST (--memory | --skills | --loop LOOP)",
 	Short: "Install Agent Integration for memory and skill",

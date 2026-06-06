@@ -70,9 +70,9 @@ func validateProductLoops(loops []string) error {
 	return nil
 }
 
-// Setup projects the loops into the host (wrapping the existing declaration-driven loop install — no
-// second projector) and writes the channel artifacts. On DryRun it prints every projection + channel
-// change without writing.
+// Setup projects the selected loops into the host and writes the Local Mnemon
+// channel artifacts. On DryRun it prints every projection + channel change
+// without writing.
 func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOptions) (SetupResult, error) {
 	opts = h.defaultSetupOptions(opts)
 	if opts.Host == "" {
@@ -86,15 +86,15 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 	}
 	projectRoot := opts.ProjectRoot
 
-	// 1. Wrap the existing loop install path (declaration-driven projector). Dry-run lowers to the
-	//    projector's own --dry-run so projection changes print without writing.
+	// 1. Project loop assets. Dry-run lowers to the projector's own --dry-run
+	//    so projection changes print without writing.
 	action, hostArgs := "install", []string(nil)
 	if opts.DryRun {
 		hostArgs = []string{"--dry-run"}
 	}
 	var projectorOut bytes.Buffer
 	if err := h.LoopProject(ctx, &projectorOut, errw, action, projectRoot, opts.Host, opts.Loops, hostArgs); err != nil {
-		return SetupResult{}, fmt.Errorf("setup: loop install: %w", err)
+		return SetupResult{}, fmt.Errorf("setup: project loop assets: %w", err)
 	}
 
 	// 2. Channel artifacts.
@@ -307,16 +307,15 @@ func (h *Harness) SetupStatus(projectRoot, principal string) ([]string, error) {
 	}, nil
 }
 
-// SetupUninstall reverses setup: it uninstalls the loop projections (the existing projector) and
-// removes the principal's channel binding + its token file, preserving any other (user-added or
-// sibling) binding entries.
+// SetupUninstall reverses setup: it removes projected loop assets and the
+// principal's channel binding + token file while preserving sibling bindings.
 func (h *Harness) SetupUninstall(ctx context.Context, out, errw io.Writer, opts SetupOptions) error {
 	projectRoot := opts.ProjectRoot
 	if projectRoot == "" {
 		projectRoot = h.root
 	}
 	if err := h.LoopProject(ctx, out, errw, "uninstall", projectRoot, opts.Host, opts.Loops, nil); err != nil {
-		return fmt.Errorf("setup uninstall: loop uninstall: %w", err)
+		return fmt.Errorf("setup uninstall: remove projected loop assets: %w", err)
 	}
 	base := channelBase(projectRoot)
 	if opts.Principal != "" {

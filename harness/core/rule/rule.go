@@ -28,8 +28,7 @@ type Rule interface {
 	Evaluate(RuleInput) (contract.RuleDecision, error)
 }
 
-// NativeRule is a Go-implemented rule (the default backend, D2). The wazero WASM backend (P5) implements the
-// same Rule interface behind the same seat.
+// NativeRule is a Go-implemented admission rule.
 type NativeRule struct {
 	id      string
 	actor   contract.ActorID
@@ -46,10 +45,10 @@ func NewNativeRule(id string, actor contract.ActorID, emits string, handles []st
 	return NativeRule{id: id, actor: actor, emits: emits, handles: h, fn: fn}
 }
 
-func (r NativeRule) ID() string                { return r.id }
-func (r NativeRule) Actor() contract.ActorID   { return r.actor }
-func (r NativeRule) Emits() string             { return r.emits }
-func (r NativeRule) Handles(t string) bool     { return r.handles[t] }
+func (r NativeRule) ID() string              { return r.id }
+func (r NativeRule) Actor() contract.ActorID { return r.actor }
+func (r NativeRule) Emits() string           { return r.emits }
+func (r NativeRule) Handles(t string) bool   { return r.handles[t] }
 func (r NativeRule) Evaluate(in RuleInput) (contract.RuleDecision, error) {
 	d, err := r.fn(in)
 	if err != nil {
