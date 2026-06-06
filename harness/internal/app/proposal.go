@@ -308,10 +308,10 @@ func (h *Harness) governMemoryEntry(applyID string, spec memoryProfileEntrySpec)
 	if err != nil {
 		return err
 	}
-	engine := coreengine.NewMemoryEngine(paths.HarnessDir,
+	engine := coreengine.New(paths.HarnessDir,
 		func() string { return uuid.NewString() },
 		func() string { return time.Now().UTC().Format(time.RFC3339) })
-	res, err := engine.AdmitEntry(applyID, spec.ProfileID+"/"+spec.EntryID, map[string]any{
+	res, err := engine.AdmitCreate(applyID, "memory", spec.ProfileID+"/"+spec.EntryID, map[string]any{
 		"content":    spec.Content,
 		"summary":    spec.Summary,
 		"entry_type": spec.EntryType,

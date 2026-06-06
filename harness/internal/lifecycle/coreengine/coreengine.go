@@ -1,14 +1,14 @@
 // Package coreengine is the host-lifecycle layer's handle to the core kernel as the ONE
-// canonical writer (D1). A governed lifecycle write (today: a memory profile entry, on
-// proposal approval) is lowered to a core observation that flows through the channel:
-// ServerAPI.Ingest -> rule pre-gate -> bridge (write-scope, R11) -> Kernel.Apply. The
-// kernel is the single writer of the canonical resource; the caller materializes the host
-// file (the .mnemon profile) only AFTER the kernel accepts, so the file is a mirror of the
-// canonical state, never an independent writer (P2.1 shim (a) / P2.2 lowering).
+// canonical writer (D1). A governed lifecycle write (a memory profile entry or an eval asset
+// promotion, on proposal approval) is lowered to a core observation that flows through the
+// channel: ServerAPI.Ingest -> rule pre-gate -> bridge (write-scope, R11) -> Kernel.Apply.
+// The kernel is the single writer of the canonical resource; the caller materializes the host
+// file only AFTER the kernel accepts, so the file is a mirror of the canonical state, never an
+// independent writer (P2.2 lowering; the file is the P2.1 transitional mirror shim).
 //
 // A persistent kernel store under the harness dir holds the canonical resources across
-// invocations. The store is opened per operation (the kernel's single-writer lock makes
-// that safe for the sequential CLI) so no long-lived handle leaks across facade calls.
+// invocations. The store is opened per operation (the kernel's single-writer lock makes that
+// safe for the sequential CLI) so no long-lived handle leaks across facade calls.
 package coreengine
 
 import (
@@ -22,45 +22,37 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/core/server"
 )
 
-const (
-	// memoryActor is the trusted write identity for governed memory entry writes. It is
-	// authorized for the "memory" kind only (kernel AuthorityRules), so a forged write to any
-	// other kind is rejected at the kernel.
-	memoryActor contract.ActorID = "host-memory"
-	// observedType is the observation the host-lifecycle layer pushes in; the memory rule
-	// turns it into a memory.write.proposed the bridge stamps and the kernel applies.
-	observedType = "memory.entry.observed"
-)
-
-// MemoryEngine governs memory profile-entry writes through the kernel.
-type MemoryEngine struct {
+// Engine governs lifecycle resource creates through the kernel.
+type Engine struct {
 	storePath string
 	newID     func() string
 	now       func() string
 }
 
-// NewMemoryEngine binds an engine to a persistent kernel store under harnessDir. newID/now
-// feed the bridge's id/clock; pass deterministic generators in tests, uuid/time in prod.
-func NewMemoryEngine(harnessDir string, newID, now func() string) *MemoryEngine {
-	return &MemoryEngine{
-		storePath: filepath.Join(harnessDir, "control", "memory.db"),
+// New binds an engine to a persistent kernel store under harnessDir. newID/now feed the
+// bridge's id/clock; pass deterministic generators in tests, uuid/time in prod.
+func New(harnessDir string, newID, now func() string) *Engine {
+	return &Engine{
+		storePath: filepath.Join(harnessDir, "control", "governed.db"),
 		newID:     newID,
 		now:       now,
 	}
 }
 
-// Result is the outcome of lowering one entry write through the kernel.
+// Result is the outcome of lowering one create through the kernel.
 type Result struct {
 	Accepted bool
 	Version  int64
 	Reason   string // populated when !Accepted (the rule/bridge/kernel refusal)
 }
 
-// AdmitEntry lowers a memory profile entry (identified canonically by entryID, carrying the
-// entry's fields) to a governed kernel create. applyID is the idempotency key (the approving
-// proposal's id): re-applying the same proposal is a kernel inbox dedup (idempotent), while a
-// DIFFERENT proposal targeting an already-canonical entryID is denied by the rule pre-gate.
-func (e *MemoryEngine) AdmitEntry(applyID, entryID string, fields map[string]any) (Result, error) {
+// AdmitCreate lowers a governed resource create to the kernel. kind is a core resource kind
+// (memory/skill/goal/...); id is the canonical resource id; fields must include the kind's
+// schema-required fields (memory:content, skill:name, goal:statement). applyID is the
+// idempotency key (the approving proposal's id): re-applying the same proposal is a kernel
+// inbox dedup (idempotent), while a DIFFERENT proposal targeting an already-canonical id is
+// denied by the rule pre-gate.
+func (e *Engine) AdmitCreate(applyID string, kind contract.ResourceKind, id string, fields map[string]any) (Result, error) {
 	if err := os.MkdirAll(filepath.Dir(e.storePath), 0o755); err != nil {
 		return Result{}, fmt.Errorf("coreengine: create store dir: %w", err)
 	}
@@ -70,34 +62,36 @@ func (e *MemoryEngine) AdmitEntry(applyID, entryID string, fields map[string]any
 	}
 	defer store.Close()
 
-	ref := contract.ResourceRef{Kind: "memory", ID: contract.ResourceID(entryID)}
+	actor := contract.ActorID("host-" + string(kind))
+	observed := string(kind) + ".governed.observed"
+	ref := contract.ResourceRef{Kind: kind, ID: contract.ResourceID(id)}
 	k := kernel.NewKernel(store, kernel.DefaultSchemaGuard(), kernel.AuthorityRules{
-		Allow: map[contract.ActorID][]contract.ResourceKind{memoryActor: {"memory"}},
+		Allow: map[contract.ActorID][]contract.ResourceKind{actor: {kind}},
 	})
 	subs := map[contract.ActorID]contract.Subscription{
-		memoryActor: {Actor: memoryActor, Refs: []contract.ResourceRef{ref}},
+		actor: {Actor: actor, Refs: []contract.ResourceRef{ref}},
 	}
 	modes := contract.Modes{Conflict: contract.ConflictReject, Isolation: contract.IsolationProjectionReadSet, Authz: contract.AuthzStrict}
-	cs := server.New(store, k, rule.NewRuleSet(memoryEntryRule()), subs, modes, e.newID, e.now)
+	cs := server.New(store, k, rule.NewRuleSet(governedCreateRule(kind, actor, observed)), subs, modes, e.newID, e.now)
 
-	correlation := "memory:" + applyID
-	_, dup, err := cs.Ingest(memoryActor, contract.ObservationEnvelope{
+	correlation := string(kind) + ":" + applyID
+	_, dup, err := cs.Ingest(actor, contract.ObservationEnvelope{
 		ExternalID: applyID,
 		Event: contract.Event{
-			Type:          observedType,
+			Type:          observed,
 			CorrelationID: correlation,
-			Payload:       map[string]any{"entry_id": entryID, "fields": fields},
+			Payload:       map[string]any{"entry_id": id, "fields": fields},
 		},
 	})
 	if err != nil {
-		return Result{}, fmt.Errorf("coreengine: ingest entry: %w", err)
+		return Result{}, fmt.Errorf("coreengine: ingest %s create: %w", kind, err)
 	}
 	if dup {
 		// Idempotent re-apply: the observation was already recorded (and applied) on a prior
-		// call. Report the entry's current canonical version rather than re-deciding.
+		// call. Report the resource's current canonical version rather than re-deciding.
 		v, _, gerr := store.GetResource(ref)
 		if gerr != nil {
-			return Result{}, fmt.Errorf("coreengine: read deduped entry: %w", gerr)
+			return Result{}, fmt.Errorf("coreengine: read deduped resource: %w", gerr)
 		}
 		if v > 0 {
 			return Result{Accepted: true, Version: int64(v)}, nil
@@ -115,20 +109,20 @@ func (e *MemoryEngine) AdmitEntry(applyID, entryID string, fields map[string]any
 			return Result{Accepted: true, Version: int64(v)}, nil
 		}
 	}
-	return Result{Reason: denialReason(store, correlation)}, nil
+	return Result{Reason: denialReason(store, string(kind)+".diagnostic", correlation)}, nil
 }
 
-// memoryEntryRule admits a memory.entry.observed into a memory.write.proposed create, or
-// denies it when the entry id already exists in the actor's canonical view (duplicate) — the
-// duplicate check now lives at the governed rule pre-gate, not the app facade.
-func memoryEntryRule() rule.Rule {
-	return rule.NewNativeRule("host-memory-entry", memoryActor, "memory.write.proposed", []string{observedType},
+// governedCreateRule admits a <kind>.governed.observed into a <kind>.write.proposed create, or
+// denies it when the id already exists in the actor's canonical view (duplicate) — the
+// duplicate check lives at the governed rule pre-gate, not the app facade.
+func governedCreateRule(kind contract.ResourceKind, actor contract.ActorID, observed string) rule.Rule {
+	return rule.NewNativeRule("host-"+string(kind)+"-create", actor, string(kind)+".write.proposed", []string{observed},
 		func(in rule.RuleInput) (contract.RuleDecision, error) {
-			entryID, _ := in.Event.Payload["entry_id"].(string)
-			if entryID == "" {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"memory.entry.observed missing entry_id"}}, nil
+			id, _ := in.Event.Payload["entry_id"].(string)
+			if id == "" {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{string(observed) + " missing entry_id"}}, nil
 			}
-			ref := contract.ResourceRef{Kind: "memory", ID: contract.ResourceID(entryID)}
+			ref := contract.ResourceRef{Kind: kind, ID: contract.ResourceID(id)}
 			var cur contract.Version
 			for _, rv := range in.View.Resources {
 				if rv.Ref == ref {
@@ -136,30 +130,30 @@ func memoryEntryRule() rule.Rule {
 				}
 			}
 			if cur > 0 {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"memory entry " + entryID + " already exists (version " + fmt.Sprint(cur) + ")"}}, nil
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{string(kind) + " " + id + " already exists (version " + fmt.Sprint(cur) + ")"}}, nil
 			}
 			fields, _ := in.Event.Payload["fields"].(map[string]any)
 			if fields == nil {
 				fields = map[string]any{}
 			}
 			return contract.RuleDecision{Verdict: contract.VerdictPropose, Proposal: &contract.ProposedEvent{
-				Type: "memory.write.proposed",
+				Type: string(kind) + ".write.proposed",
 				Payload: map[string]any{"writes": []contract.ResourceWrite{
 					{Ref: ref, Kind: contract.OpCreate, BasedOn: cur, Fields: fields}}},
 			}}, nil
 		})
 }
 
-// denialReason recovers the rule/bridge refusal reason from the durable memory.diagnostic the
-// server emitted for this correlation (S7: every refusal is a diagnostic).
-func denialReason(store *kernel.Store, correlation string) string {
+// denialReason recovers the rule/bridge refusal reason from the durable diagnostic the server
+// emitted for this correlation (S7: every refusal is a diagnostic).
+func denialReason(store *kernel.Store, diagnosticType, correlation string) string {
 	events, err := store.PendingEvents(0)
 	if err != nil {
 		return "kernel refused the write"
 	}
 	reason := "kernel refused the write"
 	for _, ev := range events {
-		if ev.Type == "memory.diagnostic" && ev.CorrelationID == correlation {
+		if ev.Type == diagnosticType && ev.CorrelationID == correlation {
 			if r, ok := ev.Payload["reason"].(string); ok && r != "" {
 				reason = r
 			}

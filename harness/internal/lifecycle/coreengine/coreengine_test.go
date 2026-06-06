@@ -15,9 +15,9 @@ func fixedNow() func() string { return func() string { return "2026-06-06T00:00:
 // entry canonical between the two calls.
 func TestMemoryEngineGovernsEntryWrites(t *testing.T) {
 	dir := t.TempDir()
-	eng := NewMemoryEngine(dir, seqGen(), fixedNow())
+	eng := New(dir, seqGen(), fixedNow())
 
-	res, err := eng.AdmitEntry("apply-1", "entry-1", map[string]any{"summary": "first", "content": "c1"})
+	res, err := eng.AdmitCreate("apply-1", "memory", "entry-1", map[string]any{"summary": "first", "content": "c1"})
 	if err != nil {
 		t.Fatalf("admit entry-1: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestMemoryEngineGovernsEntryWrites(t *testing.T) {
 
 	// A different proposal (apply-2) that tries to create the SAME canonical entry id must be
 	// denied by the kernel rule pre-gate, with a reason — the kernel governs, not the app.
-	dup, err := eng.AdmitEntry("apply-2", "entry-1", map[string]any{"summary": "again", "content": "c-again"})
+	dup, err := eng.AdmitCreate("apply-2", "memory", "entry-1", map[string]any{"summary": "again", "content": "c-again"})
 	if err != nil {
 		t.Fatalf("admit duplicate: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestMemoryEngineGovernsEntryWrites(t *testing.T) {
 	}
 
 	// A genuinely new entry id is still accepted (the engine is not stuck).
-	res3, err := eng.AdmitEntry("apply-3", "entry-2", map[string]any{"summary": "second", "content": "c2"})
+	res3, err := eng.AdmitCreate("apply-3", "memory", "entry-2", map[string]any{"summary": "second", "content": "c2"})
 	if err != nil {
 		t.Fatalf("admit entry-2: %v", err)
 	}
@@ -53,11 +53,11 @@ func TestMemoryEngineGovernsEntryWrites(t *testing.T) {
 // canonical (accepted) rather than a spurious denial.
 func TestMemoryEngineIdempotentReapply(t *testing.T) {
 	dir := t.TempDir()
-	eng := NewMemoryEngine(dir, seqGen(), fixedNow())
-	if res, err := eng.AdmitEntry("apply-1", "entry-1", map[string]any{"summary": "x", "content": "cx"}); err != nil || !res.Accepted {
+	eng := New(dir, seqGen(), fixedNow())
+	if res, err := eng.AdmitCreate("apply-1", "memory", "entry-1", map[string]any{"summary": "x", "content": "cx"}); err != nil || !res.Accepted {
 		t.Fatalf("first apply must be accepted; got %+v err=%v", res, err)
 	}
-	res, err := eng.AdmitEntry("apply-1", "entry-1", map[string]any{"summary": "x", "content": "cx"})
+	res, err := eng.AdmitCreate("apply-1", "memory", "entry-1", map[string]any{"summary": "x", "content": "cx"})
 	if err != nil {
 		t.Fatalf("idempotent re-apply: %v", err)
 	}
