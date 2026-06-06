@@ -398,10 +398,14 @@ func CleanEntryID(value string) string { return cleanID(value) }
 // ResolveEntryID returns the id AddEntry would persist for these options: the cleaned entry id,
 // or a generated timestamped id when the cleaned id is empty. A governed caller resolves the id
 // ONCE and feeds it to BOTH the kernel write and AddEntry so the two never disagree.
+//
+// The result is a cleanID FIXED POINT (cleanID(result) == result): the generated id embeds an
+// uppercase-T timestamp that AddEntry would otherwise lower-case on re-clean, diverging the
+// kernel key from the stored host id — so the generated id is cleaned before return.
 func ResolveEntryID(entryID, entryType, summary string, now time.Time) string {
 	id := cleanID(entryID)
 	if id == "" {
-		id = generatedEntryID(entryType, summary, now)
+		id = cleanID(generatedEntryID(entryType, summary, now))
 	}
 	return id
 }
