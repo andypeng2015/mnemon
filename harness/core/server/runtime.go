@@ -155,12 +155,15 @@ func (r *Runtime) PendingEvents(afterSeq int64) ([]contract.Event, error) {
 // richer than a pull (which carries only the digest) — real path evidence a host can check before
 // trusting projected state.
 type ChannelStatus struct {
-	Principal contract.ActorID `json:"principal"`
-	Digest    string           `json:"digest"`
-	Resources int              `json:"resources"`
-	ActorKind ActorKind        `json:"actor_kind,omitempty"`
-	StoreRef  string           `json:"store_ref"`
-	Mode      string           `json:"mode"`
+	Principal     contract.ActorID `json:"principal"`
+	Digest        string           `json:"digest"`
+	Resources     int              `json:"resources"`
+	ActorKind     ActorKind        `json:"actor_kind,omitempty"`
+	StoreRef      string           `json:"store_ref"`
+	Mode          string           `json:"mode"`
+	SyncPending   int              `json:"sync_pending"`
+	SyncSynced    int              `json:"sync_synced"`
+	SyncConflicts int              `json:"sync_conflicts"`
 }
 
 // Status builds the principal's channel status. When bindings are configured it is gated on the
@@ -189,13 +192,18 @@ func (r *Runtime) Status(principal contract.ActorID) (ChannelStatus, error) {
 	if err != nil {
 		return ChannelStatus{}, err
 	}
+	pending, err := r.store.PendingSyncCommits()
+	if err != nil {
+		return ChannelStatus{}, err
+	}
 	return ChannelStatus{
-		Principal: principal,
-		Digest:    proj.Digest,
-		Resources: len(proj.Resources),
-		ActorKind: kind,
-		StoreRef:  r.storePath,
-		Mode:      "service",
+		Principal:   principal,
+		Digest:      proj.Digest,
+		Resources:   len(proj.Resources),
+		ActorKind:   kind,
+		StoreRef:    r.storePath,
+		Mode:        "service",
+		SyncPending: len(pending),
 	}, nil
 }
 

@@ -12,6 +12,11 @@ type ResourceVersion struct {
 	Ref     ResourceRef
 	Version Version
 }
+type ResourceSnapshot struct {
+	Ref     ResourceRef
+	Version Version
+	Fields  map[string]any
+}
 
 // ActorID is an IDENTITY, not a role enum (Invariant #11/#15).
 type ActorID string
@@ -78,6 +83,7 @@ type Decision struct {
 	NextAction    string // "" (terminal) | "rebase" | "human_review"
 	AppliedAt     string // RFC3339; set iff Accepted
 	NewVersions   []ResourceVersion
+	NewResources  []ResourceSnapshot
 }
 
 // ---- events ----
@@ -165,6 +171,23 @@ type Subscription struct {
 	Actor       ActorID
 	Refs        []ResourceRef
 	PrivacyTier string
+}
+
+// LocalCommit is the append-only local sync unit materialized from an accepted local decision.
+// It is durable local state; push/pull transports may serialize it, but Agent Integration never
+// handles it directly.
+type LocalCommit struct {
+	OriginReplicaID string
+	LocalDecisionID string
+	LocalIngestSeq  int64
+	Actor           ActorID
+	CorrelationID   string
+	ResourceRef     ResourceRef
+	ResourceVersion Version
+	FieldsDigest    string
+	Fields          map[string]any
+	DecidedAt       string
+	Status          string
 }
 
 // ---- modes (the catalog NAMES live here — the standard advertises them) ----

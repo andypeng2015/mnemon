@@ -1,12 +1,15 @@
 package kernel
 
 import (
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
 	_ "modernc.org/sqlite"
 )
@@ -46,6 +49,8 @@ func OpenStore(path string) (*Store, error) {
 		`CREATE TABLE IF NOT EXISTS cursors (name TEXT PRIMARY KEY, seq INTEGER NOT NULL);`,
 		`CREATE TABLE IF NOT EXISTS inbox_dedupe (source TEXT, external_id TEXT, event_seq INTEGER NOT NULL, PRIMARY KEY(source,external_id));`,
 		`CREATE TABLE IF NOT EXISTS outbox (id TEXT PRIMARY KEY, kind TEXT NOT NULL, event_seq INTEGER NOT NULL DEFAULT 0, target TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', idempotency_key TEXT UNIQUE, attempts INTEGER NOT NULL DEFAULT 0, lease_owner TEXT NOT NULL DEFAULT '', lease_until INTEGER NOT NULL DEFAULT 0);`,
+		`CREATE TABLE IF NOT EXISTS sync_replica (id INTEGER PRIMARY KEY CHECK (id=1), replica_id TEXT NOT NULL, created_at TEXT NOT NULL);`,
+		`CREATE TABLE IF NOT EXISTS sync_commits (origin_replica_id TEXT NOT NULL, local_decision_id TEXT NOT NULL, local_ingest_seq INTEGER NOT NULL, actor TEXT NOT NULL, correlation_id TEXT NOT NULL DEFAULT '', resource_kind TEXT NOT NULL, resource_id TEXT NOT NULL, resource_version INTEGER NOT NULL, fields_digest TEXT NOT NULL, fields TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', remote_peer_id TEXT NOT NULL DEFAULT '', acked_at TEXT NOT NULL DEFAULT '', diagnostic TEXT NOT NULL DEFAULT '', PRIMARY KEY(origin_replica_id, local_decision_id, resource_kind, resource_id));`,
 	} {
 		if _, err := db.Exec(s); err != nil {
 			db.Close()
@@ -64,6 +69,36 @@ func OpenStore(path string) (*Store, error) {
 		}
 	}
 	return &Store{db: db, release: release}, nil
+}
+
+func (s *Store) ReplicaID() (string, error) {
+	var replicaID string
+	err := s.WithTx(func(tx *Tx) error {
+		id, err := tx.ensureReplicaID()
+		if err != nil {
+			return err
+		}
+		replicaID = id
+		return nil
+	})
+	return replicaID, err
+}
+
+func (t *Tx) ensureReplicaID() (string, error) {
+	var replicaID string
+	err := t.tx.QueryRow(`SELECT replica_id FROM sync_replica WHERE id=1`).Scan(&replicaID)
+	if err == nil {
+		return replicaID, nil
+	}
+	if err != sql.ErrNoRows {
+		return "", err
+	}
+	replicaID = "local-" + uuid.NewString()
+	_, err = t.tx.Exec(`INSERT INTO sync_replica (id, replica_id, created_at) VALUES (1, ?, ?)`, replicaID, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return "", err
+	}
+	return replicaID, nil
 }
 func (s *Store) Close() error {
 	err := s.db.Close()
@@ -503,4 +538,89 @@ func (s *Store) DecisionsForActor(actor contract.ActorID) ([]contract.Decision, 
 		out = append(out, d)
 	}
 	return out, rows.Err()
+}
+
+func (t *Tx) RecordSyncCommitsTx(d contract.Decision, syncable map[contract.ResourceKind]bool) error {
+	if d.Status != contract.Accepted {
+		return nil
+	}
+	replicaID, err := t.ensureReplicaID()
+	if err != nil {
+		return err
+	}
+	snapshots := d.NewResources
+	if len(snapshots) == 0 {
+		snapshots = make([]contract.ResourceSnapshot, 0, len(d.NewVersions))
+		for _, rv := range d.NewVersions {
+			_, fields, err := t.ReadResource(rv.Ref)
+			if err != nil {
+				return err
+			}
+			snapshots = append(snapshots, contract.ResourceSnapshot{Ref: rv.Ref, Version: rv.Version, Fields: fields})
+		}
+	}
+	for _, snap := range snapshots {
+		if !syncable[snap.Ref.Kind] {
+			continue
+		}
+		fields := snap.Fields
+		if fields == nil {
+			fields = map[string]any{}
+		}
+		fieldsJSON, err := json.Marshal(fields)
+		if err != nil {
+			return err
+		}
+		digest := digestFields(fields)
+		_, err = t.tx.Exec(`
+INSERT OR IGNORE INTO sync_commits
+  (origin_replica_id, local_decision_id, local_ingest_seq, actor, correlation_id,
+   resource_kind, resource_id, resource_version, fields_digest, fields, decided_at, status)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending')`,
+			replicaID, d.DecisionID, d.IngestSeq, string(d.Actor), d.CorrelationID,
+			string(snap.Ref.Kind), string(snap.Ref.ID), int64(snap.Version), digest, string(fieldsJSON), d.AppliedAt)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Store) PendingSyncCommits() ([]contract.LocalCommit, error) {
+	return s.syncCommitsByStatus("pending")
+}
+
+func (s *Store) syncCommitsByStatus(status string) ([]contract.LocalCommit, error) {
+	rows, err := s.db.Query(`
+SELECT origin_replica_id, local_decision_id, local_ingest_seq, actor, correlation_id,
+       resource_kind, resource_id, resource_version, fields_digest, fields, decided_at, status
+FROM sync_commits WHERE status=? ORDER BY local_ingest_seq, local_decision_id, resource_kind, resource_id`, status)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []contract.LocalCommit
+	for rows.Next() {
+		var c contract.LocalCommit
+		var actor, kind, id, fieldsJSON string
+		var version int64
+		if err := rows.Scan(&c.OriginReplicaID, &c.LocalDecisionID, &c.LocalIngestSeq, &actor, &c.CorrelationID,
+			&kind, &id, &version, &c.FieldsDigest, &fieldsJSON, &c.DecidedAt, &c.Status); err != nil {
+			return nil, err
+		}
+		c.Actor = contract.ActorID(actor)
+		c.ResourceRef = contract.ResourceRef{Kind: contract.ResourceKind(kind), ID: contract.ResourceID(id)}
+		c.ResourceVersion = contract.Version(version)
+		if err := json.Unmarshal([]byte(fieldsJSON), &c.Fields); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func digestFields(fields map[string]any) string {
+	b, _ := json.Marshal(fields)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }

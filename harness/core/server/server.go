@@ -26,6 +26,11 @@ const (
 	decisionSinkCursor   = "decision_sink" // tracks decisions whose S2/S7 side-effects are produced (recoverable)
 )
 
+var syncableResourceKinds = map[contract.ResourceKind]bool{
+	"memory": true,
+	"skill":  true,
+}
+
 // ServerAPI is the edge<->server boundary (D5). Production HTTP/gRPC+mTLS is a thin adapter over it
 // (httpapi.go); the in-process implementation is *ControlServer. It grows by phase: Ingest (P0),
 // PullProjection (P2), ClaimJob/FinishJob (P3).
@@ -442,6 +447,9 @@ func (cs *ControlServer) processDecisionSideEffects() error {
 					payload, _ := json.Marshal(d.NewVersions)
 					key := "inv_" + d.DecisionID
 					if err := tx.EnqueueOutbox(kernel.OutboxRow{ID: key, Kind: "invalidation", EventSeq: d.IngestSeq, Target: "projection", Payload: string(payload), IdempotencyKey: key}); err != nil {
+						return err
+					}
+					if err := tx.RecordSyncCommitsTx(d, syncableResourceKinds); err != nil {
 						return err
 					}
 				} else if err := tx.AppendEvent(cs.rejectDiagnostic(d)); err != nil {

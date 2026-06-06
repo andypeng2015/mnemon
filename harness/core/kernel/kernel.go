@@ -25,6 +25,7 @@ func (k *Kernel) Store() *Store { return k.store }
 func (k *Kernel) Apply(op contract.KernelOp, m contract.Modes) contract.Decision {
 	d := contract.Decision{DecisionID: "dec_" + uuid.NewString(), OpID: op.OpID, Actor: op.Actor, IngestSeq: op.IngestSeq, CorrelationID: op.CorrelationID}
 	var newVers []contract.ResourceVersion
+	var newResources []contract.ResourceSnapshot
 	var conflicts []contract.Conflict
 
 	// A write-op must write at least one resource, and every write must name a supported op kind. A
@@ -100,11 +101,13 @@ func (k *Kernel) Apply(op contract.KernelOp, m contract.Modes) contract.Decision
 			}
 			cur, _ := tx.ReadVersion(w.Ref) // derive resulting version from the store, not arithmetic (Invariant #4)
 			newVers = append(newVers, contract.ResourceVersion{Ref: w.Ref, Version: cur})
+			newResources = append(newResources, contract.ResourceSnapshot{Ref: w.Ref, Version: cur, Fields: w.Fields})
 		}
 		// ACCEPTED: persist the decision in the SAME txn (crash-safe atomicity, Invariant #7)
 		d.Status = contract.Accepted
 		d.AppliedAt = time.Now().UTC().Format(time.RFC3339)
 		d.NewVersions = newVers
+		d.NewResources = newResources
 		return tx.AppendDecisionTx(d)
 	})
 	if err == nil {

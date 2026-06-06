@@ -139,7 +139,7 @@ var controlStatusCmd = &cobra.Command{
 		fmt.Fprintf(cmd.OutOrStdout(), "Agent Integration: %s\n", st.Principal)
 		fmt.Fprintf(cmd.OutOrStdout(), "Local Mnemon: ready (resources=%d, digest=%s)\n", st.Resources, st.Digest)
 		fmt.Fprintln(cmd.OutOrStdout(), "Remote Workspace: disconnected")
-		fmt.Fprintln(cmd.OutOrStdout(), "Sync: local accepted, remote pending")
+		fmt.Fprintf(cmd.OutOrStdout(), "Sync: %d pending, %d synced, %d conflicts (local accepted, remote pending)\n", st.SyncPending, st.SyncSynced, st.SyncConflicts)
 		return nil
 	},
 }
