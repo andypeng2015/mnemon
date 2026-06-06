@@ -3,8 +3,8 @@
   "kind": "rule",
   "version": "0.1.0",
   "abi_version": "mnemon-wasm-rule-v0",
-  "wasm_path": "../../../core/rule/wasm/testdata/rule_allow_if_evidence.wasm",
-  "wasm_sha256": "207a6da006b5c5bba1414f8ee5164f07f2230cf510b5d340186a3cc60037aacf",
+  "wasm_path": "memory_admission.wasm",
+  "wasm_sha256": "5493545f149fd9407dd1e6beedc5da96154c4a4a71465d621b6d76ee263f58cf",
   "handles": [
     "memory.write_candidate_observed"
   ],
@@ -24,7 +24,7 @@
   ],
   "limits": {
     "timeout_ms": 50,
-    "memory_pages": 16,
+    "memory_pages": 32,
     "max_input_bytes": 65536,
     "max_output_bytes": 65536
   }
