@@ -72,6 +72,9 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 func LocalAuthorityFromBindings(bindings []ChannelBinding) kernel.AuthorityRules {
 	allow := map[contract.ActorID][]contract.ResourceKind{}
 	for _, b := range bindings {
+		if b.ActorKind != KindHostAgent {
+			continue
+		}
 		seen := map[contract.ResourceKind]bool{}
 		for _, ref := range b.SubscriptionScope {
 			if ref.Kind == "memory" || ref.Kind == "skill" {
