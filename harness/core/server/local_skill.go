@@ -21,6 +21,10 @@ const (
 var localProjectSkillRef = contract.ResourceRef{Kind: "skill", ID: "project"}
 
 func LocalSkillRules(bindings []ChannelBinding) []rule.Rule {
+	return LocalSkillRulesWithPlugins(bindings, LocalPluginRules{})
+}
+
+func LocalSkillRulesWithPlugins(bindings []ChannelBinding, plugins LocalPluginRules) []rule.Rule {
 	var rules []rule.Rule
 	for _, b := range bindings {
 		if !b.Allows(VerbObserve) || !b.AllowsObservedType(SkillWriteCandidateObserved) {
@@ -28,6 +32,10 @@ func LocalSkillRules(bindings []ChannelBinding) []rule.Rule {
 		}
 		ref, ok := skillRefForBinding(b)
 		if !ok {
+			continue
+		}
+		if plugin := plugins.SkillAdmission[b.Principal]; plugin != nil {
+			rules = append(rules, plugin)
 			continue
 		}
 		rules = append(rules, skillAdmissionRule(b.Principal, ref))

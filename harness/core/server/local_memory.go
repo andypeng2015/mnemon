@@ -39,10 +39,11 @@ func LocalRuntimeConfigFromBindings(bindings []ChannelBinding) RuntimeConfig {
 
 type LocalPluginRules struct {
 	MemoryAdmission map[contract.ActorID]rule.Rule
+	SkillAdmission  map[contract.ActorID]rule.Rule
 }
 
 func LocalRuntimeConfigFromBindingsWithPlugins(bindings []ChannelBinding, plugins LocalPluginRules) RuntimeConfig {
-	rules := append(LocalMemoryRulesWithPlugins(bindings, plugins), LocalSkillRules(bindings)...)
+	rules := append(LocalMemoryRulesWithPlugins(bindings, plugins), LocalSkillRulesWithPlugins(bindings, plugins)...)
 	return RuntimeConfig{
 		Bindings:  bindings,
 		Subs:      SubsFromBindings(bindings),

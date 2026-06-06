@@ -1,0 +1,31 @@
+{
+  "id": "skill.admission.v1",
+  "kind": "rule",
+  "version": "0.1.0",
+  "abi_version": "mnemon-wasm-rule-v0",
+  "wasm_path": "skill_admission.wasm",
+  "wasm_sha256": "6ce38bb0e63d5569b3470d8339c95ebe0ade56407e4a031990e43ae44d0570db",
+  "handles": [
+    "skill.write_candidate_observed"
+  ],
+  "emits": [
+    "skill.write.proposed"
+  ],
+  "resources": {
+    "reads": [
+      "skill/project"
+    ],
+    "proposes": [
+      "skill/project"
+    ]
+  },
+  "capabilities": [
+    "read_state_view"
+  ],
+  "limits": {
+    "timeout_ms": 50,
+    "memory_pages": 32,
+    "max_input_bytes": 65536,
+    "max_output_bytes": 65536
+  }
+}
