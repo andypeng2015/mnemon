@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -173,6 +174,114 @@ func parseVerb(s string) (Verb, error) {
 	default:
 		return "", fmt.Errorf("unknown verb %q", s)
 	}
+}
+
+// toEntry is the inverse of toBinding: it serializes a ChannelBinding (+ optional credentialRef) to
+// the on-disk entry form, so UpsertBinding round-trips through the same schema LoadBindingFile reads.
+func toEntry(b ChannelBinding, credentialRef string) bindingFileEntry {
+	verbs := make([]string, len(b.AllowedVerbs))
+	for i, v := range b.AllowedVerbs {
+		verbs[i] = string(v)
+	}
+	scope := make([]bindingRef, len(b.SubscriptionScope))
+	for i, r := range b.SubscriptionScope {
+		scope[i] = bindingRef{Kind: string(r.Kind), ID: string(r.ID)}
+	}
+	return bindingFileEntry{
+		Principal:            string(b.Principal),
+		ActorKind:            string(b.ActorKind),
+		Transport:            string(b.Transport),
+		Endpoint:             b.Endpoint,
+		AllowedVerbs:         verbs,
+		AllowedObservedTypes: b.AllowedObservedTypes,
+		SubscriptionScope:    scope,
+		IdempotencyNamespace: b.IdempotencyNamespace,
+		CredentialRef:        credentialRef,
+	}
+}
+
+// UpsertBinding inserts or replaces (by principal) b in the manifest at path, creating the file
+// (schema_version 1) when absent and PRESERVING every other entry + their order — so `setup` manages
+// exactly its own principal and never clobbers a user-added or sibling-loop binding. credentialRef is
+// the token-file ref to record (project-relative or absolute, "" for header auth).
+func UpsertBinding(path string, b ChannelBinding, credentialRef string) error {
+	if err := b.Validate(); err != nil {
+		return err
+	}
+	doc, err := readBindingDocOrEmpty(path)
+	if err != nil {
+		return err
+	}
+	entry := toEntry(b, credentialRef)
+	replaced := false
+	for i := range doc.Bindings {
+		if doc.Bindings[i].Principal == entry.Principal {
+			doc.Bindings[i] = entry
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		doc.Bindings = append(doc.Bindings, entry)
+	}
+	return writeBindingDoc(path, doc)
+}
+
+// RemoveBinding removes the principal's entry from the manifest at path, preserving all others, and
+// reports whether an entry was removed. The file is left in place (with an empty bindings list when
+// it held only that entry), so a user-managed manifest is never surprised away by an uninstall.
+func RemoveBinding(path string, principal contract.ActorID) (bool, error) {
+	doc, err := readBindingDocOrEmpty(path)
+	if err != nil {
+		return false, err
+	}
+	kept := doc.Bindings[:0]
+	removed := false
+	for _, e := range doc.Bindings {
+		if contract.ActorID(e.Principal) == principal {
+			removed = true
+			continue
+		}
+		kept = append(kept, e)
+	}
+	if !removed {
+		return false, nil
+	}
+	doc.Bindings = kept
+	return true, writeBindingDoc(path, doc)
+}
+
+func readBindingDocOrEmpty(path string) (bindingFileDoc, error) {
+	raw, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return bindingFileDoc{SchemaVersion: 1}, nil
+	}
+	if err != nil {
+		return bindingFileDoc{}, fmt.Errorf("read binding file: %w", err)
+	}
+	var doc bindingFileDoc
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return bindingFileDoc{}, fmt.Errorf("parse binding file %s: %w", path, err)
+	}
+	if doc.SchemaVersion == 0 {
+		doc.SchemaVersion = 1
+	}
+	return doc, nil
+}
+
+func writeBindingDoc(path string, doc bindingFileDoc) error {
+	doc.SchemaVersion = 1
+	if doc.Bindings == nil {
+		doc.Bindings = []bindingFileEntry{}
+	}
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
 // SubsFromBindings derives the per-principal subscription scopes from the bindings, so the runtime's
