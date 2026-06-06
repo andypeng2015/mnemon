@@ -303,14 +303,23 @@ func (h *Harness) applyMemoryProposal(out io.Writer, store *proposalstore.Store,
 // kernel is the single writer of the canonical memory resource (keyed profileID/entryID).
 // A non-Accepted decision aborts the apply with the kernel's reason, so no host file is
 // materialized for a write the kernel refused.
-func (h *Harness) governMemoryEntry(applyID string, spec memoryProfileEntrySpec) error {
+// coreEngine builds the host-lifecycle handle to the core kernel (the single writer) for
+// this harness root, with production id/clock generators.
+func (h *Harness) coreEngine() (*coreengine.Engine, error) {
 	paths, err := layout.Resolve(h.root)
+	if err != nil {
+		return nil, err
+	}
+	return coreengine.New(paths.HarnessDir,
+		func() string { return uuid.NewString() },
+		func() string { return time.Now().UTC().Format(time.RFC3339) }), nil
+}
+
+func (h *Harness) governMemoryEntry(applyID string, spec memoryProfileEntrySpec) error {
+	engine, err := h.coreEngine()
 	if err != nil {
 		return err
 	}
-	engine := coreengine.New(paths.HarnessDir,
-		func() string { return uuid.NewString() },
-		func() string { return time.Now().UTC().Format(time.RFC3339) })
 	res, err := engine.AdmitCreate(applyID, "memory", spec.ProfileID+"/"+spec.EntryID, map[string]any{
 		"content":    spec.Content,
 		"summary":    spec.Summary,
@@ -323,6 +332,30 @@ func (h *Harness) governMemoryEntry(applyID string, spec memoryProfileEntrySpec)
 	}
 	if !res.Accepted {
 		return fmt.Errorf("kernel denied memory entry %q: %s", spec.EntryID, res.Reason)
+	}
+	return nil
+}
+
+// governEvalPromotion lowers an approved eval-asset promotion through the kernel (route 2/3):
+// the promotion is recorded as a governed skill-kind resource (eval assets are skill-shaped;
+// the kernel's skill schema requires a name). Only on kernel acceptance does the caller run
+// the host-side PromoteAsset, so the promoted-asset files are a mirror of the canonical
+// promotion record, not an independent writer.
+func (h *Harness) governEvalPromotion(applyID string, target evalProposalTarget) error {
+	engine, err := h.coreEngine()
+	if err != nil {
+		return err
+	}
+	res, err := engine.AdmitCreate(applyID, "skill", string(target.Kind)+"/"+target.ID, map[string]any{
+		"name":       target.ID,
+		"asset_kind": string(target.Kind),
+		"promoted":   true,
+	})
+	if err != nil {
+		return fmt.Errorf("lower eval promotion to kernel: %w", err)
+	}
+	if !res.Accepted {
+		return fmt.Errorf("kernel denied eval promotion %s/%s: %s", target.Kind, target.ID, res.Reason)
 	}
 	return nil
 }
@@ -354,6 +387,11 @@ func (h *Harness) applyEvalProposal(out io.Writer, store *proposalstore.Store, i
 	}
 	now := time.Now().UTC()
 	if _, err := harnesseval.ResolveEvalAsset(h.root, target.Kind, target.ID); err != nil {
+		return err
+	}
+	// P2.2 (D1, route 2/3): lower the promotion through the kernel as the single writer before
+	// the host-side PromoteAsset materializes the promoted-asset files.
+	if err := h.governEvalPromotion(item.ID, target); err != nil {
 		return err
 	}
 	auditResult, err := h.recordEvalProposalApplyAudit(item, target, now)
