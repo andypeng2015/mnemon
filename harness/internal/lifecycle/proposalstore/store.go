@@ -81,7 +81,7 @@ func (s *Store) Create(opts CreateOptions) (proposal.Proposal, error) {
 		return proposal.Proposal{}, err
 	}
 	s.paths = paths
-	opts.Now = normalizeNow(opts.Now)
+	opts.Now = layout.SecondTruncatedNow(opts.Now)
 	id := cleanID(opts.ID)
 	if id == "" {
 		id = generatedID(opts.Title, opts.Now)
@@ -167,7 +167,7 @@ func (s *Store) Transition(opts TransitionOptions) (proposal.Proposal, error) {
 	if err != nil {
 		return proposal.Proposal{}, err
 	}
-	opts.Now = normalizeNow(opts.Now)
+	opts.Now = layout.SecondTruncatedNow(opts.Now)
 	next, err := proposal.Transition(current, opts.Status, opts.Now)
 	if err != nil {
 		return proposal.Proposal{}, err
@@ -201,7 +201,7 @@ func (s *Store) Update(opts UpdateOptions) (proposal.Proposal, error) {
 	if proposal.IsTerminal(current.Status) {
 		return proposal.Proposal{}, fmt.Errorf("cannot update terminal proposal %q in %s", current.ID, current.Status)
 	}
-	opts.Now = normalizeNow(opts.Now)
+	opts.Now = layout.SecondTruncatedNow(opts.Now)
 	next := current
 	updated := make([]string, 0, 8)
 
@@ -292,7 +292,7 @@ func (s *Store) AppendAuditRef(opts AppendRefOptions) (proposal.Proposal, error)
 		}
 	}
 
-	opts.Now = normalizeNow(opts.Now)
+	opts.Now = layout.SecondTruncatedNow(opts.Now)
 	next := current
 	next.AuditRefs = append(next.AuditRefs, ref)
 	next.UpdatedAt = opts.Now.UTC().Format(time.RFC3339)
@@ -432,16 +432,6 @@ func eventType(status proposal.Status) string {
 	default:
 		return "proposal.updated"
 	}
-}
-
-// normalizeNow stays local (not layout.NormalizeNow): proposalstore truncates to
-// whole seconds so proposal event IDs are deterministic across sub-second writes.
-// This is a divergent variant, not the shared trunk primitive.
-func normalizeNow(now time.Time) time.Time {
-	if now.IsZero() {
-		now = time.Now()
-	}
-	return now.UTC().Truncate(time.Second)
 }
 
 func eventID(proposalID, typ string, now time.Time) string {

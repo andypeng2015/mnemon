@@ -8,7 +8,6 @@ package status
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"sort"
@@ -587,31 +586,8 @@ func sortedKeys[T any](items map[string]T) []string {
 
 func writeStatus(paths layout.Paths, rel string, doc document) (string, error) {
 	path := filepath.Join(paths.StatusDir, rel)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", fmt.Errorf("create status parent: %w", err)
-	}
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return "", fmt.Errorf("marshal status: %w", err)
-	}
-	data = append(data, '\n')
-	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return "", fmt.Errorf("create temp status: %w", err)
-	}
-	tmpPath := tmp.Name()
-	if _, err := tmp.Write(data); err != nil {
-		_ = tmp.Close()
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("write temp status: %w", err)
-	}
-	if err := tmp.Close(); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("close temp status: %w", err)
-	}
-	if err := os.Rename(tmpPath, path); err != nil {
-		_ = os.Remove(tmpPath)
-		return "", fmt.Errorf("replace status: %w", err)
+	if err := layout.WriteJSONAtomic(path, doc, 0o600); err != nil {
+		return "", err
 	}
 	return path, nil
 }

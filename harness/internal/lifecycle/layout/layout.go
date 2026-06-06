@@ -148,7 +148,14 @@ func WriteJSONAtomic(path string, value any, perm os.FileMode) error {
 	if err != nil {
 		return fmt.Errorf("marshal %s: %w", path, err)
 	}
-	data = append(data, '\n')
+	return WriteBytesAtomic(path, append(data, '\n'), perm)
+}
+
+// WriteBytesAtomic writes data to path atomically (temp file in the same dir +
+// rename), creating parent dirs, with the final file chmod'd to perm. It is the
+// raw-bytes trunk the lifecycle stores share for any atomic file replace — JSON
+// rides it via WriteJSONAtomic, pre-rendered text/bytes call it directly.
+func WriteBytesAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return fmt.Errorf("create parent for %s: %w", path, err)
 	}
@@ -179,14 +186,25 @@ func WriteJSONAtomic(path string, value any, perm os.FileMode) error {
 
 // NormalizeNow returns now in UTC, substituting the current time when now is the
 // zero value. This is the shared timestamp primitive for lifecycle stores that
-// stamp records at write time. Stores needing a different rounding (e.g.
-// proposalstore truncates to whole seconds for deterministic event IDs) keep
-// their own local variant rather than reusing this one.
+// stamp records at write time. Stores needing whole-second rounding use the named
+// divergent variant SecondTruncatedNow instead of a store-local copy.
 func NormalizeNow(now time.Time) time.Time {
 	if now.IsZero() {
 		return time.Now().UTC()
 	}
 	return now.UTC()
+}
+
+// SecondTruncatedNow returns now in UTC truncated to whole seconds, substituting the
+// current time when now is the zero value. It is the named divergent variant of
+// NormalizeNow: proposalstore needs whole-second timestamps so proposal event IDs
+// stay deterministic across sub-second writes. Naming it here keeps the divergence
+// explicit rather than buried as a store-local helper.
+func SecondTruncatedNow(now time.Time) time.Time {
+	if now.IsZero() {
+		now = time.Now()
+	}
+	return now.UTC().Truncate(time.Second)
 }
 
 // TimestampID renders now as a sortable, UTC, nanosecond-precision timestamp
