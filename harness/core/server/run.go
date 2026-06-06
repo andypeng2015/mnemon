@@ -36,7 +36,7 @@ func RunHTTPServer(ctx context.Context, addr, storePath string, out io.Writer) e
 	}
 	defer rt.Close()
 
-	srv := &http.Server{Addr: addr, Handler: NewHTTPHandler(rt.API())}
+	srv := &http.Server{Addr: addr, Handler: NewRuntimeHandler(rt, HeaderAuthenticator{})}
 	errc := make(chan error, 1)
 	go func() {
 		fmt.Fprintf(out, "mnemon-harness server: listening on %s (store %s)\n", addr, storePath)

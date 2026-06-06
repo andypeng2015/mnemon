@@ -52,9 +52,15 @@ func (a TokenAuthenticator) Authenticate(r *http.Request) (contract.ActorID, err
 	return "", fmt.Errorf("unrecognized bearer token")
 }
 
-type ingestResponse struct {
-	Seq int64 `json:"seq"`
-	Dup bool  `json:"dup"`
+// IngestReceipt is the channel's reply to an observe: it tells the client the observation was
+// recorded (Seq), whether it was a duplicate (Dup), whether the runtime attempted to process it with
+// a synchronous Tick (Ticked, P2.2), and any processing error (the observation is durable regardless
+// — a Tick failure is reported, not folded into the ingest result).
+type IngestReceipt struct {
+	Seq             int64  `json:"seq"`
+	Dup             bool   `json:"dup"`
+	Ticked          bool   `json:"ticked"`
+	ProcessingError string `json:"processing_error,omitempty"`
 }
 
 // NewHTTPHandler exposes a ServerAPI over net/http with the default HeaderAuthenticator (D5:
@@ -85,7 +91,7 @@ func NewHTTPHandlerWithAuth(api ServerAPI, auth Authenticator) http.Handler {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(ingestResponse{Seq: seq, Dup: dup})
+		_ = json.NewEncoder(w).Encode(IngestReceipt{Seq: seq, Dup: dup})
 	})
 	mux.HandleFunc("/projection", func(w http.ResponseWriter, r *http.Request) {
 		principal, err := auth.Authenticate(r)
@@ -142,33 +148,40 @@ func (c *Client) setAuth(req *http.Request) {
 
 var _ ServerAPI = (*Client)(nil)
 
-// Ingest POSTs the observation to the server. The principal argument is ignored: the client's identity is its
-// bound credential (sent as the trusted header), never a per-call claim — an edge cannot forge another's id.
-func (c *Client) Ingest(_ contract.ActorID, env contract.ObservationEnvelope) (int64, bool, error) {
+// IngestObserve POSTs the observation and returns the full channel receipt (seq, dup, processing
+// metadata). The principal argument is ignored: the client's identity is its bound credential (the
+// trusted header / bearer token), never a per-call claim — an edge cannot forge another's id.
+func (c *Client) IngestObserve(_ contract.ActorID, env contract.ObservationEnvelope) (IngestReceipt, error) {
 	body, err := json.Marshal(env)
 	if err != nil {
-		return 0, false, err
+		return IngestReceipt{}, err
 	}
 	req, err := http.NewRequest(http.MethodPost, c.baseURL+"/ingest", bytes.NewReader(body))
 	if err != nil {
-		return 0, false, err
+		return IngestReceipt{}, err
 	}
 	c.setAuth(req)
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return 0, false, err
+		return IngestReceipt{}, err
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		b, _ := io.ReadAll(resp.Body)
-		return 0, false, fmt.Errorf("ingest failed: %s: %s", resp.Status, string(b))
+		return IngestReceipt{}, fmt.Errorf("ingest failed: %s: %s", resp.Status, string(b))
 	}
-	var out ingestResponse
+	var out IngestReceipt
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return 0, false, err
+		return IngestReceipt{}, err
 	}
-	return out.Seq, out.Dup, nil
+	return out, nil
+}
+
+// Ingest satisfies ServerAPI by delegating to IngestObserve and dropping the processing metadata.
+func (c *Client) Ingest(principal contract.ActorID, env contract.ObservationEnvelope) (int64, bool, error) {
+	r, err := c.IngestObserve(principal, env)
+	return r.Seq, r.Dup, err
 }
 
 // PullProjection fetches the actor's scoped view from the server. The principal argument is ignored: the

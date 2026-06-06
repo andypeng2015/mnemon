@@ -47,14 +47,17 @@ var controlObserveCmd = &cobra.Command{
 				return fmt.Errorf("decode --payload: %w", err)
 			}
 		}
-		seq, dup, err := controlClient().Ingest(contract.ActorID(controlPrincipal), contract.ObservationEnvelope{
+		rec, err := controlClient().IngestObserve(contract.ActorID(controlPrincipal), contract.ObservationEnvelope{
 			ExternalID: controlExtID,
 			Event:      contract.Event{Type: controlType, Payload: payload},
 		})
 		if err != nil {
 			return fmt.Errorf("channel observe failed (service unreachable or rejected): %w", err)
 		}
-		fmt.Fprintf(cmd.OutOrStdout(), "observed seq=%d dup=%v\n", seq, dup)
+		fmt.Fprintf(cmd.OutOrStdout(), "observed seq=%d dup=%v ticked=%v\n", rec.Seq, rec.Dup, rec.Ticked)
+		if rec.ProcessingError != "" {
+			fmt.Fprintf(cmd.OutOrStdout(), "processing error: %s\n", rec.ProcessingError)
+		}
 		return nil
 	},
 }
