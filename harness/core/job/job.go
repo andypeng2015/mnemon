@@ -142,6 +142,7 @@ func reserveModes() contract.Modes {
 	return contract.Modes{Conflict: contract.ConflictReject, Isolation: contract.IsolationProjectionReadSet, Authz: contract.AuthzStrict}
 }
 
+// PROOF-ONLY: S4–S6 spec proof (provider idempotency, lease, atomic budget reserve); no production caller yet — see .insight
 // Reserve atomically reserves cost against budget/budgetID AND performs dataWrite in ONE all-or-nothing op
 // (S6): the budget OpUpdate (spent+=cost, CAS based_on the read version) and the data write commit together,
 // with budget@v in the read-set. It refuses locally if cost would exceed limit_usd; and a concurrent reserve

@@ -4,6 +4,8 @@
 // deadline (WithCloseOnContextDone + context.WithTimeout — wazero has no fuel/epoch) and a memory page cap
 // (WithMemoryLimitPages), and it is RETURN-ONLY: it never holds a Store/Kernel, so it can describe a decision
 // but never perform a write. The same module satisfies the rule.Rule seat as the native backend.
+//
+// PROOF-ONLY: D2/D10/S12 wasm-backend spec proof; no production caller yet — see .insight
 package wasm
 
 import (

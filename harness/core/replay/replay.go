@@ -48,6 +48,7 @@ func Replay(events []contract.Event, candidate rule.RuleSet) []contract.Decision
 	return drive(events)
 }
 
+// PROOF-ONLY: S7/S8 shadow-promotion spec proof; no production caller yet — see .insight
 // Shadow asks the governance question "would promoting this candidate rule set change behavior?" by RE-RUNNING
 // both policies' rules over the OBSERVED events of the log and diffing their rule results (S8). This is the
 // faithful model: a rule handles OBSERVED events and EMITS proposals/denies/jobs — so the candidate's behavior

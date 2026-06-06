@@ -8,6 +8,7 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
 )
 
+// PROOF-ONLY: S12 governed-promotion spec proof; no production caller yet — see .insight
 // Manifest describes a candidate (wasm) rule for governed promotion: its identity, the sha256 of its bytes,
 // the host capabilities it declares, the event types it handles, and whether it is deterministic.
 type Manifest struct {
@@ -17,6 +18,7 @@ type Manifest struct {
 	Deterministic       bool
 }
 
+// PROOF-ONLY: S12 governed-promotion spec proof; no production caller yet — see .insight
 // Registry is the active rule set plus the governed promotion gate (S12). A candidate is admitted ONLY if its
 // bytes hash to the manifest, its import section is exactly {env.read_state_view}, and its shadow report is
 // clean — changing the rules is itself a governed action, never a free side-channel.
@@ -29,6 +31,7 @@ func NewRegistry(rules ...Rule) *Registry { return &Registry{active: rules} }
 // Active returns the current active rule set.
 func (reg *Registry) Active() RuleSet { return NewRuleSet(reg.active...) }
 
+// PROOF-ONLY: S12 governed-promotion spec proof; no production caller yet — see .insight
 // Promote admits a rule into the active set iff: sha256(wasmBytes) == m.SHA256 (signed/pinned identity), the
 // wasm import section is EXACTLY {env.read_state_view} (no WASI, no extra host reach), and report.Clean (the
 // shadow produced no divergence the operator did not accept). The active rule is BUILT FROM the verified
@@ -58,6 +61,7 @@ func (reg *Registry) Promote(wasmBytes []byte, build func([]byte) (Rule, error),
 	return nil
 }
 
+// PROOF-ONLY: D10 untrusted-edge deny-only spec proof; no production caller yet — see .insight
 // EdgeSnapshot returns a DENY-ONLY view of a rule set for an untrusted edge (D10): each rule's verdict is
 // filtered to {deny,warn}. A propose / enqueue_job / request_evidence / allow becomes an advisory warn with
 // the original verdict recorded in the reasons (and any proposal dropped) — an edge may refuse, never author.
