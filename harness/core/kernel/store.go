@@ -51,6 +51,7 @@ func OpenStore(path string) (*Store, error) {
 		`CREATE TABLE IF NOT EXISTS outbox (id TEXT PRIMARY KEY, kind TEXT NOT NULL, event_seq INTEGER NOT NULL DEFAULT 0, target TEXT NOT NULL DEFAULT '', payload TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', idempotency_key TEXT UNIQUE, attempts INTEGER NOT NULL DEFAULT 0, lease_owner TEXT NOT NULL DEFAULT '', lease_until INTEGER NOT NULL DEFAULT 0);`,
 		`CREATE TABLE IF NOT EXISTS sync_replica (id INTEGER PRIMARY KEY CHECK (id=1), replica_id TEXT NOT NULL, created_at TEXT NOT NULL);`,
 		`CREATE TABLE IF NOT EXISTS sync_commits (origin_replica_id TEXT NOT NULL, local_decision_id TEXT NOT NULL, local_ingest_seq INTEGER NOT NULL, actor TEXT NOT NULL, correlation_id TEXT NOT NULL DEFAULT '', resource_kind TEXT NOT NULL, resource_id TEXT NOT NULL, resource_version INTEGER NOT NULL, fields_digest TEXT NOT NULL, fields TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', status TEXT NOT NULL DEFAULT 'pending', remote_peer_id TEXT NOT NULL DEFAULT '', acked_at TEXT NOT NULL DEFAULT '', diagnostic TEXT NOT NULL DEFAULT '', PRIMARY KEY(origin_replica_id, local_decision_id, resource_kind, resource_id));`,
+		`CREATE TABLE IF NOT EXISTS sync_remote_commits (remote_seq INTEGER PRIMARY KEY AUTOINCREMENT, remote_peer_id TEXT NOT NULL, origin_replica_id TEXT NOT NULL, local_decision_id TEXT NOT NULL, local_ingest_seq INTEGER NOT NULL, actor TEXT NOT NULL, correlation_id TEXT NOT NULL DEFAULT '', resource_kind TEXT NOT NULL, resource_id TEXT NOT NULL, resource_version INTEGER NOT NULL, fields_digest TEXT NOT NULL, fields TEXT NOT NULL, decided_at TEXT NOT NULL DEFAULT '', received_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'accepted', diagnostic TEXT NOT NULL DEFAULT '', UNIQUE(remote_peer_id, origin_replica_id, local_decision_id));`,
 	} {
 		if _, err := db.Exec(s); err != nil {
 			db.Close()
@@ -588,6 +589,154 @@ VALUES (?,?,?,?,?,?,?,?,?,?,?,'pending')`,
 
 func (s *Store) PendingSyncCommits() ([]contract.LocalCommit, error) {
 	return s.syncCommitsByStatus("pending")
+}
+
+type RemoteSyncCommitRecord struct {
+	RemoteSeq  int64
+	RemotePeer string
+	Commit     contract.LocalCommit
+	Status     string
+	Diagnostic string
+}
+
+func (s *Store) RecordRemoteSyncCommit(remotePeerID string, commit contract.LocalCommit, receivedAt string) (RemoteSyncCommitRecord, error) {
+	var out RemoteSyncCommitRecord
+	err := s.WithTx(func(tx *Tx) error {
+		existing, found, err := tx.readRemoteSyncCommit(remotePeerID, commit.OriginReplicaID, commit.LocalDecisionID)
+		if err != nil {
+			return err
+		}
+		if found {
+			if sameRemoteSyncCommit(existing.Commit, commit) {
+				out = existing
+				return nil
+			}
+			out = RemoteSyncCommitRecord{
+				RemotePeer: remotePeerID,
+				Commit:     commit,
+				Status:     "conflict",
+				Diagnostic: "sync idempotency key reused with different commit",
+			}
+			return nil
+		}
+		fields := commit.Fields
+		if fields == nil {
+			fields = map[string]any{}
+		}
+		fieldsJSON, err := json.Marshal(fields)
+		if err != nil {
+			return err
+		}
+		res, err := tx.tx.Exec(`
+INSERT INTO sync_remote_commits
+  (remote_peer_id, origin_replica_id, local_decision_id, local_ingest_seq, actor, correlation_id,
+   resource_kind, resource_id, resource_version, fields_digest, fields, decided_at, received_at, status)
+VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,'accepted')`,
+			remotePeerID, commit.OriginReplicaID, commit.LocalDecisionID, commit.LocalIngestSeq, string(commit.Actor), commit.CorrelationID,
+			string(commit.ResourceRef.Kind), string(commit.ResourceRef.ID), int64(commit.ResourceVersion), commit.FieldsDigest, string(fieldsJSON), commit.DecidedAt, receivedAt)
+		if err != nil {
+			return err
+		}
+		seq, err := res.LastInsertId()
+		if err != nil {
+			return err
+		}
+		commit.Fields = fields
+		commit.Status = "accepted"
+		out = RemoteSyncCommitRecord{RemoteSeq: seq, RemotePeer: remotePeerID, Commit: commit, Status: "accepted"}
+		return nil
+	})
+	return out, err
+}
+
+func (t *Tx) readRemoteSyncCommit(remotePeerID, originReplicaID, localDecisionID string) (RemoteSyncCommitRecord, bool, error) {
+	row := t.tx.QueryRow(`
+SELECT remote_seq, remote_peer_id, origin_replica_id, local_decision_id, local_ingest_seq, actor, correlation_id,
+       resource_kind, resource_id, resource_version, fields_digest, fields, decided_at, status, diagnostic
+FROM sync_remote_commits
+WHERE remote_peer_id=? AND origin_replica_id=? AND local_decision_id=?`,
+		remotePeerID, originReplicaID, localDecisionID)
+	rec, err := scanRemoteSyncCommit(row)
+	if err == sql.ErrNoRows {
+		return RemoteSyncCommitRecord{}, false, nil
+	}
+	if err != nil {
+		return RemoteSyncCommitRecord{}, false, err
+	}
+	return rec, true, nil
+}
+
+func (s *Store) RemoteSyncCommitsAfter(afterSeq int64, excludeOriginReplicaID string, scopes []contract.ResourceRef, limit int) ([]RemoteSyncCommitRecord, int64, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	where := `remote_seq>? AND status='accepted'`
+	args := []any{afterSeq}
+	if excludeOriginReplicaID != "" {
+		where += ` AND origin_replica_id<>?`
+		args = append(args, excludeOriginReplicaID)
+	}
+	if len(scopes) > 0 {
+		parts := make([]string, 0, len(scopes))
+		for _, ref := range scopes {
+			parts = append(parts, `(resource_kind=? AND resource_id=?)`)
+			args = append(args, string(ref.Kind), string(ref.ID))
+		}
+		where += ` AND (` + strings.Join(parts, " OR ") + `)`
+	}
+	args = append(args, limit)
+	rows, err := s.db.Query(`
+SELECT remote_seq, remote_peer_id, origin_replica_id, local_decision_id, local_ingest_seq, actor, correlation_id,
+       resource_kind, resource_id, resource_version, fields_digest, fields, decided_at, status, diagnostic
+FROM sync_remote_commits
+WHERE `+where+`
+ORDER BY remote_seq
+LIMIT ?`, args...)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	var out []RemoteSyncCommitRecord
+	var next int64 = afterSeq
+	for rows.Next() {
+		rec, err := scanRemoteSyncCommit(rows)
+		if err != nil {
+			return nil, 0, err
+		}
+		out = append(out, rec)
+		if rec.RemoteSeq > next {
+			next = rec.RemoteSeq
+		}
+	}
+	return out, next, rows.Err()
+}
+
+func scanRemoteSyncCommit(row rowScanner) (RemoteSyncCommitRecord, error) {
+	var rec RemoteSyncCommitRecord
+	var actor, kind, id, fieldsJSON string
+	var version int64
+	err := row.Scan(&rec.RemoteSeq, &rec.RemotePeer, &rec.Commit.OriginReplicaID, &rec.Commit.LocalDecisionID, &rec.Commit.LocalIngestSeq, &actor, &rec.Commit.CorrelationID,
+		&kind, &id, &version, &rec.Commit.FieldsDigest, &fieldsJSON, &rec.Commit.DecidedAt, &rec.Status, &rec.Diagnostic)
+	if err != nil {
+		return RemoteSyncCommitRecord{}, err
+	}
+	rec.Commit.Actor = contract.ActorID(actor)
+	rec.Commit.ResourceRef = contract.ResourceRef{Kind: contract.ResourceKind(kind), ID: contract.ResourceID(id)}
+	rec.Commit.ResourceVersion = contract.Version(version)
+	rec.Commit.Status = rec.Status
+	if err := json.Unmarshal([]byte(fieldsJSON), &rec.Commit.Fields); err != nil {
+		return RemoteSyncCommitRecord{}, err
+	}
+	return rec, nil
+}
+
+func sameRemoteSyncCommit(a, b contract.LocalCommit) bool {
+	return a.LocalIngestSeq == b.LocalIngestSeq &&
+		a.Actor == b.Actor &&
+		a.CorrelationID == b.CorrelationID &&
+		a.ResourceRef == b.ResourceRef &&
+		a.ResourceVersion == b.ResourceVersion &&
+		a.FieldsDigest == b.FieldsDigest
 }
 
 func (s *Store) syncCommitsByStatus(status string) ([]contract.LocalCommit, error) {

@@ -24,6 +24,13 @@ func TestChannelBindingValidate(t *testing.T) {
 	if ctrl.IdempotencyNamespace == good.IdempotencyNamespace {
 		t.Fatalf("distinct principals must get distinct idempotency namespaces")
 	}
+	replica := ReplicaAgentBinding("replica", "http://localhost:8787", nil)
+	if err := replica.Validate(); err != nil {
+		t.Fatalf("replica-agent binding must validate: %v", err)
+	}
+	if !replica.Allows(VerbSyncPush) || replica.Allows(VerbObserve) {
+		t.Fatalf("replica-agent must be sync-only, got %+v", replica.AllowedVerbs)
+	}
 
 	bad := []ChannelBinding{
 		{ActorKind: KindHostAgent, AllowedVerbs: []Verb{VerbObserve}},          // no principal

@@ -18,6 +18,9 @@ func TestLoadBindingFile(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(channelDir, "tokens", "codex.token"), []byte("tok-codex\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(channelDir, "tokens", "replica.token"), []byte("tok-replica\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	bindingsJSON := `{
 	  "schema_version": 1,
 	  "bindings": [{
@@ -30,6 +33,15 @@ func TestLoadBindingFile(t *testing.T) {
 	    "subscription_scope": [{"kind":"memory","id":"project"}],
 	    "idempotency_namespace": "host:codex@project",
 	    "credential_ref": ".mnemon/harness/channel/tokens/codex.token"
+	  },{
+	    "principal": "replica@project",
+	    "actor_kind": "replica-agent",
+	    "transport": "http",
+	    "endpoint": "http://127.0.0.1:8787",
+	    "allowed_verbs": ["sync.push","sync.pull","sync.status"],
+	    "subscription_scope": [{"kind":"memory","id":"project"}],
+	    "idempotency_namespace": "replica:replica@project",
+	    "credential_ref": ".mnemon/harness/channel/tokens/replica.token"
 	  }]
 	}`
 	bindingPath := filepath.Join(channelDir, "bindings.json")
@@ -41,8 +53,8 @@ func TestLoadBindingFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load: %v", err)
 	}
-	if len(loaded.Bindings) != 1 {
-		t.Fatalf("want 1 binding; got %d", len(loaded.Bindings))
+	if len(loaded.Bindings) != 2 {
+		t.Fatalf("want 2 bindings; got %d", len(loaded.Bindings))
 	}
 	b := loaded.Bindings[0]
 	if b.Principal != "codex@project" || b.ActorKind != KindHostAgent || b.Transport != TransportHTTP {
@@ -60,6 +72,16 @@ func TestLoadBindingFile(t *testing.T) {
 	if loaded.Tokens["tok-codex"] != "codex@project" {
 		t.Fatalf("token map wrong: %+v", loaded.Tokens)
 	}
+	replica := loaded.Bindings[1]
+	if replica.Principal != "replica@project" || replica.ActorKind != KindReplicaAgent {
+		t.Fatalf("replica binding wrong: %+v", replica)
+	}
+	if !replica.Allows(VerbSyncPush) || !replica.Allows(VerbSyncPull) || !replica.Allows(VerbSyncStatus) || replica.Allows(VerbObserve) {
+		t.Fatalf("replica verbs not mapped as sync-only: %+v", replica.AllowedVerbs)
+	}
+	if loaded.Tokens["tok-replica"] != "replica@project" {
+		t.Fatalf("replica token map wrong: %+v", loaded.Tokens)
+	}
 	// the loaded set must validate as a BindingSet (principal + namespace uniqueness).
 	if _, err := NewBindingSet(loaded.Bindings...); err != nil {
 		t.Fatalf("loaded bindings must validate: %v", err)
@@ -70,11 +92,11 @@ func TestLoadBindingFileRejectsMalformed(t *testing.T) {
 	root := t.TempDir()
 	bad := []string{
 		`{"schema_version":2,"bindings":[]}`, // unsupported schema version
-		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"root","transport":"http","endpoint":"x","allowed_verbs":["observe"]}]}`,       // unknown actor kind
-		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"host-agent","transport":"http","endpoint":"x","allowed_verbs":["frob"]}]}`,    // unknown verb
+		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"root","transport":"http","endpoint":"x","allowed_verbs":["observe"]}]}`,         // unknown actor kind
+		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"host-agent","transport":"http","endpoint":"x","allowed_verbs":["frob"]}]}`,      // unknown verb
 		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"host-agent","transport":"pigeon","endpoint":"x","allowed_verbs":["observe"]}]}`, // unknown transport
-		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"host-agent","transport":"http","endpoint":"","allowed_verbs":["observe"]}]}`,   // http with no endpoint
-		`{"schema_version":1,"bindings":[{"principal":"","actor_kind":"host-agent","transport":"http","endpoint":"x","allowed_verbs":["observe"]}]}`,   // no principal
+		`{"schema_version":1,"bindings":[{"principal":"p","actor_kind":"host-agent","transport":"http","endpoint":"","allowed_verbs":["observe"]}]}`,    // http with no endpoint
+		`{"schema_version":1,"bindings":[{"principal":"","actor_kind":"host-agent","transport":"http","endpoint":"x","allowed_verbs":["observe"]}]}`,    // no principal
 		`{"schema_version":1,"bindings":[` +
 			`{"principal":"a","actor_kind":"host-agent","transport":"http","endpoint":"x","allowed_verbs":["observe"],"idempotency_namespace":"ns"},` +
 			`{"principal":"b","actor_kind":"host-agent","transport":"http","endpoint":"x","allowed_verbs":["observe"],"idempotency_namespace":"ns"}]}`, // duplicate namespace

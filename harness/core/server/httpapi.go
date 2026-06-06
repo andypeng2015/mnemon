@@ -237,3 +237,64 @@ func (c *Client) PullProjection(_ contract.ActorID, sub contract.Subscription) (
 	}
 	return proj, nil
 }
+
+func (c *Client) SyncPush(reqBody SyncPushRequest) (SyncPushResponse, error) {
+	var out SyncPushResponse
+	if err := c.postJSON("/sync/push", reqBody, &out); err != nil {
+		return SyncPushResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SyncPull(reqBody SyncPullRequest) (SyncPullResponse, error) {
+	var out SyncPullResponse
+	if err := c.postJSON("/sync/pull", reqBody, &out); err != nil {
+		return SyncPullResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) SyncStatus() (SyncStatusResponse, error) {
+	req, err := http.NewRequest(http.MethodGet, c.baseURL+"/sync/status", nil)
+	if err != nil {
+		return SyncStatusResponse{}, err
+	}
+	c.setAuth(req)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return SyncStatusResponse{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return SyncStatusResponse{}, fmt.Errorf("sync status failed: %s: %s", resp.Status, string(b))
+	}
+	var out SyncStatusResponse
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return SyncStatusResponse{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) postJSON(path string, in, out any) error {
+	body, err := json.Marshal(in)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, c.baseURL+path, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	c.setAuth(req)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("%s failed: %s: %s", strings.TrimPrefix(path, "/"), resp.Status, string(b))
+	}
+	return json.NewDecoder(resp.Body).Decode(out)
+}

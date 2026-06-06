@@ -9,12 +9,14 @@ import (
 
 // ActorKind classifies a channel principal by role. It is NOT a privilege path: the channel is
 // the same for every principal; the role differs by binding, never by a privileged code path
-// (D6). HostAgent pushes host observations; ControlAgent is an operator/control client.
+// (D6). HostAgent pushes host observations; ControlAgent is an operator/control client;
+// ReplicaAgent is the background Remote Workspace sync actor.
 type ActorKind string
 
 const (
 	KindHostAgent    ActorKind = "host-agent"
 	KindControlAgent ActorKind = "control-agent"
+	KindReplicaAgent ActorKind = "replica-agent"
 )
 
 // Transport names the wire a binding uses.
@@ -26,14 +28,18 @@ const (
 	TransportMTLS  Transport = "mtls"  // mutual-TLS authenticated
 )
 
-// Verb is a channel operation. The channel exposes observe (Ingest) + pull (PullProjection) +
-// status; claim/finish (the work lane) are reserved for a later phase.
+// Verb is a channel operation. The Agent Integration channel exposes observe (Ingest) + pull
+// (PullProjection) + status. Replica sync gets separate verbs so a sync credential does not inherit
+// Agent Integration access.
 type Verb string
 
 const (
-	VerbObserve Verb = "observe"
-	VerbPull    Verb = "pull"
-	VerbStatus  Verb = "status"
+	VerbObserve    Verb = "observe"
+	VerbPull       Verb = "pull"
+	VerbStatus     Verb = "status"
+	VerbSyncPush   Verb = "sync.push"
+	VerbSyncPull   Verb = "sync.pull"
+	VerbSyncStatus Verb = "sync.status"
 )
 
 // ChannelBinding is the manifest that scopes ONE principal's access to the channel (D6). The
@@ -56,8 +62,8 @@ func (b ChannelBinding) Validate() error {
 	if strings.TrimSpace(string(b.Principal)) == "" {
 		return fmt.Errorf("channel binding requires a principal")
 	}
-	if b.ActorKind != KindHostAgent && b.ActorKind != KindControlAgent {
-		return fmt.Errorf("channel binding actor_kind %q is not host-agent or control-agent", b.ActorKind)
+	if b.ActorKind != KindHostAgent && b.ActorKind != KindControlAgent && b.ActorKind != KindReplicaAgent {
+		return fmt.Errorf("channel binding actor_kind %q is not host-agent, control-agent, or replica-agent", b.ActorKind)
 	}
 	if len(b.AllowedVerbs) == 0 {
 		return fmt.Errorf("channel binding %q grants no verbs", b.Principal)
@@ -104,5 +110,13 @@ func ControlAgentBinding(principal contract.ActorID, endpoint string, scope []co
 		Principal: principal, ActorKind: KindControlAgent, Transport: TransportHTTP, Endpoint: endpoint,
 		AllowedVerbs: []Verb{VerbObserve, VerbPull, VerbStatus}, SubscriptionScope: scope,
 		IdempotencyNamespace: "control:" + string(principal),
+	}
+}
+
+func ReplicaAgentBinding(principal contract.ActorID, endpoint string, scope []contract.ResourceRef) ChannelBinding {
+	return ChannelBinding{
+		Principal: principal, ActorKind: KindReplicaAgent, Transport: TransportHTTP, Endpoint: endpoint,
+		AllowedVerbs: []Verb{VerbSyncPush, VerbSyncPull, VerbSyncStatus}, SubscriptionScope: scope,
+		IdempotencyNamespace: "replica:" + string(principal),
 	}
 }

@@ -145,6 +145,8 @@ func parseActorKind(s string) (ActorKind, error) {
 		return KindHostAgent, nil
 	case KindControlAgent:
 		return KindControlAgent, nil
+	case KindReplicaAgent:
+		return KindReplicaAgent, nil
 	default:
 		return "", fmt.Errorf("unknown actor_kind %q", s)
 	}
@@ -171,6 +173,12 @@ func parseVerb(s string) (Verb, error) {
 		return VerbPull, nil
 	case VerbStatus:
 		return VerbStatus, nil
+	case VerbSyncPush:
+		return VerbSyncPush, nil
+	case VerbSyncPull:
+		return VerbSyncPull, nil
+	case VerbSyncStatus:
+		return VerbSyncStatus, nil
 	default:
 		return "", fmt.Errorf("unknown verb %q", s)
 	}
