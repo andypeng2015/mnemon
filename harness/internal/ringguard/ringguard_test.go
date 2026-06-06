@@ -153,6 +153,14 @@ func TestRingDependencyLaw(t *testing.T) {
 				if toRing == 6 || toRing == 7 {
 					continue
 				}
+				// P2.3 boundary swap: the CLI may reach the engine ONLY through the channel
+				// (server.ServerAPI) and the DTOs (contract) — the `mnemon-harness server`/`demo`
+				// commands fold in the old mnemon-control binary (D2). It must NEVER import
+				// kernel/reconcile/rule/etc. directly; those remain surface punctures, which is the
+				// narrowed replacement for the old blanket CLI -> harness/core ban.
+				if to == "harness/core/server" || to == "harness/core/contract" {
+					continue
+				}
 				if surfaceDebt[to] {
 					usedSurfaceDebt[to] = true
 					continue
@@ -306,5 +314,51 @@ func TestReleaseDoesNotImportHarness(t *testing.T) {
 	if len(offending) > 0 {
 		sort.Strings(offending)
 		t.Errorf("RELEASE must not import the harness (RELEASE ↛ harness, D5):\n  %s", strings.Join(offending, "\n  "))
+	}
+}
+
+// TestCLIReachesCoreOnlyViaChannel asserts the P2.3 boundary (the narrowed replacement for the
+// pre-P2 blanket CLI ↛ harness/core ban): harness/cmd/mnemon-harness may reach the engine ONLY
+// through the channel (harness/core/server) and the DTOs (harness/core/contract) — never
+// kernel/reconcile/rule/etc. directly. The `mnemon-harness server`/`demo` commands fold in the
+// old mnemon-control binary (D2) through exactly those two allowed imports.
+func TestCLIReachesCoreOnlyViaChannel(t *testing.T) {
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("cannot resolve caller path")
+	}
+	harnessRoot := filepath.Dir(filepath.Dir(filepath.Dir(thisFile))) // .../harness
+	moduleRoot := filepath.Dir(harnessRoot)
+	cmdRoot := filepath.Join(harnessRoot, "cmd", "mnemon-harness")
+	allowed := map[string]bool{"harness/core/server": true, "harness/core/contract": true}
+
+	fset := token.NewFileSet()
+	var offending []string
+	walkErr := filepath.WalkDir(cmdRoot, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		f, perr := parser.ParseFile(fset, path, nil, parser.ImportsOnly)
+		if perr != nil {
+			return nil
+		}
+		rel, _ := filepath.Rel(moduleRoot, path)
+		for _, spec := range f.Imports {
+			to := strings.TrimPrefix(strings.Trim(spec.Path.Value, `"`), modulePrefix)
+			if strings.HasPrefix(to, "harness/core/") && !allowed[to] {
+				offending = append(offending, filepath.ToSlash(rel)+" -> "+to)
+			}
+		}
+		return nil
+	})
+	if walkErr != nil {
+		t.Fatalf("walk cmd tree: %v", walkErr)
+	}
+	if len(offending) > 0 {
+		sort.Strings(offending)
+		t.Errorf("CLI may reach core only via server/contract, never kernel/reconcile/rule directly:\n  %s", strings.Join(offending, "\n  "))
 	}
 }
