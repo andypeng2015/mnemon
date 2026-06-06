@@ -100,7 +100,7 @@ func TestSetupProjectsLoopAndWiresChannel(t *testing.T) {
 	if err != nil || !strings.Contains(string(bf), "codex@project") || !strings.Contains(string(bf), "127.0.0.1:8787") {
 		t.Fatalf("bindings.json must record the principal + endpoint; err=%v content=%s", err, string(bf))
 	}
-	tokenFile := filepath.Join(root, ".mnemon", "harness", "channel", "tokens", "codex-project.token")
+	tokenFile := filepath.Join(root, ".mnemon", "harness", "channel", "credentials", "codex-project.token")
 	if fi, err := os.Stat(tokenFile); err != nil || fi.Size() == 0 {
 		t.Fatalf("token file must exist + be non-empty: %v", err)
 	}
@@ -140,6 +140,84 @@ func TestSetupProjectsLoopAndWiresChannel(t *testing.T) {
 	}
 	if _, err := os.Stat(tokenFile); !os.IsNotExist(err) {
 		t.Fatalf("uninstall must remove the managed token file; err=%v", err)
+	}
+}
+
+func TestSetupInstallsRealCodexMemoryLocalAssets(t *testing.T) {
+	projectRoot := t.TempDir()
+	h := New(repoRoot(t))
+	var out, errw bytes.Buffer
+	opts := SetupOptions{
+		Host: "codex", Loops: []string{"memory"}, ControlURL: "http://127.0.0.1:8787",
+		Principal: "codex@project", UseToken: true, ProjectRoot: projectRoot,
+	}
+	res, err := h.Setup(context.Background(), &out, &errw, opts)
+	if err != nil {
+		t.Fatalf("setup real codex memory: %v\nstderr=%s", err, errw.String())
+	}
+	assertPublicSetupOutput(t, out.String())
+	if res.ConfigFile == "" {
+		t.Fatal("setup must report the Local Mnemon config file")
+	}
+
+	memoryGet := string(mustRead(t, filepath.Join(projectRoot, ".codex", "skills", "memory-get", "SKILL.md")))
+	if !strings.Contains(memoryGet, "mnemon-harness control pull --json") {
+		t.Fatalf("memory-get must pull scoped Local Mnemon content:\n%s", memoryGet)
+	}
+	memorySet := string(mustRead(t, filepath.Join(projectRoot, ".codex", "skills", "memory-set", "SKILL.md")))
+	if !strings.Contains(memorySet, "memory.write_candidate_observed") || !strings.Contains(memorySet, "mnemon-harness control observe") {
+		t.Fatalf("memory-set must observe local memory candidates:\n%s", memorySet)
+	}
+	primeHook := string(mustRead(t, filepath.Join(projectRoot, ".codex", "hooks", "mnemon-memory", "prime.sh")))
+	if !strings.Contains(primeHook, ".mnemon/harness/local/env.sh") || !strings.Contains(primeHook, "--mirror") {
+		t.Fatalf("prime hook must use Local Mnemon env and refresh the mirror:\n%s", primeHook)
+	}
+	mirror := string(mustRead(t, filepath.Join(projectRoot, ".codex", "mnemon-memory", "MEMORY.md")))
+	if !strings.Contains(mirror, "Non-authoritative mirror") {
+		t.Fatalf("projected MEMORY.md must be marked as a mirror:\n%s", mirror)
+	}
+
+	env := string(mustRead(t, filepath.Join(projectRoot, ".mnemon", "harness", "local", "env.sh")))
+	for _, want := range []string{"MNEMON_HARNESS_BIN", "MNEMON_CONTROL_ADDR", "MNEMON_CONTROL_PRINCIPAL", "MNEMON_CONTROL_TOKEN_FILE", "MNEMON_MEMORY_LOOP_DIR"} {
+		if !strings.Contains(env, want) {
+			t.Fatalf("Local Mnemon env missing %s:\n%s", want, env)
+		}
+	}
+	if strings.Contains(strings.ToLower(env), "remote") || strings.Contains(env, "https://") {
+		t.Fatalf("Local Mnemon env must not contain remote sync details:\n%s", env)
+	}
+	bindingJSON := string(mustRead(t, filepath.Join(projectRoot, ".mnemon", "harness", "channel", "bindings.json")))
+	if !strings.Contains(bindingJSON, ".mnemon/harness/channel/credentials/codex-project.token") {
+		t.Fatalf("binding credential_ref must use the setup credentials path:\n%s", bindingJSON)
+	}
+	configJSON := string(mustRead(t, res.ConfigFile))
+	for _, want := range []string{"local", "bindings.json", "governed.db"} {
+		if !strings.Contains(configJSON, want) {
+			t.Fatalf("Local Mnemon config missing %q:\n%s", want, configJSON)
+		}
+	}
+
+	storePath := filepath.Join(projectRoot, ".mnemon", "harness", "control", "governed.db")
+	if err := os.MkdirAll(filepath.Dir(storePath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(storePath, []byte("store"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.SetupUninstall(context.Background(), &out, &errw, opts); err != nil {
+		t.Fatalf("uninstall real codex memory: %v", err)
+	}
+	for _, removed := range []string{
+		filepath.Join(projectRoot, ".codex", "skills", "memory-get"),
+		filepath.Join(projectRoot, ".codex", "skills", "memory-set"),
+		filepath.Join(projectRoot, ".codex", "hooks", "mnemon-memory"),
+	} {
+		if _, err := os.Stat(removed); !os.IsNotExist(err) {
+			t.Fatalf("uninstall must remove projected asset %s; err=%v", removed, err)
+		}
+	}
+	if _, err := os.Stat(storePath); err != nil {
+		t.Fatalf("uninstall must preserve the canonical local store: %v", err)
 	}
 }
 

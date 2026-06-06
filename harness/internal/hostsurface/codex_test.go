@@ -208,6 +208,7 @@ func TestRunCodexProjectorInstallsStatusAndUninstallsMemory(t *testing.T) {
 		".mnemon/harness/memory/status.json",
 		".codex/mnemon-memory/env.sh",
 		".codex/mnemon-memory/GUIDE.md",
+		".codex/mnemon-memory/MEMORY.md",
 		".codex/skills/memory-get/SKILL.md",
 		".codex/hooks/mnemon-memory/prime.sh",
 		".codex/hooks/mnemon-memory/remind.sh",

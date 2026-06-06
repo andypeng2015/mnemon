@@ -184,6 +184,15 @@ func buildLoopPlan(root string, host declaration.HostManifest, loop declaration.
 		PlanAction{Op: "write_runtime_env", Target: path.Join(binding.RuntimeSurface, "env.sh")},
 		PlanAction{Op: "copy_runtime_guide", Source: path.Join(loopDir, loop.Assets.Guide), Target: path.Join(binding.RuntimeSurface, "GUIDE.md")},
 	)
+	if loop.Name == "memory" {
+		for _, runtimeFile := range loop.Assets.RuntimeFiles {
+			actions = append(actions, PlanAction{
+				Op:     "copy_runtime_mirror",
+				Source: path.Join(loopDir, runtimeFile),
+				Target: path.Join(binding.RuntimeSurface, runtimeFile),
+			})
+		}
+	}
 	for _, skill := range loop.Assets.Skills {
 		actions = append(actions, PlanAction{
 			Op:     "project_skill",

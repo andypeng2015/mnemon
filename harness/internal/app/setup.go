@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -34,6 +35,7 @@ type SetupResult struct {
 	BindingFile string
 	TokenFile   string
 	EnvFile     string
+	ConfigFile  string
 	Changes     []string
 }
 
@@ -100,20 +102,22 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 	base := channelBase(projectRoot)
 	bindingFile := filepath.Join(base, "bindings.json")
 	envFile := filepath.Join(localBase(projectRoot), "env.sh")
+	configFile := filepath.Join(localBase(projectRoot), "config.json")
 	compatEnvFile := filepath.Join(base, "env.sh")
 	tokenRel := ""
 	tokenFile := ""
 	if opts.UseToken {
-		tokenRel = filepath.ToSlash(filepath.Join(".mnemon", "harness", "channel", "tokens", sanitizePrincipal(opts.Principal)+".token"))
+		tokenRel = filepath.ToSlash(filepath.Join(".mnemon", "harness", "channel", "credentials", sanitizePrincipal(opts.Principal)+".token"))
 		tokenFile = filepath.Join(projectRoot, filepath.FromSlash(tokenRel))
 	}
 
 	binding := h.channelBinding(opts)
-	res := SetupResult{BindingFile: bindingFile, TokenFile: tokenFile, EnvFile: envFile}
+	res := SetupResult{BindingFile: bindingFile, TokenFile: tokenFile, EnvFile: envFile, ConfigFile: configFile}
 
 	if opts.DryRun {
 		res.Changes = append(res.Changes,
 			fmt.Sprintf("would upsert channel binding for %s in %s", opts.Principal, bindingFile),
+			fmt.Sprintf("would write Local Mnemon config %s", configFile),
 			fmt.Sprintf("would write Local Mnemon env %s", envFile),
 			fmt.Sprintf("would write compatibility env %s", compatEnvFile))
 		if opts.UseToken {
@@ -133,6 +137,10 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 		return res, fmt.Errorf("setup: upsert binding: %w", err)
 	}
 	res.Changes = append(res.Changes, "upserted channel binding for "+opts.Principal+" in "+bindingFile)
+	if err := writeLocalConfig(configFile, opts); err != nil {
+		return res, err
+	}
+	res.Changes = append(res.Changes, "wrote Local Mnemon config "+configFile)
 	if err := writeLocalEnv(envFile, opts, tokenRel); err != nil {
 		return res, err
 	}
@@ -200,6 +208,26 @@ func writeTokenFile(path string) error {
 		return err
 	}
 	return os.WriteFile(path, []byte(hex.EncodeToString(buf)+"\n"), 0o600)
+}
+
+func writeLocalConfig(path string, opts SetupOptions) error {
+	doc := map[string]any{
+		"schema_version": 1,
+		"mode":           "local",
+		"endpoint":       opts.ControlURL,
+		"principal":      opts.Principal,
+		"loops":          opts.Loops,
+		"binding_file":   filepath.ToSlash(filepath.Join(".mnemon", "harness", "channel", "bindings.json")),
+		"store_path":     filepath.ToSlash(server.DefaultStorePath),
+	}
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
 
 func writeLocalEnv(path string, opts SetupOptions, tokenRel string) error {
@@ -280,9 +308,11 @@ func (h *Harness) SetupUninstall(ctx context.Context, out, errw io.Writer, opts 
 		if removed {
 			fmt.Fprintf(out, "setup uninstall: removed channel binding for %s\n", opts.Principal)
 		}
-		tokenFile := filepath.Join(base, "tokens", sanitizePrincipal(opts.Principal)+".token")
-		if err := os.Remove(tokenFile); err == nil {
-			fmt.Fprintf(out, "setup uninstall: removed token file %s\n", tokenFile)
+		for _, dir := range []string{"credentials", "tokens"} {
+			tokenFile := filepath.Join(base, dir, sanitizePrincipal(opts.Principal)+".token")
+			if err := os.Remove(tokenFile); err == nil {
+				fmt.Fprintf(out, "setup uninstall: removed token file %s\n", tokenFile)
+			}
 		}
 	}
 	return nil

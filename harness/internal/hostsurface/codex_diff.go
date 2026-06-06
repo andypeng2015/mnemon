@@ -115,6 +115,19 @@ func (p codexProjector) desiredLoopFiles(loop declaration.LoopManifest, binding 
 			Mode:    0o644,
 		},
 	)
+	if loop.Name == "memory" {
+		for _, runtimeFile := range loop.Assets.RuntimeFiles {
+			content, err := os.ReadFile(p.loopAsset(loop, runtimeFile))
+			if err != nil {
+				return nil, fmt.Errorf("read %s: %w", runtimeFile, err)
+			}
+			files = append(files, codexDesiredFile{
+				Path:    p.displayJoin(binding.RuntimeSurface, runtimeFile),
+				Content: content,
+				Mode:    0o644,
+			})
+		}
+	}
 	for _, skill := range loop.Assets.Skills {
 		content, err := p.projectedSkillContent(loop, binding, skill)
 		if err != nil {

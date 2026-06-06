@@ -310,6 +310,9 @@ func (p codexProjector) installLoop(ctx context.Context, loop declaration.LoopMa
 	if err := p.copyFile(p.loopAsset(loop, loop.Assets.Guide), p.displayJoin(binding.RuntimeSurface, "GUIDE.md"), 0o644); err != nil {
 		return err
 	}
+	if err := p.projectRuntimeMirrors(loop, binding); err != nil {
+		return err
+	}
 	if err := p.projectProfileFragment(loop, binding); err != nil {
 		return err
 	}
@@ -525,6 +528,18 @@ func (p codexProjector) prepareLoopState(loop declaration.LoopManifest) error {
 
 func (p codexProjector) writeRuntimeEnv(loop declaration.LoopManifest, binding declaration.BindingManifest) error {
 	return p.writeFile(p.displayJoin(binding.RuntimeSurface, "env.sh"), p.runtimeEnvContent(loop, binding), 0o755)
+}
+
+func (p codexProjector) projectRuntimeMirrors(loop declaration.LoopManifest, binding declaration.BindingManifest) error {
+	if loop.Name != "memory" {
+		return nil
+	}
+	for _, runtimeFile := range loop.Assets.RuntimeFiles {
+		if err := p.copyFile(p.loopAsset(loop, runtimeFile), p.displayJoin(binding.RuntimeSurface, runtimeFile), 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (p codexProjector) runtimeEnvContent(loop declaration.LoopManifest, binding declaration.BindingManifest) []byte {
