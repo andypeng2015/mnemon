@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	wasmcontract "github.com/mnemon-dev/mnemon/harness/core/rule/wasm"
+	"github.com/mnemon-dev/mnemon/harness/core/server"
 	"github.com/spf13/cobra"
 )
 
@@ -87,15 +87,11 @@ func runWasmPromote(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func inspectWasmManifest(path string) (wasmcontract.Inspection, error) {
-	manifest, wasmBytes, err := wasmcontract.LoadManifest(path)
-	if err != nil {
-		return wasmcontract.Inspection{}, err
-	}
-	return wasmcontract.ValidateManifest(manifest, wasmBytes)
+func inspectWasmManifest(path string) (server.WASMInspection, error) {
+	return server.InspectWASMManifest(path)
 }
 
-func printWasmInspection(cmd *cobra.Command, inspection wasmcontract.Inspection) {
+func printWasmInspection(cmd *cobra.Command, inspection server.WASMInspection) {
 	m := inspection.Manifest
 	fmt.Fprintf(cmd.OutOrStdout(), "Plugin: %s\n", m.ID)
 	fmt.Fprintf(cmd.OutOrStdout(), "Kind: %s\n", m.Kind)

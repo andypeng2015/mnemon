@@ -100,11 +100,18 @@ type Governance struct {
 	proposals    map[string]EvolutionProposal
 	plugins      map[string]PluginSpec
 	schemas      map[schemaKey]EventSchema
+	rollbacks    map[string]pluginRollback
 }
 
 type schemaKey struct {
 	eventType string
 	version   int
+}
+
+type pluginRollback struct {
+	pluginID    string
+	previous    PluginSpec
+	hadPrevious bool
 }
 
 func NewGovernance(capabilities CapabilityRegistry) *Governance {
@@ -113,6 +120,7 @@ func NewGovernance(capabilities CapabilityRegistry) *Governance {
 		proposals:    map[string]EvolutionProposal{},
 		plugins:      map[string]PluginSpec{},
 		schemas:      map[schemaKey]EventSchema{},
+		rollbacks:    map[string]pluginRollback{},
 	}
 }
 
@@ -150,7 +158,7 @@ func (g *Governance) Transition(actor Participant, id string, next Stage) error 
 	if next == StageSubmitted || next == StagePromoted || next == StageRolledBack || next == StageRejected {
 		return fmt.Errorf("use submit, promote, rollback, or reject for stage %s", next)
 	}
-	if !stageAfter(current.Stage, next) {
+	if !nextStage(current.Stage, next) {
 		return fmt.Errorf("invalid evolution stage transition %s -> %s", current.Stage, next)
 	}
 	current.Stage = next
@@ -174,6 +182,12 @@ func (g *Governance) Promote(actor Participant, id string) error {
 		if current.Plugin == nil {
 			return errors.New("plugin proposal missing plugin spec")
 		}
+		previous, hadPrevious := g.plugins[current.Plugin.ID]
+		g.rollbacks[id] = pluginRollback{
+			pluginID:    current.Plugin.ID,
+			previous:    clonePluginSpec(previous),
+			hadPrevious: hadPrevious,
+		}
 		g.plugins[current.Plugin.ID] = clonePluginSpec(*current.Plugin)
 	case ProposalSchema:
 		if current.Schema == nil {
@@ -189,6 +203,36 @@ func (g *Governance) Promote(actor Participant, id string) error {
 		return fmt.Errorf("unknown evolution proposal kind %q", current.Kind)
 	}
 	current.Stage = StagePromoted
+	g.proposals[id] = current
+	return nil
+}
+
+func (g *Governance) Rollback(actor Participant, id string) error {
+	if actor.Kind != ParticipantHumanApprover {
+		return fmt.Errorf("%s cannot rollback evolution proposals", actor.Kind)
+	}
+	current, ok := g.proposals[id]
+	if !ok {
+		return fmt.Errorf("evolution proposal %q not found", id)
+	}
+	if current.Stage != StagePromoted {
+		return fmt.Errorf("evolution proposal %q must be promoted before rollback; current stage is %s", id, current.Stage)
+	}
+	switch current.Kind {
+	case ProposalPlugin:
+		rollback, ok := g.rollbacks[id]
+		if !ok {
+			return fmt.Errorf("evolution proposal %q has no plugin rollback record", id)
+		}
+		if rollback.hadPrevious {
+			g.plugins[rollback.pluginID] = clonePluginSpec(rollback.previous)
+		} else {
+			delete(g.plugins, rollback.pluginID)
+		}
+	default:
+		return fmt.Errorf("rollback for evolution proposal kind %q is not implemented", current.Kind)
+	}
+	current.Stage = StageRolledBack
 	g.proposals[id] = current
 	return nil
 }
@@ -330,10 +374,10 @@ func validateParticipant(actor Participant) error {
 	return nil
 }
 
-func stageAfter(current, next Stage) bool {
+func nextStage(current, next Stage) bool {
 	currentIndex, okCurrent := stageOrder[current]
 	nextIndex, okNext := stageOrder[next]
-	return okCurrent && okNext && nextIndex > currentIndex
+	return okCurrent && okNext && nextIndex == currentIndex+1
 }
 
 var stageOrder = map[Stage]int{

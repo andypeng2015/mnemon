@@ -165,3 +165,82 @@ func TestRejectedProposalLeavesActiveRegistryUnchanged(t *testing.T) {
 		t.Fatalf("active registry changed after rejection: %+v ok=%v", active, ok)
 	}
 }
+
+func TestEvolutionApprovalCannotSkipGovernanceStages(t *testing.T) {
+	gov := NewGovernance(DefaultCapabilityRegistry())
+	control := Participant{ID: "control@project", Kind: ParticipantControlAgent}
+	human := Participant{ID: "reviewer@example.com", Kind: ParticipantHumanApprover}
+	record, err := gov.Submit(control, EvolutionProposal{
+		ID:   "plugin-memory-skip-stages",
+		Kind: ProposalPlugin,
+		Plugin: &PluginSpec{
+			ID:           "memory.admission.v2",
+			Version:      "0.2.0",
+			Capabilities: []string{"read_state_view"},
+			Handles:      []string{"memory.write_candidate_observed"},
+			Emits:        []string{"memory.write.proposed"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("submit proposal: %v", err)
+	}
+	if err := gov.Transition(human, record.ID, StageApproved); err == nil {
+		t.Fatal("approval must not skip validation, build, fixture, shadow, and adversarial verification stages")
+	}
+}
+
+func TestEvolutionRollbackRestoresPriorActivePlugin(t *testing.T) {
+	gov := NewGovernance(DefaultCapabilityRegistry())
+	gov.RegisterPlugin(PluginSpec{
+		ID:           "memory.admission.v1",
+		Version:      "0.1.0",
+		Capabilities: []string{"read_state_view"},
+		Handles:      []string{"memory.write_candidate_observed"},
+		Emits:        []string{"memory.write.proposed"},
+	})
+	control := Participant{ID: "control@project", Kind: ParticipantControlAgent}
+	human := Participant{ID: "reviewer@example.com", Kind: ParticipantHumanApprover}
+	record, err := gov.Submit(control, EvolutionProposal{
+		ID:   "plugin-memory-v2",
+		Kind: ProposalPlugin,
+		Plugin: &PluginSpec{
+			ID:           "memory.admission.v1",
+			Version:      "0.2.0",
+			Capabilities: []string{"read_state_view"},
+			Handles:      []string{"memory.write_candidate_observed"},
+			Emits:        []string{"memory.write.proposed"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("submit proposal: %v", err)
+	}
+	advanceToApproved(t, gov, human, record.ID)
+	if err := gov.Promote(human, record.ID); err != nil {
+		t.Fatalf("promote v2: %v", err)
+	}
+	if active, _ := gov.Plugin("memory.admission.v1"); active.Version != "0.2.0" {
+		t.Fatalf("promote should activate v2, got %+v", active)
+	}
+	if err := gov.Rollback(human, record.ID); err != nil {
+		t.Fatalf("rollback v2: %v", err)
+	}
+	if active, _ := gov.Plugin("memory.admission.v1"); active.Version != "0.1.0" {
+		t.Fatalf("rollback should restore v1, got %+v", active)
+	}
+}
+
+func advanceToApproved(t *testing.T, gov *Governance, human Participant, id string) {
+	t.Helper()
+	for _, stage := range []Stage{
+		StageValidated,
+		StageBuilt,
+		StageFixtureTested,
+		StageShadowed,
+		StageAdversarialVerified,
+		StageApproved,
+	} {
+		if err := gov.Transition(human, id, stage); err != nil {
+			t.Fatalf("transition %s: %v", stage, err)
+		}
+	}
+}

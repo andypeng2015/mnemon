@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
-	"github.com/mnemon-dev/mnemon/harness/core/kernel"
 	"github.com/mnemon-dev/mnemon/harness/core/server"
 	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/spf13/cobra"
@@ -143,19 +142,14 @@ func tokenForPrincipal(tokens map[string]contract.ActorID, principal contract.Ac
 	return ""
 }
 
-func syncCounts(projectRoot string) kernel.SyncCommitCounts {
+func syncCounts(projectRoot string) server.LocalSyncCounts {
 	storePath := filepath.Join(projectRoot, server.DefaultStorePath)
 	if _, err := os.Stat(storePath); err != nil {
-		return kernel.SyncCommitCounts{}
+		return server.LocalSyncCounts{}
 	}
-	store, err := kernel.OpenStore(storePath)
+	counts, err := server.ReadLocalSyncCounts(storePath)
 	if err != nil {
-		return kernel.SyncCommitCounts{}
-	}
-	defer store.Close()
-	counts, err := store.SyncCommitCounts()
-	if err != nil {
-		return kernel.SyncCommitCounts{}
+		return server.LocalSyncCounts{}
 	}
 	return counts
 }

@@ -22,6 +22,12 @@ type LocalSyncPullState struct {
 	RemoteCursor string
 }
 
+type LocalSyncCounts struct {
+	Pending   int
+	Synced    int
+	Conflicts int
+}
+
 func ReadLocalSyncPushBatch(storePath string) (LocalSyncPushBatch, error) {
 	store, err := openLocalSyncStore(storePath)
 	if err != nil {
@@ -121,6 +127,23 @@ func ImportLocalSyncPull(storePath, remoteID, nextCursor string, commits []contr
 		}
 	}
 	return setSyncPullCursor(storePath, remoteID, nextCursor)
+}
+
+func ReadLocalSyncCounts(storePath string) (LocalSyncCounts, error) {
+	store, err := openLocalSyncStore(storePath)
+	if err != nil {
+		return LocalSyncCounts{}, err
+	}
+	defer store.Close()
+	counts, err := store.SyncCommitCounts()
+	if err != nil {
+		return LocalSyncCounts{}, err
+	}
+	return LocalSyncCounts{
+		Pending:   counts.Pending,
+		Synced:    counts.Synced,
+		Conflicts: counts.Conflicts,
+	}, nil
 }
 
 func remoteImportEventType(kind contract.ResourceKind) (string, bool) {
