@@ -1,13 +1,16 @@
 package main
 
 import (
+	"path/filepath"
+
 	"github.com/mnemon-dev/mnemon/harness/core/server"
 	"github.com/spf13/cobra"
 )
 
 var (
-	serverAddr      string
-	serverStorePath string
+	serverAddr         string
+	serverStorePath    string
+	serverBindingsPath string
 )
 
 // serverCmd + demoCmd fold the former standalone mnemon-control binary into the one harness
@@ -23,9 +26,23 @@ var serverCmd = &cobra.Command{
 		// walking up from the CWD for the .mnemon marker, so the server lands on the SAME store the
 		// lifecycle/app apply surface uses regardless of which subdirectory it is booted from (no CWD
 		// store split). An explicit --store is honored verbatim (OpenRuntime absolutizes it).
+		root := server.DiscoverProjectRoot()
 		storePath := serverStorePath
 		if !cmd.Flags().Changed("store") {
-			storePath = server.DiscoverProjectStore()
+			storePath = filepath.Join(root, server.DefaultStorePath)
+		}
+		// With --channel-bindings, the server enforces the binding manifest (BindingSet authorizer +
+		// scopes + token auth). Without it, a bare channel endpoint (trusted-header auth).
+		if serverBindingsPath != "" {
+			bindingsPath := serverBindingsPath
+			if !filepath.IsAbs(bindingsPath) {
+				bindingsPath = filepath.Join(root, bindingsPath)
+			}
+			loaded, err := server.LoadBindingFile(root, bindingsPath)
+			if err != nil {
+				return err
+			}
+			return server.RunHTTPServerWithBindings(cmd.Context(), serverAddr, storePath, loaded, cmd.OutOrStdout())
 		}
 		return server.RunHTTPServer(cmd.Context(), serverAddr, storePath, cmd.OutOrStdout())
 	},
@@ -43,6 +60,7 @@ var demoCmd = &cobra.Command{
 func init() {
 	serverCmd.Flags().StringVar(&serverAddr, "addr", "127.0.0.1:8787", "listen address")
 	serverCmd.Flags().StringVar(&serverStorePath, "store", server.DefaultStorePath, "kernel store path")
+	serverCmd.Flags().StringVar(&serverBindingsPath, "channel-bindings", "", "channel binding manifest (enforces bindings + token auth); bare channel when unset")
 	serverCmd.GroupID = groupSpine
 	demoCmd.GroupID = groupAdvanced
 	rootCmd.AddCommand(serverCmd, demoCmd)

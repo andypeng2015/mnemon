@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/mnemon-dev/mnemon/harness/core/contract"
@@ -23,14 +24,26 @@ var (
 	controlPayload    string
 	controlExtID      string
 	controlActor      string
+	controlTokenFile  string
 	controlStatusJSON bool
 )
 
-func controlClient() *server.Client {
-	if controlToken != "" {
-		return server.NewClientWithToken(controlAddr, controlToken)
+// controlClient builds the channel client from the resolved credential: a bearer token (from
+// --token or, preferring it, --token-file so projected hooks keep the token out of prompt-visible
+// command lines), else the trusted principal header.
+func controlClient() (*server.Client, error) {
+	token := controlToken
+	if controlTokenFile != "" {
+		data, err := os.ReadFile(controlTokenFile)
+		if err != nil {
+			return nil, fmt.Errorf("read --token-file: %w", err)
+		}
+		token = strings.TrimSpace(string(data))
 	}
-	return server.NewClient(controlAddr, contract.ActorID(controlPrincipal))
+	if token != "" {
+		return server.NewClientWithToken(controlAddr, token), nil
+	}
+	return server.NewClient(controlAddr, contract.ActorID(controlPrincipal)), nil
 }
 
 var controlCmd = &cobra.Command{
@@ -48,7 +61,11 @@ var controlObserveCmd = &cobra.Command{
 				return fmt.Errorf("decode --payload: %w", err)
 			}
 		}
-		rec, err := controlClient().IngestObserve(contract.ActorID(controlPrincipal), contract.ObservationEnvelope{
+		client, err := controlClient()
+		if err != nil {
+			return err
+		}
+		rec, err := client.IngestObserve(contract.ActorID(controlPrincipal), contract.ObservationEnvelope{
 			ExternalID: controlExtID,
 			Event:      contract.Event{Type: controlType, Payload: payload},
 		})
@@ -71,7 +88,11 @@ var controlPullCmd = &cobra.Command{
 		if actor == "" {
 			actor = controlPrincipal
 		}
-		proj, err := controlClient().PullProjection(contract.ActorID(controlPrincipal), contract.Subscription{Actor: contract.ActorID(actor)})
+		client, err := controlClient()
+		if err != nil {
+			return err
+		}
+		proj, err := client.PullProjection(contract.ActorID(controlPrincipal), contract.Subscription{Actor: contract.ActorID(actor)})
 		if err != nil {
 			return fmt.Errorf("channel pull failed (service unreachable or unauthorized): %w", err)
 		}
@@ -84,7 +105,11 @@ var controlStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Report channel status evidence for the principal (digest, actor kind, store ref, mode)",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		st, err := controlClient().Status(contract.ActorID(controlPrincipal))
+		client, err := controlClient()
+		if err != nil {
+			return err
+		}
+		st, err := client.Status(contract.ActorID(controlPrincipal))
 		if err != nil {
 			return fmt.Errorf("channel unreachable or unauthorized: %w", err)
 		}
@@ -104,6 +129,7 @@ func init() {
 		c.Flags().StringVar(&controlAddr, "addr", "http://127.0.0.1:8787", "server base URL")
 		c.Flags().StringVar(&controlPrincipal, "principal", "", "authenticated principal (trusted-header transport)")
 		c.Flags().StringVar(&controlToken, "token", "", "bearer token (TokenAuthenticator transport)")
+		c.Flags().StringVar(&controlTokenFile, "token-file", "", "read the bearer token from a file (keeps tokens out of prompt-visible command lines)")
 	}
 	controlObserveCmd.Flags().StringVar(&controlType, "type", "", "observed event type")
 	controlObserveCmd.Flags().StringVar(&controlPayload, "payload", "", "observation payload as JSON")
