@@ -30,14 +30,13 @@ covered by visible context, or unlikely to benefit from prior experience.
 Cheap skip examples: tiny one-off questions, pure file listing or status checks,
 direct follow-ups already fully in context, and explicit no-memory requests.
 
-## Profile (governed pull)
+## Governed Pull
 
-If `PROFILE.json` (and, for coordination, `COORDINATION.json`) is present in this
-loop's runtime surface (beside this guide), read it at the start of a task: it
-holds the durable profile entries / coordination state the harness has reviewed,
-approved, and scoped to this host and loop. Treat them as established preferences
-and decisions — governed context pulled from the canonical state, not working
-notes, and possibly absent when nothing is scoped here.
+If `PROFILE.json` is present in this loop's runtime surface (beside this guide),
+read it at the start of a task: it holds durable entries the harness has
+reviewed, approved, and scoped to this host and loop. Treat them as established
+preferences and decisions, not working notes, and expect them to be absent when
+nothing is scoped here.
 
 `PROJECTION.json` (beside this guide) is the projection envelope: it carries the
 live `context_digest` for what was projected to your host+loop. When you act on

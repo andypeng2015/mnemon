@@ -9,14 +9,12 @@
       ".claude/agents",
       ".claude/settings.json",
       ".claude/mnemon-memory",
-      ".claude/mnemon-skill",
-      ".claude/mnemon-goal"
+      ".claude/mnemon-skill"
     ],
     "observation": [
       ".mnemon/hosts/claude-code/manifest.json",
       ".mnemon/harness/*/status.json",
       "hook output",
-      "goal evidence records",
       "skill usage evidence"
     ]
   },
@@ -26,6 +24,5 @@
     "nudge": "Stop",
     "compact": "PreCompact",
     "maintenance": "subagent-or-manual"
-  },
-  "projector": "projector.sh"
+  }
 }

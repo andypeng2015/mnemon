@@ -12,8 +12,9 @@ var (
 )
 
 var supervisorCmd = &cobra.Command{
-	Use:   "supervisor",
-	Short: "Pluggable advisory coordination supervisor (proposes only)",
+	Use:    "supervisor",
+	Short:  "Pluggable advisory coordination supervisor (proposes only)",
+	Hidden: true,
 	Long: "Read the coordination context and propose coordination changes. The\n" +
 		"supervisor only PROPOSES: suggestions land as route=coordination proposals\n" +
 		"in the review queue and mutate nothing directly. The brain is swappable by\n" +

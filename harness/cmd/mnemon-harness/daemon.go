@@ -28,8 +28,9 @@ var (
 )
 
 var daemonCmd = &cobra.Command{
-	Use:   "daemon",
-	Short: "Run or trigger declarative daemon jobs",
+	Use:    "daemon",
+	Short:  "Run or trigger declarative daemon jobs",
+	Hidden: true,
 }
 
 var daemonRunCmd = &cobra.Command{

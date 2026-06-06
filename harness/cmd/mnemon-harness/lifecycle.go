@@ -31,9 +31,10 @@ var (
 )
 
 var lifecycleCmd = &cobra.Command{
-	Use:   "lifecycle",
-	Short: "Experimental ai-native lifecycle runtime",
-	Long:  "Experimental ai-native lifecycle runtime for project-local .mnemon state.",
+	Use:    "lifecycle",
+	Short:  "Experimental ai-native lifecycle runtime",
+	Long:   "Experimental ai-native lifecycle runtime for project-local .mnemon state.",
+	Hidden: true,
 }
 
 var lifecycleInitCmd = &cobra.Command{

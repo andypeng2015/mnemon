@@ -11,8 +11,9 @@ import (
 var uiRoot string
 
 var uiCmd = &cobra.Command{
-	Use:   "ui",
-	Short: "Open the Mnemon cognition harness console (TUI)",
+	Use:    "ui",
+	Short:  "Open the Mnemon cognition harness console (TUI)",
+	Hidden: true,
 	Long: "Open the terminal cognition console: a bubbletea UI layered on the\n" +
 		"harness facade. The screen is the governed improvement loop — scope,\n" +
 		"evidence, proposals (review + apply), audit, next run. All writes route\n" +

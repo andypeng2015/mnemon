@@ -53,8 +53,9 @@ var (
 )
 
 var evalCmd = &cobra.Command{
-	Use:   "eval",
-	Short: "Manage declaration-driven harness evals",
+	Use:    "eval",
+	Short:  "Manage declaration-driven harness evals",
+	Hidden: true,
 }
 
 var evalPlanCmd = &cobra.Command{

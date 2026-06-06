@@ -47,8 +47,9 @@ func controlClient() (*server.Client, error) {
 }
 
 var controlCmd = &cobra.Command{
-	Use:   "control",
-	Short: "Channel client verbs (observe / pull / status) over a running mnemon-harness server",
+	Use:    "control",
+	Short:  "Channel client verbs (observe / pull / status) over a running mnemon-harness server",
+	Hidden: true,
 }
 
 var controlObserveCmd = &cobra.Command{

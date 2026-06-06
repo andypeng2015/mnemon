@@ -160,6 +160,25 @@ func TestSetupDryRunWritesNothing(t *testing.T) {
 	}
 }
 
+func TestSetupRejectsUnsupportedProductLoop(t *testing.T) {
+	root := t.TempDir()
+	writeMemoryFixture(t, root)
+	var out, errw bytes.Buffer
+	_, err := New(root).Setup(context.Background(), &out, &errw, SetupOptions{
+		Host: "codex", Loops: []string{"eval"}, ControlURL: "http://127.0.0.1:8787",
+		Principal: "codex@project",
+	})
+	if err == nil || !strings.Contains(err.Error(), `unsupported product loop "eval"`) {
+		t.Fatalf("expected unsupported product loop error, got %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json")); !os.IsNotExist(err) {
+		t.Fatalf("unsupported loop setup must not write channel bindings; err=%v", err)
+	}
+	if out.Len() != 0 || errw.Len() != 0 {
+		t.Fatalf("unsupported loop setup should fail before projection output; stdout=%q stderr=%q", out.String(), errw.String())
+	}
+}
+
 func mustRead(t *testing.T, path string) []byte {
 	t.Helper()
 	b, err := os.ReadFile(path)

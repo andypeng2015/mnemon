@@ -12,13 +12,14 @@ var version = "dev"
 var rootCmd = &cobra.Command{
 	Use:     "mnemon-harness",
 	Version: version,
-	Short:   "Experimental Mnemon lifecycle harness",
-	Long:    "Experimental Mnemon lifecycle, profile, daemon, HostAgent runner, and goal governance commands.",
+	Short:   "Mnemon Agent Integration setup",
+	Long: "Install Agent Integration for memory and skill, connect it to Local Mnemon, " +
+		"and keep Remote Workspace sync as a background concern.",
 }
 
-// Command groups: the everyday spine (loop install, ui, proposal review, goal
-// governance) is surfaced first; the rest is an advanced tail. Grouping is help-only
-// — it changes how `--help` lists verbs, never a verb path or behavior.
+// Command groups are help-only: they change how `--help` lists verbs, never a
+// verb path or behavior. Internal/debug commands stay callable but hidden from
+// the ordinary product surface.
 const (
 	groupSpine    = "spine"
 	groupAdvanced = "advanced"
@@ -26,8 +27,8 @@ const (
 
 func init() {
 	rootCmd.AddGroup(
-		&cobra.Group{ID: groupSpine, Title: "Spine commands (the everyday path):"},
-		&cobra.Group{ID: groupAdvanced, Title: "Advanced commands:"},
+		&cobra.Group{ID: groupSpine, Title: "Product commands:"},
+		&cobra.Group{ID: groupAdvanced, Title: "Internal/debug commands:"},
 	)
 	rootCmd.SetHelpCommandGroupID(groupAdvanced)
 	rootCmd.SetCompletionCommandGroupID(groupAdvanced)

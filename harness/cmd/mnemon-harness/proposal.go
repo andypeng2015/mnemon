@@ -35,9 +35,10 @@ var (
 )
 
 var proposalCmd = &cobra.Command{
-	Use:   "proposal",
-	Short: "Manage Mnemon lifecycle proposals",
-	Long:  "Manage project-scoped proposal state under .mnemon/harness/proposals.",
+	Use:    "proposal",
+	Short:  "Manage Mnemon lifecycle proposals",
+	Long:   "Manage project-scoped proposal state under .mnemon/harness/proposals.",
+	Hidden: true,
 }
 
 var proposalCreateCmd = &cobra.Command{

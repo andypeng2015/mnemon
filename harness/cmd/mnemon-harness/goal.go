@@ -47,9 +47,10 @@ var (
 )
 
 var goalCmd = &cobra.Command{
-	Use:   "goal",
-	Short: "Manage project-scoped Mnemon lifecycle goals",
-	Long:  "Manage project-scoped Mnemon goal state under .mnemon/harness/goals.",
+	Use:    "goal",
+	Short:  "Manage project-scoped Mnemon lifecycle goals",
+	Long:   "Manage project-scoped Mnemon goal state under .mnemon/harness/goals.",
+	Hidden: true,
 }
 
 var goalInitCmd = &cobra.Command{

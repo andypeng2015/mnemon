@@ -28,9 +28,10 @@ var (
 )
 
 var auditCmd = &cobra.Command{
-	Use:   "audit",
-	Short: "Manage Mnemon lifecycle audit records",
-	Long:  "Manage project-scoped audit records under .mnemon/harness/audit/records.",
+	Use:    "audit",
+	Short:  "Manage Mnemon lifecycle audit records",
+	Long:   "Manage project-scoped audit records under .mnemon/harness/audit/records.",
+	Hidden: true,
 }
 
 var auditAppendCmd = &cobra.Command{

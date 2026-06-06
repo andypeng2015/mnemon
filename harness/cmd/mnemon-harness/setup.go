@@ -25,7 +25,7 @@ var (
 // projected host agent reaches the governed control plane through one channel.
 var setupCmd = &cobra.Command{
 	Use:   "setup --host HOST --loop LOOP --control-url URL --principal PRINCIPAL",
-	Short: "Project a loop into a host runtime and wire the channel (binding + token + env)",
+	Short: "Install Agent Integration for memory and skill",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		_, err := app.New(setupRoot).Setup(cmd.Context(), cmd.OutOrStdout(), cmd.ErrOrStderr(), app.SetupOptions{
 			Host:        setupHost,

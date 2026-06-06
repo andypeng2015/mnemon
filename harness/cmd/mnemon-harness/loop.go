@@ -18,8 +18,9 @@ var (
 )
 
 var loopCmd = &cobra.Command{
-	Use:   "loop",
-	Short: "Manage declaration-driven harness loops",
+	Use:    "loop",
+	Short:  "Manage declaration-driven harness loops",
+	Hidden: true,
 }
 
 var loopValidateCmd = &cobra.Command{

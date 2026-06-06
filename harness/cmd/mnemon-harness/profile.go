@@ -22,9 +22,10 @@ var (
 )
 
 var profileCmd = &cobra.Command{
-	Use:   "profile",
-	Short: "Manage evidence-backed harness profile scope entries",
-	Long:  "Manage project-local, evidence-backed profile entries under .mnemon/harness/profiles.",
+	Use:    "profile",
+	Short:  "Manage evidence-backed harness profile scope entries",
+	Long:   "Manage project-local, evidence-backed profile entries under .mnemon/harness/profiles.",
+	Hidden: true,
 }
 
 var profileEntryCmd = &cobra.Command{

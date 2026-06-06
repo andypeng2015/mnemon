@@ -44,6 +44,24 @@ func sanitizePrincipal(p string) string {
 	return strings.NewReplacer("@", "-", "/", "-", ":", "-").Replace(p)
 }
 
+var supportedProductLoops = map[string]bool{
+	"memory": true,
+	"skill":  true,
+}
+
+func validateProductLoops(loops []string) error {
+	for _, loop := range loops {
+		loop = strings.TrimSpace(loop)
+		if loop == "" {
+			return fmt.Errorf("setup loop id cannot be empty")
+		}
+		if !supportedProductLoops[loop] {
+			return fmt.Errorf("unsupported product loop %q; setup supports memory and skill", loop)
+		}
+	}
+	return nil
+}
+
 // Setup projects the loops into the host (wrapping the existing declaration-driven loop install — no
 // second projector) and writes the channel artifacts. On DryRun it prints every projection + channel
 // change without writing.
@@ -53,6 +71,9 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 	}
 	if len(opts.Loops) == 0 {
 		return SetupResult{}, fmt.Errorf("setup requires at least one --loop")
+	}
+	if err := validateProductLoops(opts.Loops); err != nil {
+		return SetupResult{}, err
 	}
 	projectRoot := opts.ProjectRoot
 	if projectRoot == "" {

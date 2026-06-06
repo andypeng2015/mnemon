@@ -18,9 +18,10 @@ var (
 // server.RunDemo), never kernel/reconcile directly (the P2.3 boundary, enforced by ringguard).
 
 var serverCmd = &cobra.Command{
-	Use:   "server",
-	Short: "Run the core control-plane channel (observe/pull) over httpapi",
-	Long:  "Boot a ControlServer over a persistent kernel store and serve the channel (ServerAPI: observe via Ingest, pull via PullProjection) over httpapi until interrupted.",
+	Use:    "server",
+	Short:  "Run the core control-plane channel (observe/pull) over httpapi",
+	Long:   "Boot a ControlServer over a persistent kernel store and serve the channel (ServerAPI: observe via Ingest, pull via PullProjection) over httpapi until interrupted.",
+	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// When the operator did not pass an explicit --store, discover the project's canonical store by
 		// walking up from the CWD for the .mnemon marker, so the server lands on the SAME store the
@@ -49,9 +50,10 @@ var serverCmd = &cobra.Command{
 }
 
 var demoCmd = &cobra.Command{
-	Use:   "demo",
-	Short: "Run the self-checking full control-plane demo (exits 0 iff every link holds)",
-	Long:  "Boot a ControlServer whose rule seat holds a real wazero WASM rule and drive two edges through the whole governed chain (deny/propose, CAS, conflict, scoped projection, job lane, receipt, tampered-readback, masked replay). Exits 0 iff every link holds.",
+	Use:    "demo",
+	Short:  "Run the self-checking full control-plane demo (exits 0 iff every link holds)",
+	Long:   "Boot a ControlServer whose rule seat holds a real wazero WASM rule and drive two edges through the whole governed chain (deny/propose, CAS, conflict, scoped projection, job lane, receipt, tampered-readback, masked replay). Exits 0 iff every link holds.",
+	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return server.RunDemo(cmd.OutOrStdout())
 	},

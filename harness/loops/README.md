@@ -5,14 +5,11 @@ This directory contains canonical, host-agnostic loop templates.
 ```text
 harness/loops/
 ├── memory/
-├── skill/
-├── eval/
-├── goal/
-└── deploy/      # extension worked example; not bound by default
+└── skill/
 ```
 
 Each loop follows the Loop Standard and declares its assets in
 `loop.json`. Host-specific projection logic belongs under `harness/hosts/`.
-The core first-party runtime loops are memory, skill, eval, and goal. Extra
-directories may be used as extension fixtures when they validate without Go
-core changes or default bindings.
+The first-party product loops are memory and skill. Older non-product loop
+assets are archived under `harness/experimental/archived/` for proof-only
+reference and are not normal setup/install/status inputs.
