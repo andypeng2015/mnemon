@@ -4,12 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/mnemon-dev/mnemon/harness/internal/app"
+	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 	"io"
 	"os"
 	"path/filepath"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
-	"github.com/mnemon-dev/mnemon/harness/internal/server"
 	"github.com/spf13/cobra"
 )
 
@@ -35,7 +36,7 @@ var localRunCmd = &cobra.Command{
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Local Mnemon: ready")
 		fmt.Fprintln(cmd.OutOrStdout(), "Remote Workspace: disconnected")
-		return server.RunLocalHTTPServerWithBindings(cmd.Context(), localAddr, boot.StorePath, boot.Loaded, io.Discard)
+		return app.RunLocalHTTPServerWithBindings(cmd.Context(), localAddr, boot.StorePath, boot.Loaded, io.Discard)
 	},
 }
 
@@ -84,7 +85,7 @@ func resolvedLocalStorePath() string {
 	if localStorePath != "" {
 		return resolvedLocalPath(localStorePath)
 	}
-	return filepath.Join(projectRoot(), server.DefaultStorePath)
+	return filepath.Join(projectRoot(), runtime.DefaultStorePath)
 }
 
 func resolvedLocalPath(path string) string {
@@ -149,7 +150,7 @@ func resolveLocalBoot() (localBoot, error) {
 		if cfg.StorePath != "" {
 			storePath = resolveProjectPath(root, cfg.StorePath)
 		} else {
-			storePath = filepath.Join(root, server.DefaultStorePath)
+			storePath = filepath.Join(root, runtime.DefaultStorePath)
 		}
 	}
 	return localBoot{Configured: true, StorePath: storePath, Loaded: loaded, Config: cfg}, nil

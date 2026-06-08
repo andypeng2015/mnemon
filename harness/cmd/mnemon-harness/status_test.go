@@ -8,10 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/mnemon-dev/mnemon/harness/internal/capability"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
-	"github.com/mnemon-dev/mnemon/harness/internal/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
 
 func TestProductStatusBeforeAndAfterSetup(t *testing.T) {
@@ -68,7 +69,7 @@ func TestProductStatusUsesReachableLocalMnemon(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve local boot: %v", err)
 	}
-	rt, err := server.OpenLocalRuntime(boot.StorePath, boot.Loaded)
+	rt, err := app.OpenLocalRuntime(boot.StorePath, boot.Loaded)
 	if err != nil {
 		t.Fatalf("open local runtime: %v", err)
 	}
@@ -87,7 +88,7 @@ func TestProductStatusUsesReachableLocalMnemon(t *testing.T) {
 		t.Fatalf("tick local runtime: %v", err)
 	}
 
-	srv := httptest.NewServer(server.NewRuntimeHandler(rt, channel.TokenAuthenticator{Tokens: boot.Loaded.Tokens}))
+	srv := httptest.NewServer(runtime.NewRuntimeHandler(rt, channel.TokenAuthenticator{Tokens: boot.Loaded.Tokens}))
 	defer srv.Close()
 	cfg := boot.Config
 	cfg.Endpoint = srv.URL

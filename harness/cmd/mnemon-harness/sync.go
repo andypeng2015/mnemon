@@ -11,10 +11,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/remotesync"
-	"github.com/mnemon-dev/mnemon/harness/internal/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 	"github.com/spf13/cobra"
 )
 
@@ -205,7 +206,7 @@ func syncPullOnce() (syncPullResult, error) {
 	if err != nil {
 		return syncPullResult{}, fmt.Errorf("sync pull failed: %w", err)
 	}
-	if err := server.ImportLocalSyncPull(storePath, remote.ID, resp.NextCursor, resp.Commits); err != nil {
+	if err := app.ImportLocalSyncPull(storePath, remote.ID, resp.NextCursor, resp.Commits); err != nil {
 		return syncPullResult{}, err
 	}
 	return syncPullResult{commits: len(resp.Commits)}, nil
@@ -391,7 +392,7 @@ func resolvedSyncStorePath() string {
 	if syncStorePath != "" {
 		return resolveSyncPath(syncStorePath)
 	}
-	return filepath.Join(syncProjectRoot(), server.DefaultStorePath)
+	return filepath.Join(syncProjectRoot(), runtime.DefaultStorePath)
 }
 
 func resolvedSyncRemotesPath() string {

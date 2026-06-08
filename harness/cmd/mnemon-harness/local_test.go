@@ -1,12 +1,13 @@
 package main
 
 import (
+	"github.com/mnemon-dev/mnemon/harness/internal/app"
+	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/capability"
-	"github.com/mnemon-dev/mnemon/harness/internal/server"
 )
 
 func TestLocalStatusReportsProductBoundary(t *testing.T) {
@@ -23,7 +24,7 @@ func TestLocalStatusReportsProductBoundary(t *testing.T) {
 		"Local Mnemon: ready",
 		"Remote Workspace: disconnected",
 		"Mode: local",
-		filepath.Join(root, server.DefaultStorePath),
+		filepath.Join(root, runtime.DefaultStorePath),
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("local status missing %q:\n%s", want, got)
@@ -49,13 +50,13 @@ func TestLocalBootAutoDiscoversSetupConfig(t *testing.T) {
 	if !boot.Configured {
 		t.Fatal("local boot must use setup config when --bindings is omitted")
 	}
-	if boot.StorePath != filepath.Join(projectRoot, server.DefaultStorePath) {
+	if boot.StorePath != filepath.Join(projectRoot, runtime.DefaultStorePath) {
 		t.Fatalf("store path = %q, want project default", boot.StorePath)
 	}
 	if len(boot.Loaded.Tokens) == 0 {
 		t.Fatal("local boot must load setup token credentials")
 	}
-	cfg := server.LocalRuntimeConfigFromBindings(boot.Loaded.Bindings)
+	cfg := app.LocalRuntimeConfigFromBindings(boot.Loaded.Bindings)
 	var handlesMemory, handlesSkill bool
 	for _, r := range cfg.Rules.Rules() {
 		handlesMemory = handlesMemory || r.Handles(capability.MemoryWriteCandidateObserved)

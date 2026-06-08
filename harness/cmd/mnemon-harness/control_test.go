@@ -9,10 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/mnemon-dev/mnemon/harness/internal/capability"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
-	"github.com/mnemon-dev/mnemon/harness/internal/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
 
 // TestControlTokenFileAuth proves P3.2 `control --token-file`: the channel client reads the bearer
@@ -21,7 +22,7 @@ import (
 func TestControlTokenFileAuth(t *testing.T) {
 	root := t.TempDir()
 	ref := contract.ResourceRef{Kind: "memory", ID: "m1"}
-	rt, err := server.OpenRuntime(filepath.Join(root, server.DefaultStorePath), server.RuntimeConfig{
+	rt, err := runtime.OpenRuntime(filepath.Join(root, runtime.DefaultStorePath), runtime.RuntimeConfig{
 		Subs:     map[contract.ActorID]contract.Subscription{"codex@project": {Actor: "codex@project", Refs: []contract.ResourceRef{ref}}},
 		Bindings: []channel.ChannelBinding{channel.HostAgentBinding("codex@project", "http://x", []contract.ResourceRef{ref})},
 	})
@@ -29,7 +30,7 @@ func TestControlTokenFileAuth(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer rt.Close()
-	srv := httptest.NewServer(server.NewRuntimeHandler(rt, channel.TokenAuthenticator{Tokens: map[string]contract.ActorID{"tok-codex": "codex@project"}}))
+	srv := httptest.NewServer(runtime.NewRuntimeHandler(rt, channel.TokenAuthenticator{Tokens: map[string]contract.ActorID{"tok-codex": "codex@project"}}))
 	defer srv.Close()
 
 	tokFile := filepath.Join(t.TempDir(), "codex.token")
@@ -84,12 +85,12 @@ func TestControlPullJSONIncludesScopedContent(t *testing.T) {
 	ref := contract.ResourceRef{Kind: "memory", ID: "project"}
 	binding := channel.HostAgentBinding("codex@project", "http://x", []contract.ResourceRef{ref})
 	binding.AllowedObservedTypes = []string{capability.MemoryWriteCandidateObserved}
-	rt, err := server.OpenLocalRuntime(filepath.Join(t.TempDir(), "governed.db"), channel.LoadedBindings{Bindings: []channel.ChannelBinding{binding}})
+	rt, err := app.OpenLocalRuntime(filepath.Join(t.TempDir(), "governed.db"), channel.LoadedBindings{Bindings: []channel.ChannelBinding{binding}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rt.Close()
-	srv := httptest.NewServer(server.NewRuntimeHandler(rt, channel.HeaderAuthenticator{}))
+	srv := httptest.NewServer(runtime.NewRuntimeHandler(rt, channel.HeaderAuthenticator{}))
 	defer srv.Close()
 	client := channel.NewClient(srv.URL, "codex@project")
 	if rec, err := client.IngestObserve("codex@project", contract.ObservationEnvelope{
@@ -148,12 +149,12 @@ func TestControlPullMirrorWritesNonAuthoritativeMemoryFile(t *testing.T) {
 	ref := contract.ResourceRef{Kind: "memory", ID: "project"}
 	binding := channel.HostAgentBinding("codex@project", "http://x", []contract.ResourceRef{ref})
 	binding.AllowedObservedTypes = []string{capability.MemoryWriteCandidateObserved}
-	rt, err := server.OpenLocalRuntime(filepath.Join(t.TempDir(), "governed.db"), channel.LoadedBindings{Bindings: []channel.ChannelBinding{binding}})
+	rt, err := app.OpenLocalRuntime(filepath.Join(t.TempDir(), "governed.db"), channel.LoadedBindings{Bindings: []channel.ChannelBinding{binding}})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer rt.Close()
-	srv := httptest.NewServer(server.NewRuntimeHandler(rt, channel.HeaderAuthenticator{}))
+	srv := httptest.NewServer(runtime.NewRuntimeHandler(rt, channel.HeaderAuthenticator{}))
 	defer srv.Close()
 	client := channel.NewClient(srv.URL, "codex@project")
 	if rec, err := client.IngestObserve("codex@project", contract.ObservationEnvelope{

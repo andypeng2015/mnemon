@@ -15,6 +15,11 @@ const (
 	KindReplicaAgent ActorKind = "replica-agent"
 )
 
+// SyncImportActor is the well-known principal under which pulled remote commits re-enter Event Intake.
+// The runtime uses it to skip re-recording sync commits for sync-imported decisions; the app sync glue
+// drives the import runtime under it.
+const SyncImportActor = ActorID("sync@local")
+
 // ChannelStatus is the principal's channel status surface (digest + scope counts + sync state).
 type ChannelStatus struct {
 	Principal     ActorID   `json:"principal"`

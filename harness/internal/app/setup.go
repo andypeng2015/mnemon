@@ -14,7 +14,7 @@ import (
 
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
-	"github.com/mnemon-dev/mnemon/harness/internal/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
 
 // SetupOptions configures the `mnemon-harness setup` front door: project a loop into a host runtime
@@ -238,7 +238,7 @@ func writeLocalConfig(path string, opts SetupOptions) error {
 		"principal":      opts.Principal,
 		"loops":          opts.Loops,
 		"binding_file":   filepath.ToSlash(filepath.Join(".mnemon", "harness", "channel", "bindings.json")),
-		"store_path":     filepath.ToSlash(server.DefaultStorePath),
+		"store_path":     filepath.ToSlash(runtime.DefaultStorePath),
 	}
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
