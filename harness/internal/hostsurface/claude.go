@@ -23,6 +23,7 @@ type ClaudeOptions struct {
 	ProjectRoot string
 	Loops       []string
 	HostArgs    []string
+	RefreshOnly bool // refresh (re-projection): never adopt an unknown differing file; preserve user edits
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -46,24 +47,21 @@ type claudeProjector struct {
 	hostOptions claudeHostOptions
 }
 
-func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) error {
-	if action != "install" && action != "uninstall" {
-		return fmt.Errorf("unsupported Claude Code projector action: %s", action)
-	}
+func newClaudeProjector(opts ClaudeOptions) (claudeProjector, []string, error) {
 	var err error
 	if opts.ProjectRoot == "" {
 		opts.ProjectRoot, err = os.Getwd()
 		if err != nil {
-			return fmt.Errorf("resolve project root: %w", err)
+			return claudeProjector{}, nil, fmt.Errorf("resolve project root: %w", err)
 		}
 	}
 	projectRoot, err := filepath.Abs(opts.ProjectRoot)
 	if err != nil {
-		return fmt.Errorf("resolve project root: %w", err)
+		return claudeProjector{}, nil, fmt.Errorf("resolve project root: %w", err)
 	}
 	hostOptions, err := parseClaudeHostOptions(opts.HostArgs)
 	if err != nil {
-		return err
+		return claudeProjector{}, nil, err
 	}
 	if opts.Stdout == nil {
 		opts.Stdout = io.Discard
@@ -72,23 +70,33 @@ func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) 
 		opts.Stderr = io.Discard
 	}
 	if _, err := manifest.ValidateFS(assets.FS); err != nil {
-		return err
+		return claudeProjector{}, nil, err
 	}
 	loops := append([]string(nil), opts.Loops...)
 	if len(loops) == 0 {
-		return errors.New("at least one --loop is required")
+		return claudeProjector{}, nil, errors.New("at least one --loop is required")
 	}
 	sort.Strings(loops)
-
-	projector := claudeProjector{
+	return claudeProjector{
 		projectorCore: projectorCore{
 			host:        "claude-code",
 			projectRoot: projectRoot,
 			paths:       claudeProjectorPaths(hostOptions),
 			stdout:      opts.Stdout,
 			stderr:      opts.Stderr,
+			managed:     newManagedState(opts.RefreshOnly),
 		},
 		hostOptions: hostOptions,
+	}, loops, nil
+}
+
+func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) error {
+	if action != "install" && action != "uninstall" {
+		return fmt.Errorf("unsupported Claude Code projector action: %s", action)
+	}
+	projector, loops, err := newClaudeProjector(opts)
+	if err != nil {
+		return err
 	}
 	for _, loopName := range loops {
 		loop, err := manifest.LoadLoop(assets.FS, loopName)
@@ -111,6 +119,29 @@ func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) 
 		}
 	}
 	return nil
+}
+
+// RunClaudeProjectorReport installs (or, with opts.RefreshOnly, refreshes) the Claude Code projection
+// and returns the managed files it preserved because the user edited them.
+func RunClaudeProjectorReport(ctx context.Context, opts ClaudeOptions) (Report, error) {
+	projector, loops, err := newClaudeProjector(opts)
+	if err != nil {
+		return Report{}, err
+	}
+	for _, loopName := range loops {
+		loop, err := manifest.LoadLoop(assets.FS, loopName)
+		if err != nil {
+			return Report{}, err
+		}
+		binding, err := manifest.LoadBinding(assets.FS, "claude-code", loopName)
+		if err != nil {
+			return Report{}, err
+		}
+		if err := projector.installLoop(ctx, loop, binding); err != nil {
+			return Report{}, fmt.Errorf("install claude-code/%s: %w", loopName, err)
+		}
+	}
+	return Report{Conflicts: projector.managed.conflicts}, nil
 }
 
 func parseClaudeHostOptions(args []string) (claudeHostOptions, error) {
@@ -187,6 +218,7 @@ func (p claudeProjector) installLoop(ctx context.Context, loop manifest.LoopMani
 	default:
 		return fmt.Errorf("unsupported loop for Claude Code: %s", loop.Name)
 	}
+	p.beginManaged(loop.Name)
 	if err := p.copyCommonCanonicalAssets(loop); err != nil {
 		return err
 	}
@@ -196,7 +228,7 @@ func (p claudeProjector) installLoop(ctx context.Context, loop manifest.LoopMani
 	if err := p.writeRuntimeEnv(loop, binding); err != nil {
 		return err
 	}
-	if err := p.copyFile(p.loopAsset(loop, loop.Assets.Guide), pathJoin(binding.RuntimeSurface, "GUIDE.md"), 0o644); err != nil {
+	if err := p.projectManaged(p.loopAsset(loop, loop.Assets.Guide), pathJoin(binding.RuntimeSurface, "GUIDE.md"), 0o644); err != nil {
 		return err
 	}
 	if err := p.projectSkills(loop, binding); err != nil {
@@ -219,6 +251,8 @@ func (p claudeProjector) installLoop(ctx context.Context, loop manifest.LoopMani
 		}
 	}
 	ownership := p.loopOwnership(loop, binding)
+	ownership.Hashes = p.managed.next
+	ownership.MarkerVersion = managedMarkerVersion
 	if err := p.writeHostManifest(loop, binding, ownership); err != nil {
 		return err
 	}
@@ -336,12 +370,8 @@ func (p claudeProjector) writeRuntimeEnv(loop manifest.LoopManifest, binding man
 func (p claudeProjector) projectSkills(loop manifest.LoopManifest, binding manifest.BindingManifest) error {
 	hostSkillsDir := p.hostSkillsDir(loop.Name)
 	for _, skill := range loop.Assets.Skills {
-		content, err := fs.ReadFile(assets.FS, p.loopAsset(loop, skill))
-		if err != nil {
-			return fmt.Errorf("read %s: %w", skill, err)
-		}
 		target := pathJoin(hostSkillsDir, skillID(skill), "SKILL.md")
-		if err := p.writeFile(target, content, 0o644); err != nil {
+		if err := p.projectManaged(p.loopAsset(loop, skill), target, 0o644); err != nil {
 			return err
 		}
 	}
@@ -367,7 +397,7 @@ func (p claudeProjector) projectHooks(loop manifest.LoopManifest, binding manife
 			return fmt.Errorf("stat hook %s: %w", phase, err)
 		}
 		target := pathJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name, phase+".sh")
-		if err := p.copyFile(source, target, 0o755); err != nil {
+		if err := p.projectManaged(source, target, 0o755); err != nil {
 			return err
 		}
 	}

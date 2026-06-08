@@ -30,6 +30,7 @@ type projectorCore struct {
 	paths       corePaths
 	stdout      io.Writer
 	stderr      io.Writer
+	managed     *managedState // no-clobber projection state for managed definition files
 }
 
 func (c projectorCore) displayJoin(base string, elems ...string) string {

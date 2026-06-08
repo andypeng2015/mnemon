@@ -61,3 +61,27 @@ func (h *Harness) LoopProject(ctx context.Context, out, errw io.Writer, action, 
 		return fmt.Errorf("unsupported host %q; setup supports codex and claude-code", host)
 	}
 }
+
+// Refresh re-projects the managed definition files (GUIDE, hooks, skill defs) for a host loop under
+// the no-clobber policy: a definition file the user has edited is preserved and reported, never
+// overwritten. It does NOT touch the channel (bindings, token, config) — only the Agent Workspace
+// projection. It returns the display paths it preserved.
+func (h *Harness) Refresh(ctx context.Context, out, errw io.Writer, projectRoot, host string, loops, hostArgs []string) ([]string, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	switch host {
+	case "codex":
+		rep, err := hostsurface.RunCodexProjectorReport(ctx, hostsurface.CodexOptions{
+			ProjectRoot: projectRoot, Loops: loops, HostArgs: hostArgs, RefreshOnly: true, Stdout: out, Stderr: errw,
+		})
+		return rep.Conflicts, err
+	case "claude-code":
+		rep, err := hostsurface.RunClaudeProjectorReport(ctx, hostsurface.ClaudeOptions{
+			ProjectRoot: projectRoot, Loops: loops, HostArgs: hostArgs, RefreshOnly: true, Stdout: out, Stderr: errw,
+		})
+		return rep.Conflicts, err
+	default:
+		return nil, fmt.Errorf("unsupported host %q; refresh supports codex and claude-code", host)
+	}
+}

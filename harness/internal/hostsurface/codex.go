@@ -25,6 +25,7 @@ type CodexOptions struct {
 	ProjectRoot string
 	Loops       []string
 	HostArgs    []string
+	RefreshOnly bool // refresh (re-projection): never adopt an unknown differing file; preserve user edits
 	Stdout      io.Writer
 	Stderr      io.Writer
 }
@@ -72,8 +73,10 @@ type hostManifestLoop struct {
 }
 
 type projectionOwnership struct {
-	Files []string `json:"files,omitempty"`
-	Dirs  []string `json:"dirs,omitempty"`
+	Files         []string          `json:"files,omitempty"`
+	Dirs          []string          `json:"dirs,omitempty"`
+	Hashes        map[string]string `json:"hashes,omitempty"`         // managed definition file -> hash we last wrote (no-clobber marker)
+	MarkerVersion int               `json:"marker_version,omitempty"` // ownership-hash scheme version
 }
 
 func RunCodexProjector(ctx context.Context, action string, opts CodexOptions) error {
@@ -111,6 +114,29 @@ func RunCodexProjector(ctx context.Context, action string, opts CodexOptions) er
 		}
 	}
 	return nil
+}
+
+// RunCodexProjectorReport installs (or, with opts.RefreshOnly, refreshes) the Codex projection and
+// returns the managed files it preserved because the user edited them.
+func RunCodexProjectorReport(ctx context.Context, opts CodexOptions) (Report, error) {
+	projector, loops, err := newCodexProjector("install", opts)
+	if err != nil {
+		return Report{}, err
+	}
+	for _, loopName := range loops {
+		loop, err := manifest.LoadLoop(assets.FS, loopName)
+		if err != nil {
+			return Report{}, err
+		}
+		binding, err := manifest.LoadBinding(assets.FS, "codex", loopName)
+		if err != nil {
+			return Report{}, err
+		}
+		if err := projector.installLoop(ctx, loop, binding); err != nil {
+			return Report{}, fmt.Errorf("install codex/%s: %w", loopName, err)
+		}
+	}
+	return Report{Conflicts: projector.managed.conflicts}, nil
 }
 
 func newCodexProjector(action string, opts CodexOptions) (codexProjector, []string, error) {
@@ -151,6 +177,7 @@ func newCodexProjector(action string, opts CodexOptions) (codexProjector, []stri
 			paths:       codexProjectorPaths(hostOptions),
 			stdout:      opts.Stdout,
 			stderr:      opts.Stderr,
+			managed:     newManagedState(opts.RefreshOnly),
 		},
 		hostOptions: hostOptions,
 	}, loops, nil
@@ -216,6 +243,7 @@ func (p codexProjector) installLoop(ctx context.Context, loop manifest.LoopManif
 	if loop.Name != "memory" && loop.Name != "skill" {
 		return fmt.Errorf("unsupported loop for Codex: %s", loop.Name)
 	}
+	p.beginManaged(loop.Name)
 	if err := p.copyCommonCanonicalAssets(loop); err != nil {
 		return err
 	}
@@ -225,7 +253,7 @@ func (p codexProjector) installLoop(ctx context.Context, loop manifest.LoopManif
 	if err := p.writeRuntimeEnv(loop, binding); err != nil {
 		return err
 	}
-	if err := p.copyFile(p.loopAsset(loop, loop.Assets.Guide), p.displayJoin(binding.RuntimeSurface, "GUIDE.md"), 0o644); err != nil {
+	if err := p.projectManaged(p.loopAsset(loop, loop.Assets.Guide), p.displayJoin(binding.RuntimeSurface, "GUIDE.md"), 0o644); err != nil {
 		return err
 	}
 	if err := p.projectRuntimeMirrors(loop, binding); err != nil {
@@ -248,6 +276,8 @@ func (p codexProjector) installLoop(ctx context.Context, loop manifest.LoopManif
 		}
 	}
 	ownership := p.loopOwnership(loop, binding)
+	ownership.Hashes = p.managed.next
+	ownership.MarkerVersion = managedMarkerVersion
 	if err := p.writeHostManifest(loop, binding, ownership); err != nil {
 		return err
 	}
@@ -389,7 +419,7 @@ func (p codexProjector) projectSkills(loop manifest.LoopManifest, binding manife
 		if err != nil {
 			return err
 		}
-		if err := p.writeFile(target, content, 0o644); err != nil {
+		if err := p.projectManagedBytes(content, target, 0o644); err != nil {
 			return err
 		}
 	}
@@ -414,7 +444,7 @@ func (p codexProjector) projectHooks(loop manifest.LoopManifest, binding manifes
 			return fmt.Errorf("stat hook %s: %w", phase, err)
 		}
 		target := p.displayJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name, phase+".sh")
-		if err := p.copyFile(source, target, 0o755); err != nil {
+		if err := p.projectManaged(source, target, 0o755); err != nil {
 			return err
 		}
 	}
