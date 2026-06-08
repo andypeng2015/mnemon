@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
+	"github.com/mnemon-dev/mnemon/harness/internal/job"
 	"github.com/mnemon-dev/mnemon/harness/internal/kernel"
 	"github.com/mnemon-dev/mnemon/harness/internal/projection"
 	"github.com/mnemon-dev/mnemon/harness/internal/rule"
@@ -47,6 +48,14 @@ type RuntimeConfig struct {
 	// every principal must have a binding granting the verb / observed type / pull scope it uses. The
 	// zero (nil) leaves the API unbound — correct for a trusted in-process owner (embedded coreengine).
 	Bindings []channel.ChannelBinding
+
+	// Runner, when non-nil, enables the effectful job lane (S4/S5): jobs the rule pre-gate enqueues are
+	// run by Runner under leases owned by LaneOwner, fenced for LaneTTL seconds. A nil Runner leaves the
+	// lane OFF — a job verdict is inert. (The assembler sets Runner only when the rule set emits a job
+	// verdict; the P0 builtins never do, so it stays nil.)
+	Runner    job.Runner
+	LaneOwner contract.ActorID
+	LaneTTL   int64
 }
 
 func (cfg RuntimeConfig) withDefaults() RuntimeConfig {
@@ -92,6 +101,9 @@ func OpenRuntime(storePath string, cfg RuntimeConfig) (*Runtime, error) {
 	cfg = cfg.withDefaults()
 	k := kernel.NewKernel(store, kernel.DefaultSchemaGuard(), cfg.Authority)
 	cs := New(store, k, cfg.Rules, cfg.Subs, cfg.Modes, cfg.NewID, cfg.Now)
+	if cfg.Runner != nil { // gated lane: configured ONLY when a runner is supplied (a nil runner = no lane)
+		cs.WithLane(cfg.Runner, cfg.LaneOwner, func() int64 { return time.Now().Unix() }, cfg.LaneTTL)
+	}
 	rt := &Runtime{store: store, cs: cs, api: cs, storePath: storePath}
 	if len(cfg.Bindings) > 0 {
 		bindings, err := channel.NewBindingSet(cfg.Bindings...)
