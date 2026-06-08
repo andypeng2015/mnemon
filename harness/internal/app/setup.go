@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/mnemon-dev/mnemon/harness/core/contract"
-	"github.com/mnemon-dev/mnemon/harness/core/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/contract"
+	"github.com/mnemon-dev/mnemon/harness/internal/server"
 )
 
 // SetupOptions configures the `mnemon-harness setup` front door: project a loop into a host runtime

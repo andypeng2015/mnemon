@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mnemon-dev/mnemon/harness/core/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/server"
 )
 
 func TestLocalStatusReportsProductBoundary(t *testing.T) {

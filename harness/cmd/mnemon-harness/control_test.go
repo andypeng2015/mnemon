@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mnemon-dev/mnemon/harness/core/contract"
-	"github.com/mnemon-dev/mnemon/harness/core/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/contract"
+	"github.com/mnemon-dev/mnemon/harness/internal/server"
 )
 
 // TestControlTokenFileAuth proves P3.2 `control --token-file`: the channel client reads the bearer

@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mnemon-dev/mnemon/harness/core/server"
+	"github.com/mnemon-dev/mnemon/harness/internal/server"
 	"github.com/spf13/cobra"
 )
 
