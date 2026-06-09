@@ -1,6 +1,7 @@
 package store
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -77,4 +78,19 @@ func TestStatfsGuardRejectsFakeNFS(t *testing.T) {
 	if err := release(); err != nil {
 		t.Fatalf("release: %v", err)
 	}
+}
+
+// A leftover lockfile from a crashed owner (no live flock holder) must not block a new writer —
+// and acquiring over it must need no read-check-remove reaping (the TOCTOU the flock swap removes).
+func TestOpenStoreAcquiresOverStaleLockfile(t *testing.T) {
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "k.db")
+	if err := os.WriteFile(dbPath+".writer.lock", []byte("999999"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	s, err := OpenStore(dbPath)
+	if err != nil {
+		t.Fatalf("stale lockfile must not block a new writer: %v", err)
+	}
+	defer s.Close()
 }

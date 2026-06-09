@@ -3,9 +3,9 @@ package store
 import (
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 // fsKind classifies the filesystem hosting a database path for the anti-NFS guard. networked is true for
@@ -23,7 +23,7 @@ type statFSFunc func(path string) (fsKind, error)
 
 // openGuard enforces S11 for a file-backed store: (1) the path must not live on a networked filesystem
 // (a WAL DB on NFS silently corrupts — the one FATAL), and (2) only one writer may hold the file at a time
-// (an exclusive PID lockfile next to it, with a liveness reap of a dead owner's stale lock). Both checks are
+// (an exclusive flock on a lockfile next to it; self-releasing on process death). Both checks are
 // skipped for :memory: and return a no-op release. The returned release MUST be called on Close.
 func openGuard(path string, statFS statFSFunc) (func() error, error) {
 	if path == ":memory:" {
@@ -39,50 +39,22 @@ func openGuard(path string, statFS statFSFunc) (func() error, error) {
 	return acquireWriterLock(path + ".writer.lock")
 }
 
-// acquireWriterLock creates an exclusive lockfile holding this process's PID. If the lock already exists it
-// reaps it iff the recorded owner is dead (liveness reap), then retries once; otherwise it reports the file
-// as held by a live writer.
+// acquireWriterLock takes an exclusive flock on the lockfile. flock is per open-file-description and
+// self-releasing on process death, so there is no stale-lock reaping and no read-check-remove race
+// (the PID-reap predecessor could admit two writers when two openers raced over a crashed owner's
+// lockfile). The holder PID is written into the file as a DIAGNOSTIC only; nothing parses it.
 func acquireWriterLock(lock string) (func() error, error) {
-	for attempt := 0; attempt < 2; attempt++ {
-		f, err := os.OpenFile(lock, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
-		if err == nil {
-			fmt.Fprintf(f, "%d", os.Getpid())
-			f.Close()
-			return func() error { return os.Remove(lock) }, nil
-		}
-		if !os.IsExist(err) {
-			return nil, err
-		}
-		if !reapStaleLock(lock) {
-			return nil, fmt.Errorf("database %q is locked by another live writer (%s)", strings.TrimSuffix(lock, ".writer.lock"), lock)
-		}
-	}
-	return nil, fmt.Errorf("database lock %q could not be acquired", lock)
-}
-
-// reapStaleLock removes a lockfile whose recorded owner PID is dead (or whose content is unreadable/garbage,
-// which can only be a leftover from a crash). It returns true iff it removed the lock so the caller may retry.
-func reapStaleLock(lock string) bool {
-	b, err := os.ReadFile(lock)
+	f, err := os.OpenFile(lock, os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
-		return false
+		return nil, err
 	}
-	pid, perr := strconv.Atoi(strings.TrimSpace(string(b)))
-	if perr != nil || pid <= 0 {
-		return os.Remove(lock) == nil // garbage content -> crash leftover -> reap
+	if err := unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB); err != nil {
+		f.Close()
+		return nil, fmt.Errorf("database %q is locked by another live writer (%s)", strings.TrimSuffix(lock, ".writer.lock"), lock)
 	}
-	if processAlive(pid) {
-		return false
-	}
-	return os.Remove(lock) == nil
-}
-
-// processAlive reports whether a process with the given PID exists (signal 0 probes liveness without
-// delivering a signal). Cross-unix (darwin + linux), which are the only build targets.
-func processAlive(pid int) bool {
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	return p.Signal(syscall.Signal(0)) == nil
+	_ = f.Truncate(0)
+	_, _ = fmt.Fprintf(f, "%d", os.Getpid())
+	// Release by closing the fd. Do NOT os.Remove the file: unlinking on release would let a
+	// concurrent acquirer flock the orphaned inode while a third opener creates a fresh file.
+	return func() error { return f.Close() }, nil
 }
