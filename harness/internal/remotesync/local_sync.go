@@ -138,3 +138,15 @@ func openLocalSyncStore(path string) (*store.Store, error) {
 	}
 	return store.OpenStore(path)
 }
+
+// ProbeAvailable reports whether the local store can be opened for an offline sync pass. It returns an
+// error when a co-hosted Local Mnemon (`local run`) already holds the single-writer lock — so the
+// standalone background sync can refuse cleanly up front instead of failing every pass. A free store
+// is opened and immediately released.
+func ProbeAvailable(storePath string) error {
+	s, err := openLocalSyncStore(storePath)
+	if err != nil {
+		return err
+	}
+	return s.Close()
+}

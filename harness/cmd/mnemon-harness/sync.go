@@ -130,6 +130,13 @@ func runSyncBackground(cmd *cobra.Command, args []string) error {
 	if syncInterval <= 0 {
 		return fmt.Errorf("--interval must be positive")
 	}
+	// Background sync opens the governed store directly, so it cannot run while a co-hosted Local
+	// Mnemon (`local run`) holds the single-writer lock. Probe once up front and refuse cleanly with an
+	// actionable message rather than failing (with a raw lock error) every pass. Offline/manual: stop
+	// `local run` to sync, until co-hosted in-process sync lands.
+	if err := remotesync.ProbeAvailable(resolvedSyncStorePath()); err != nil {
+		return fmt.Errorf("background sync is offline-only for now: the local store is busy (is `mnemon-harness local run` running?) — stop it to sync: %w", err)
+	}
 	ticker := time.NewTicker(syncInterval)
 	defer ticker.Stop()
 	for {
