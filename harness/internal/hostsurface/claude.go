@@ -288,10 +288,10 @@ func (p claudeProjector) uninstallLoop(loop manifest.LoopManifest, binding manif
 			return fmt.Errorf("remove projected agent: %w", err)
 		}
 	}
-	if err := os.RemoveAll(p.resolve(pathJoin(p.paths.configDir, "hooks", "mnemon-"+loop.Name))); err != nil {
+	if err := p.removeManagedTree(pathJoin(p.paths.configDir, "hooks", "mnemon-"+loop.Name)); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(p.resolve(binding.RuntimeSurface)); err != nil {
+	if err := p.removeManagedTree(binding.RuntimeSurface); err != nil {
 		return err
 	}
 	if err := p.removeCanonicalState(loop); err != nil {

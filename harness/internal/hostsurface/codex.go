@@ -314,10 +314,10 @@ func (p codexProjector) uninstallLoop(loop manifest.LoopManifest) error {
 			return err
 		}
 	}
-	if err := os.RemoveAll(p.resolve(p.displayJoin(p.paths.configDir, "hooks", "mnemon-"+loop.Name))); err != nil {
+	if err := p.removeManagedTree(p.displayJoin(p.paths.configDir, "hooks", "mnemon-"+loop.Name)); err != nil {
 		return err
 	}
-	if err := os.RemoveAll(p.resolve(binding.RuntimeSurface)); err != nil {
+	if err := p.removeManagedTree(binding.RuntimeSurface); err != nil {
 		return err
 	}
 	if err := p.removeCanonicalState(loop); err != nil {

@@ -94,6 +94,49 @@ func (c projectorCore) removeManagedSkill(skillFileDisplay string) error {
 	return os.RemoveAll(filepath.Dir(abs))
 }
 
+// removeManagedTree removes a Mnemon-owned projection directory safely on uninstall: each recorded
+// managed file (GUIDE, hook) is removed only if its on-disk hash still matches what we wrote (a
+// user-edited one is preserved + reported); every other entry (derived mirrors, generated env, runtime
+// state subdirs) is ours and removed; the directory itself is removed only once empty, so a preserved
+// edit keeps its directory. Call beginManaged(loop) first to load the recorded hashes.
+func (c projectorCore) removeManagedTree(dirDisplay string) error {
+	abs := c.resolve(dirDisplay)
+	entries, err := os.ReadDir(abs)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		childDisplay := c.displayJoin(dirDisplay, e.Name())
+		if e.IsDir() {
+			if err := c.removeManagedTree(childDisplay); err != nil {
+				return err
+			}
+			continue
+		}
+		if hash, ok := c.managed.prior[childDisplay]; ok {
+			current, err := os.ReadFile(c.resolve(childDisplay))
+			if err != nil {
+				return err
+			}
+			if hashBytes(current) != hash {
+				c.managed.conflicts = append(c.managed.conflicts, childDisplay)
+				c.printf("preserved user-modified %s\n", childDisplay)
+				continue
+			}
+		}
+		if err := os.Remove(c.resolve(childDisplay)); err != nil {
+			return err
+		}
+	}
+	if remaining, err := os.ReadDir(abs); err == nil && len(remaining) == 0 {
+		return os.Remove(abs)
+	}
+	return nil
+}
+
 // ProjectContext is the minimal context the background driver passes to ReProject: which host + loops
 // to re-project, rooted at a project. The no-clobber policy applies (a pre-existing/edited file is preserved).
 type ProjectContext struct {

@@ -233,9 +233,9 @@ func MergeBinding(path string, b ChannelBinding, credentialRef string) error {
 				b.AllowedObservedTypes = unionStrings(existing.AllowedObservedTypes, b.AllowedObservedTypes)
 				b.SubscriptionScope = unionRefs(existing.SubscriptionScope, b.SubscriptionScope)
 			}
-			if credentialRef == "" {
-				credentialRef = doc.Bindings[i].CredentialRef
-			}
+			// credentialRef reflects the CURRENT --token intent (a path when enabled, "" when disabled);
+			// it is set verbatim, so a rerun with --token=false clears the stale credential rather than
+			// leaving the server on TokenAuthenticator while the hooks switch to the trusted header.
 			doc.Bindings[i] = toEntry(b, credentialRef)
 			return writeBindingDoc(path, doc)
 		}
