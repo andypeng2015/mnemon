@@ -97,7 +97,7 @@ func removeClaudeHooks(data map[string]any, marker string) {
 		}
 		kept := rawEntries[:0]
 		for _, entry := range rawEntries {
-			if !containsString(entry, marker) {
+			if !entryUsesHookPath(entry, marker) {
 				kept = append(kept, entry)
 			}
 		}
@@ -131,26 +131,6 @@ func addClaudeHook(data map[string]any, event, command string) {
 		},
 	})
 	hooks[event] = entries
-}
-
-func containsString(value any, needle string) bool {
-	switch typed := value.(type) {
-	case string:
-		return strings.Contains(typed, needle)
-	case []any:
-		for _, item := range typed {
-			if containsString(item, needle) {
-				return true
-			}
-		}
-	case map[string]any:
-		for _, item := range typed {
-			if containsString(item, needle) {
-				return true
-			}
-		}
-	}
-	return false
 }
 
 func stripJSON5(text string) string {

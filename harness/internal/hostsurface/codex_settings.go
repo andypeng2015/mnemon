@@ -99,7 +99,7 @@ func removeCodexHooks(data map[string]any, marker string) {
 		}
 		kept := rawEntries[:0]
 		for _, entry := range rawEntries {
-			if !codexEntryUsesHookPath(entry, marker) {
+			if !entryUsesHookPath(entry, marker) {
 				kept = append(kept, entry)
 			}
 		}
@@ -114,7 +114,11 @@ func removeCodexHooks(data map[string]any, marker string) {
 	}
 }
 
-func codexEntryUsesHookPath(value any, marker string) bool {
+// entryUsesHookPath reports whether a settings hook entry is one WE projected — matched by its command
+// path under hooks/<marker>/, NOT by a loose substring on the marker (which would drop a user's own
+// hook that merely names the loop). Shared by both hosts: the entry shape ({hooks:[{command}]}) is the
+// same for codex hooks.json and claude settings.json.
+func entryUsesHookPath(value any, marker string) bool {
 	entry, ok := value.(map[string]any)
 	if !ok {
 		return false

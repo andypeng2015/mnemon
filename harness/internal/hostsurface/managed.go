@@ -88,10 +88,11 @@ func (c projectorCore) projectManagedBytes(desired []byte, dstDisplay string, mo
 	return nil
 }
 
-// removeManagedSkill removes a projected skill (its directory) ONLY if the projected SKILL.md is still
-// ours — its on-disk hash matches what we recorded in the host manifest. A pre-existing skill we never
-// wrote (no recorded hash) or one the user has edited is preserved + reported, so uninstall never
-// deletes a file the user owns or changed. Call beginManaged(loop) first to load the recorded hashes.
+// removeManagedSkill removes a projected skill's SKILL.md ONLY if it is still ours — its on-disk hash
+// matches what we recorded. A pre-existing skill we never wrote (no recorded hash) or one the user has
+// edited is preserved + reported. It removes only the SKILL.md (not the whole dir) and then rmdir's the
+// skill dir if it is empty, so a user's companion files (reference.md, scripts) in a shared host skills
+// dir survive. Call beginManaged(loop) first to load the recorded hashes.
 func (c projectorCore) removeManagedSkill(skillFileDisplay string) error {
 	abs := c.resolve(skillFileDisplay)
 	current, err := os.ReadFile(abs)
@@ -107,7 +108,14 @@ func (c projectorCore) removeManagedSkill(skillFileDisplay string) error {
 		c.printf("preserved %s (not Mnemon-managed or user-modified)\n", skillFileDisplay)
 		return nil
 	}
-	return os.RemoveAll(filepath.Dir(abs))
+	if err := os.Remove(abs); err != nil {
+		return err
+	}
+	dir := filepath.Dir(abs)
+	if remaining, err := os.ReadDir(dir); err == nil && len(remaining) == 0 {
+		return os.Remove(dir)
+	}
+	return nil
 }
 
 // removeManagedFile removes a single projected managed file living in a SHARED directory (e.g. a
