@@ -38,7 +38,7 @@ func Assemble(cfg config.File, bindings []channel.ChannelBinding) (runtime.Runti
 		if !ok {
 			return runtime.RuntimeConfig{}, fmt.Errorf("capability %q: unknown rule_ref %q (fail-closed)", name, cc.RuleRef)
 		}
-		ref, err := parseRef(cc.ResourceRef)
+		defRef, err := parseRef(cc.ResourceRef)
 		if err != nil {
 			return runtime.RuntimeConfig{}, fmt.Errorf("capability %q: %w", name, err)
 		}
@@ -50,6 +50,10 @@ func Assemble(cfg config.File, bindings []channel.ChannelBinding) (runtime.Runti
 			if !b.Allows(channel.VerbObserve) || !allowsAnyObservedType(b, observed) {
 				continue
 			}
+			ref, ok := refForBinding(b, cap.ResourceKind, defRef)
+			if !ok {
+				continue // unscoped for this kind: no rule, no authority (it could never pull what it writes)
+			}
 			rules = append(rules, cap.Rule(b.Principal, ref, capability.Limits{MaxPayloadBytes: cc.MaxPayloadBytes}))
 			allow[b.Principal] = appendKind(allow[b.Principal], cap.ResourceKind)
 		}
@@ -60,6 +64,23 @@ func Assemble(cfg config.File, bindings []channel.ChannelBinding) (runtime.Runti
 		Rules:     rule.NewRuleSet(rules...),
 		Authority: kernel.AuthorityRules{Allow: allow},
 	}, nil
+}
+
+// refForBinding picks the binding's admission target for one capability kind: the config-pinned
+// default if the binding's scope contains it, else the binding's first ref of that kind, else none
+// (an unscoped binding gets no rule — it could never pull what it writes).
+func refForBinding(b channel.ChannelBinding, kind contract.ResourceKind, def contract.ResourceRef) (contract.ResourceRef, bool) {
+	for _, ref := range b.SubscriptionScope {
+		if ref == def {
+			return ref, true
+		}
+	}
+	for _, ref := range b.SubscriptionScope {
+		if ref.Kind == kind {
+			return ref, true
+		}
+	}
+	return contract.ResourceRef{}, false
 }
 
 func parseRef(s string) (contract.ResourceRef, error) {

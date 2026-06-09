@@ -62,3 +62,78 @@ func TestAssembleFailsClosedOnUnknownCapability(t *testing.T) {
 		t.Fatal("an unknown capability rule_ref must fail closed")
 	}
 }
+
+// A binding scoped to a non-default ref of the capability's kind must get a rule targeting ITS ref
+// (parity with the production memoryRefForBinding fallback), not the config-pinned default.
+func TestAssembleDerivesRefFromBindingScope(t *testing.T) {
+	teamRef := contract.ResourceRef{Kind: "memory", ID: "team"}
+	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{teamRef})
+	binding.AllowedObservedTypes = []string{"memory.write_candidate.observed"}
+
+	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
+		"memory": {Enabled: true, ResourceRef: "memory/project", RuleRef: "native:memory"},
+	}}
+	rc, err := Assemble(cfg, []channel.ChannelBinding{binding})
+	if err != nil {
+		t.Fatalf("assemble: %v", err)
+	}
+
+	rt, err := runtime.OpenRuntime(filepath.Join(t.TempDir(), "g.db"), rc)
+	if err != nil {
+		t.Fatalf("open runtime: %v", err)
+	}
+	defer rt.Close()
+
+	if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+		ExternalID: "m1",
+		Event:      contract.Event{Type: "memory.write_candidate.observed", Payload: map[string]any{"content": "team fact", "source": "s", "confidence": "high"}},
+	}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := rt.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if v, _, err := rt.Resource(teamRef); err != nil || v == 0 {
+		t.Fatalf("write must land on the binding's scoped ref memory/team (v=%d err=%v)", v, err)
+	}
+	if v, _, _ := rt.Resource(contract.ResourceRef{Kind: "memory", ID: "project"}); v != 0 {
+		t.Fatal("the config default memory/project must NOT be written for a team-scoped binding")
+	}
+}
+
+// A host-agent binding with observe + observed-type but EMPTY SubscriptionScope must produce no rule
+// and no kernel authority (parity with the app builders' skip; an unscoped binding could never pull
+// what it writes).
+func TestAssembleSkipsUnscopedBinding(t *testing.T) {
+	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", nil)
+	binding.AllowedObservedTypes = []string{"memory.write_candidate.observed"}
+
+	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
+		"memory": {Enabled: true, ResourceRef: "memory/project", RuleRef: "native:memory"},
+	}}
+	rc, err := Assemble(cfg, []channel.ChannelBinding{binding})
+	if err != nil {
+		t.Fatalf("assemble: %v", err)
+	}
+	if got := len(rc.Authority.Allow["codex@project"]); got != 0 {
+		t.Fatalf("unscoped binding must get no kernel authority, got %d kinds", got)
+	}
+
+	rt, err := runtime.OpenRuntime(filepath.Join(t.TempDir(), "g.db"), rc)
+	if err != nil {
+		t.Fatalf("open runtime: %v", err)
+	}
+	defer rt.Close()
+	if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+		ExternalID: "m1",
+		Event:      contract.Event{Type: "memory.write_candidate.observed", Payload: map[string]any{"content": "x", "source": "s", "confidence": "high"}},
+	}); err != nil {
+		t.Fatalf("ingest: %v", err)
+	}
+	if _, err := rt.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	if v, _, _ := rt.Resource(contract.ResourceRef{Kind: "memory", ID: "project"}); v != 0 {
+		t.Fatal("an unscoped binding must not produce a write")
+	}
+}
