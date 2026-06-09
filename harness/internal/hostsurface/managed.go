@@ -78,7 +78,11 @@ func (c projectorCore) projectManagedBytes(desired []byte, dstDisplay string, mo
 	dst := c.resolve(dstDisplay)
 	if classifyManaged(dst, desired, c.managed.prior[dstDisplay]) == classConflict {
 		c.managed.conflicts = append(c.managed.conflicts, dstDisplay)
-		c.printf("preserved user-modified %s\n", dstDisplay)
+		if c.dryRun {
+			c.printf("would preserve user-modified %s\n", dstDisplay)
+		} else {
+			c.printf("preserved user-modified %s\n", dstDisplay)
+		}
 		return nil
 	}
 	if err := c.writeFile(dstDisplay, desired, mode); err != nil {

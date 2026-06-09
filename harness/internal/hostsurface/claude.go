@@ -85,6 +85,7 @@ func newClaudeProjector(opts ClaudeOptions) (claudeProjector, []string, error) {
 			skillsDirOverride: hostOptions.hostSkillsDir,
 			purgeMemory:       hostOptions.purgeMemory,
 			purgeLibrary:      hostOptions.purgeLibrary,
+			dryRun:            hostOptions.dryRun,
 		},
 		hostOptions: hostOptions,
 	}, loops, nil
@@ -97,15 +98,6 @@ func RunClaudeProjector(ctx context.Context, action string, opts ClaudeOptions) 
 	projector, loops, err := newClaudeProjector(opts)
 	if err != nil {
 		return err
-	}
-	if projector.hostOptions.dryRun {
-		// Truthful minimal report: nothing is written. The classifier-driven per-file diff
-		// (would write / would preserve) is the planned upgrade for both hosts.
-		for _, loopName := range loops {
-			projector.printf("claude-code/%s: dry-run: managed definition files would be projected under %s (per-file diff: --host codex only for now); no changes written\n",
-				loopName, projector.paths.configDir)
-		}
-		return nil
 	}
 	for _, loopName := range loops {
 		loop, err := manifest.LoadLoop(assets.FS, loopName)
@@ -136,13 +128,6 @@ func RunClaudeProjectorReport(ctx context.Context, opts ClaudeOptions) (Report, 
 	projector, loops, err := newClaudeProjector(opts)
 	if err != nil {
 		return Report{}, err
-	}
-	if projector.hostOptions.dryRun {
-		for _, loopName := range loops {
-			projector.printf("claude-code/%s: dry-run: managed definition files would be projected under %s (per-file diff: --host codex only for now); no changes written\n",
-				loopName, projector.paths.configDir)
-		}
-		return Report{}, nil
 	}
 	for _, loopName := range loops {
 		loop, err := manifest.LoadLoop(assets.FS, loopName)
@@ -351,6 +336,10 @@ func (p claudeProjector) projectAgents(loop manifest.LoopManifest, binding manif
 }
 
 func (p claudeProjector) patchSettings(loopName string) error {
+	if p.dryRun {
+		p.printf("would patch %s\n", pathJoin(p.paths.configDir, "settings.json"))
+		return nil
+	}
 	return patchClaudeSettings(p.resolve(pathJoin(p.paths.configDir, "settings.json")), p.paths.configDir, "mnemon-"+loopName, p.hookOptions(loopName))
 }
 

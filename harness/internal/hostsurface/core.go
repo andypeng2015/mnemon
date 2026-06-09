@@ -37,6 +37,7 @@ type projectorCore struct {
 	skillsDirOverride string // --host-skills-dir
 	purgeMemory       bool   // --purge-memory
 	purgeLibrary      bool   // --purge-library
+	dryRun            bool   // --dry-run: report would-write/would-preserve, write nothing
 	stdout            io.Writer
 	stderr            io.Writer
 	managed           *managedState // no-clobber projection state for managed definition files
@@ -83,6 +84,10 @@ func (c projectorCore) copyFileIfMissing(src, dstDisplay string, mode os.FileMod
 }
 
 func (c projectorCore) writeFile(dstDisplay string, data []byte, mode os.FileMode) error {
+	if c.dryRun {
+		c.printf("would write %s\n", dstDisplay)
+		return nil
+	}
 	dst := c.resolve(dstDisplay)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", filepath.Dir(dst), err)
@@ -228,6 +233,9 @@ func (p projectorCore) prepareLoopState(loop manifest.LoopManifest) error {
 		}
 	case "skill":
 		for _, dir := range []string{"skills/active", "skills/stale", "skills/archived", "proposals", "reports"} {
+			if p.dryRun {
+				continue
+			}
 			if err := os.MkdirAll(p.resolve(pathJoin(p.stateDir(loop.Name), dir)), 0o755); err != nil {
 				return fmt.Errorf("mkdir %s: %w", dir, err)
 			}
@@ -253,6 +261,10 @@ func (p projectorCore) installedHostSkillsDir(loopName string, binding manifest.
 }
 
 func (p projectorCore) ensureStore(ctx context.Context, storeName string) error {
+	if p.dryRun {
+		p.printf("would ensure mnemon store %q\n", storeName)
+		return nil
+	}
 	mnemon, err := exec.LookPath("mnemon")
 	if err != nil {
 		return fmt.Errorf("mnemon binary not found in PATH; build or install it before setting a %s memory store", p.host)

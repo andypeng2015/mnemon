@@ -95,12 +95,9 @@ func RunCodexProjector(ctx context.Context, action string, opts CodexOptions) er
 		}
 		switch action {
 		case "install":
-			if projector.hostOptions.dryRun {
-				if _, err := projector.diffLoop(loop, binding, true); err != nil {
-					return fmt.Errorf("dry-run install codex/%s: %w", loopName, err)
-				}
-				continue
-			}
+			// --dry-run runs the SAME install path with the core write gates suppressing every
+			// write: the report comes from the real classifier (would write / would preserve),
+			// never from a parallel desired-files model that can drift from installLoop.
 			if err := projector.installLoop(ctx, loop, binding); err != nil {
 				return fmt.Errorf("install codex/%s: %w", loopName, err)
 			}
@@ -179,6 +176,7 @@ func newCodexProjector(action string, opts CodexOptions) (codexProjector, []stri
 			skillsDirOverride: hostOptions.hostSkillsDir,
 			purgeMemory:       hostOptions.purgeMemory,
 			purgeLibrary:      hostOptions.purgeLibrary,
+			dryRun:            hostOptions.dryRun,
 		},
 		hostOptions: hostOptions,
 	}, loops, nil
@@ -372,6 +370,10 @@ func (p codexProjector) projectedSkillContent(loop manifest.LoopManifest, bindin
 }
 
 func (p codexProjector) patchHooks(loopName string) error {
+	if p.dryRun {
+		p.printf("would patch %s\n", pathJoin(p.paths.configDir, "hooks.json"))
+		return nil
+	}
 	return patchCodexHooks(p.resolve(pathJoin(p.paths.configDir, "hooks.json")), p.paths.configDir, "mnemon-"+loopName, p.hookOptions(loopName))
 }
 
