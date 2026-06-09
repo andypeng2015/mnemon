@@ -4,7 +4,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/mnemon-dev/mnemon/harness/internal/config"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/projection"
 )
@@ -18,7 +17,7 @@ func newBridge() *Bridge      { return NewBridge(seqGen(), fixedNow()) }
 
 func TestStampUsesTrustedSourcesNotPayload(t *testing.T) {
 	br := newBridge()
-	b := config.ResolvedBinding{EventType: "memory.observed", Actor: "agent", Emits: "memory.write.proposed"}
+	b := ResolvedBinding{Actor: "agent", Emits: "memory.write.proposed"}
 	proj := projection.Projection{Ref: "proj_abc", Digest: "abc",
 		Resources: []contract.ResourceVersion{{Ref: contract.ResourceRef{Kind: "memory", ID: "m1"}, Version: 3}}}
 	trigger := contract.Event{ID: "ev-trigger", Type: "memory.observed", CorrelationID: "corr-1"}
@@ -53,7 +52,7 @@ func TestStampUsesTrustedSourcesNotPayload(t *testing.T) {
 
 func TestStampMintsCorrelationWhenTriggerEmpty(t *testing.T) {
 	br := newBridge()
-	b := config.ResolvedBinding{Actor: "agent", Emits: "memory.write.proposed"}
+	b := ResolvedBinding{Actor: "agent", Emits: "memory.write.proposed"}
 	// empty-writes intent passes the bridge (the kernel rejects it later as a malformed/empty op):
 	ev, err := br.Stamp(b, projection.Projection{}, contract.Event{ID: "t"}, contract.ProposedEvent{Type: "memory.write.proposed"})
 	if err != nil {
@@ -68,7 +67,7 @@ func TestStampMintsCorrelationWhenTriggerEmpty(t *testing.T) {
 // kernel's authz is actor/kind only, so the bridge is the sole ref-level gate.
 func TestStampRejectsOutOfScopeWrite(t *testing.T) {
 	br := newBridge()
-	b := config.ResolvedBinding{Actor: "agent", Emits: "memory.write.proposed"}
+	b := ResolvedBinding{Actor: "agent", Emits: "memory.write.proposed"}
 	proj := projection.Projection{Resources: []contract.ResourceVersion{{Ref: contract.ResourceRef{Kind: "memory", ID: "m1"}, Version: 1}}} // scope = {m1}
 	intent := contract.ProposedEvent{Type: "memory.write.proposed", Payload: map[string]any{
 		"writes": []contract.ResourceWrite{{Ref: contract.ResourceRef{Kind: "memory", ID: "m2"}, Kind: contract.OpUpdate, BasedOn: 0}}}} // m2 NOT in scope

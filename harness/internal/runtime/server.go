@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
-	"github.com/mnemon-dev/mnemon/harness/internal/config"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/job"
 	"github.com/mnemon-dev/mnemon/harness/internal/kernel"
@@ -262,7 +261,7 @@ func (cs *ControlServer) dispatchOne(ev contract.Event) ([]contract.Event, []sto
 			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "bridge", Reason: "no rule owns the proposal", Ref: dec.Proposal.Type}))
 			break
 		}
-		b := config.ResolvedBinding{EventType: ev.Type, Actor: dec.ProposalActor, Emits: dec.Proposal.Type}
+		b := ResolvedBinding{Actor: dec.ProposalActor, Emits: dec.Proposal.Type}
 		e, serr := cs.bridge.Stamp(b, view, ev, *dec.Proposal)
 		if serr != nil {
 			stamped = append(stamped, cs.diagnosticEvent(ev, contract.Diagnostic{Stage: "bridge", Reason: serr.Error(), Ref: string(b.Actor)}))
@@ -368,7 +367,7 @@ func (cs *ControlServer) runJobLane() error {
 		}
 		if result.ProposalCandidate != nil {
 			view := cs.scopedView(jp.Actor)
-			b := config.ResolvedBinding{Actor: jp.Actor, Emits: result.ProposalCandidate.Type}
+			b := ResolvedBinding{Actor: jp.Actor, Emits: result.ProposalCandidate.Type}
 			if e, serr := cs.bridge.Stamp(b, view, trigger, *result.ProposalCandidate); serr != nil {
 				// S7: an out-of-scope lane proposal is dropped with a diagnostic, never silently.
 				if _, aerr := cs.store.AppendEvent(cs.diagnosticEvent(trigger, contract.Diagnostic{Stage: "bridge", Reason: serr.Error(), Ref: string(jp.Actor)})); aerr != nil {
@@ -398,7 +397,7 @@ func (cs *ControlServer) remintFromReceipt(jp jobPayload, receiptFields map[stri
 		return nil
 	}
 	view := cs.scopedView(jp.Actor)
-	b := config.ResolvedBinding{Actor: jp.Actor, Emits: cand.Type}
+	b := ResolvedBinding{Actor: jp.Actor, Emits: cand.Type}
 	trigger := contract.Event{ID: jp.TriggerID, Type: "job.observed", Actor: jp.Actor, CorrelationID: jp.Correlation}
 	e, serr := cs.bridge.Stamp(b, view, trigger, cand)
 	if serr != nil {

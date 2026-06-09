@@ -4,10 +4,19 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/mnemon-dev/mnemon/harness/internal/config"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/projection"
 )
+
+// ResolvedBinding carries the trusted write identity (Actor) and authorized emit type for a
+// proposal: the server builds it at dispatch time from the rule (Actor()/Emits()) or the job lane,
+// and Bridge.Stamp reads only these two fields. It is runtime's own stamping DTO — trusted write
+// identity at stamp time has nothing to do with file config (where it lived before the assembler
+// cutover).
+type ResolvedBinding struct {
+	Actor contract.ActorID
+	Emits string
+}
 
 // Bridge is the single chokepoint where a callback's INTENT becomes a TRUSTED *.proposed event. newID
 // mints unique event ids; now stamps the (provenance-only) ts. Both are injected for deterministic tests.
@@ -25,7 +34,7 @@ func NewBridge(newID, now func() string) *Bridge { return &Bridge{newID: newID, 
 // "actor"/"based_on" into it (R1/R2). Only Payload (the write set) rides through proposer-controlled; the
 // kernel validates it. An empty/undecodable write set PASSES the bridge (the kernel rejects it as a
 // malformed/empty op, preserving the audit trail); only a DECODED, out-of-scope write is blocked here.
-func (br *Bridge) Stamp(b config.ResolvedBinding, dispatchedOn projection.Projection, trigger contract.Event, intent contract.ProposedEvent) (contract.Event, error) {
+func (br *Bridge) Stamp(b ResolvedBinding, dispatchedOn projection.Projection, trigger contract.Event, intent contract.ProposedEvent) (contract.Event, error) {
 	scope := make(map[contract.ResourceRef]bool, len(dispatchedOn.Resources))
 	refs := make([]contract.ResourceRef, 0, len(dispatchedOn.Resources))
 	for _, rv := range dispatchedOn.Resources {
