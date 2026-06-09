@@ -59,7 +59,7 @@ const DefaultStorePath = ".mnemon/harness/local/governed.db"
 // The server boots the one server-owned Runtime over the store (service mode, S11 single-writer) with
 // a BARE config — an empty rule set and no preconfigured actors: a bare channel endpoint (records
 // observations, serves scoped projections). Policy (rules/actors/subs) is a configuration seam a
-// richer boot path supplies via RuntimeConfig / NewFromConfig.
+// richer boot path supplies via RuntimeConfig (assembler.Assemble is the sole config front door).
 func RunHTTPServer(ctx context.Context, addr, storePath string, out io.Writer) error {
 	rt, err := OpenRuntime(storePath, RuntimeConfig{})
 	if err != nil {
