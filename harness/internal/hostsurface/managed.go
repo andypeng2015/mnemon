@@ -16,15 +16,18 @@ import (
 
 // managedState tracks the no-clobber projection of one host's managed definition files: the hashes we
 // last wrote (prior, loaded from the host manifest), the hashes we write this pass (next, persisted
-// back), and the user-modified / pre-existing files we preserved (conflicts).
+// back), the user-modified / pre-existing files we preserved this pass (conflicts), and the set of
+// paths a prior pass recorded as preserved (preservedPrior) so uninstall does not delete them as
+// generated residue.
 type managedState struct {
-	prior     map[string]string
-	next      map[string]string
-	conflicts []string
+	prior          map[string]string
+	next           map[string]string
+	conflicts      []string
+	preservedPrior map[string]bool
 }
 
 func newManagedState() *managedState {
-	return &managedState{prior: map[string]string{}, next: map[string]string{}}
+	return &managedState{prior: map[string]string{}, next: map[string]string{}, preservedPrior: map[string]bool{}}
 }
 
 // beginManaged resets the per-loop managed hashes and loads the prior recorded hashes for loopName
@@ -32,6 +35,7 @@ func newManagedState() *managedState {
 func (c projectorCore) beginManaged(loopName string) {
 	c.managed.prior = map[string]string{}
 	c.managed.next = map[string]string{}
+	c.managed.preservedPrior = map[string]bool{}
 	data, err := os.ReadFile(c.resolve(c.hostManifestPath()))
 	if err != nil {
 		return
@@ -40,10 +44,19 @@ func (c projectorCore) beginManaged(loopName string) {
 	if json.Unmarshal(data, &m) != nil {
 		return
 	}
+	lp, ok := m.Loops[loopName]
+	if !ok {
+		return
+	}
+	// A prior pass recorded these as preserved (a user/pre-existing file we declined to write); carry
+	// them forward so uninstall preserves them rather than deleting them as generated residue.
+	for _, p := range lp.Ownership.Preserved {
+		c.managed.preservedPrior[p] = true
+	}
 	// Trust recorded hashes only when the marker scheme matches. A future scheme change leaves prior
 	// empty -> classifyManaged preserves (never clobbers) on install and removeManaged* preserve on
 	// uninstall: fail safe toward keeping the user's files, never toward deleting them.
-	if lp, ok := m.Loops[loopName]; ok && lp.Ownership.MarkerVersion == managedMarkerVersion && lp.Ownership.Hashes != nil {
+	if lp.Ownership.MarkerVersion == managedMarkerVersion && lp.Ownership.Hashes != nil {
 		c.managed.prior = lp.Ownership.Hashes
 	}
 }
@@ -138,6 +151,13 @@ func (c projectorCore) removeManagedTree(dirDisplay string) error {
 			if err := c.removeManagedTree(childDisplay); err != nil {
 				return err
 			}
+			continue
+		}
+		// A path a prior pass recorded as preserved (a user/pre-existing file we never wrote) is not ours
+		// to delete, even though it has no recorded hash.
+		if c.managed.preservedPrior[childDisplay] {
+			c.managed.conflicts = append(c.managed.conflicts, childDisplay)
+			c.printf("preserved %s\n", childDisplay)
 			continue
 		}
 		if hash, ok := c.managed.prior[childDisplay]; ok {

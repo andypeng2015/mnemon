@@ -75,6 +75,7 @@ type projectionOwnership struct {
 	Files         []string          `json:"files,omitempty"`
 	Dirs          []string          `json:"dirs,omitempty"`
 	Hashes        map[string]string `json:"hashes,omitempty"`         // managed definition file -> hash we last wrote (no-clobber marker)
+	Preserved     []string          `json:"preserved,omitempty"`      // managed paths we declined to write (user/pre-existing) -> never delete on uninstall
 	MarkerVersion int               `json:"marker_version,omitempty"` // ownership-hash scheme version
 }
 
@@ -276,6 +277,7 @@ func (p codexProjector) installLoop(ctx context.Context, loop manifest.LoopManif
 	}
 	ownership := p.loopOwnership(loop, binding)
 	ownership.Hashes = p.managed.next
+	ownership.Preserved = p.managed.conflicts
 	ownership.MarkerVersion = managedMarkerVersion
 	if err := p.writeHostManifest(loop, binding, ownership); err != nil {
 		return err

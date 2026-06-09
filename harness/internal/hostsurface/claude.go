@@ -251,6 +251,7 @@ func (p claudeProjector) installLoop(ctx context.Context, loop manifest.LoopMani
 	}
 	ownership := p.loopOwnership(loop, binding)
 	ownership.Hashes = p.managed.next
+	ownership.Preserved = p.managed.conflicts
 	ownership.MarkerVersion = managedMarkerVersion
 	if err := p.writeHostManifest(loop, binding, ownership); err != nil {
 		return err
