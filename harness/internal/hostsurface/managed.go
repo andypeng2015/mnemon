@@ -40,7 +40,10 @@ func (c projectorCore) beginManaged(loopName string) {
 	if json.Unmarshal(data, &m) != nil {
 		return
 	}
-	if lp, ok := m.Loops[loopName]; ok && lp.Ownership.Hashes != nil {
+	// Trust recorded hashes only when the marker scheme matches. A future scheme change leaves prior
+	// empty -> classifyManaged preserves (never clobbers) on install and removeManaged* preserve on
+	// uninstall: fail safe toward keeping the user's files, never toward deleting them.
+	if lp, ok := m.Loops[loopName]; ok && lp.Ownership.MarkerVersion == managedMarkerVersion && lp.Ownership.Hashes != nil {
 		c.managed.prior = lp.Ownership.Hashes
 	}
 }
