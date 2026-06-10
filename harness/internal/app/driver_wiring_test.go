@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -125,7 +126,7 @@ func TestDriverTickDrainsReprojectsAndPrunes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := driver.New(rt, reprojectForHosts(map[string][]string{"codex": {"memory"}}, root), 0)
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh"), 0)
 	if err := d.Tick(context.Background()); err != nil {
 		t.Fatalf("driver tick: %v", err)
 	}
@@ -139,5 +140,107 @@ func TestDriverTickDrainsReprojectsAndPrunes(t *testing.T) {
 	}
 	if _, drained, err := rt.DrainOutbox(); err != nil || drained != 0 {
 		t.Fatalf("driver tick must have drained the invalidation; re-drain found %d (err %v)", drained, err)
+	}
+}
+
+// 阶段一核心验收:accepted write → driver tick → MEMORY.md 镜像已含新内容,全程不跑 prime;
+// user-edited 定义文件在多个"真实再生"周期下持续不被触碰(I10 时间窗:每轮注入新候选,
+// 保证 ≥3 次重投影真的发生)。
+func TestDriverTickRegeneratesMemoryMirror(t *testing.T) {
+	root := t.TempDir()
+	setupHost(t, root, "codex")
+	loaded, err := channel.LoadBindingFile(root, filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt, err := OpenLocalRuntime(filepath.Join(root, ".mnemon", "harness", "local", "governed.db"), loaded, []string{"memory"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	guide := filepath.Join(root, ".codex", "mnemon-memory", "GUIDE.md")
+	if err := os.WriteFile(guide, []byte("# USER EDIT\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh"), 0)
+	for i := 1; i <= 3; i++ { // 每轮一个新 accepted write → 每轮一次真实重投影
+		if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+			ExternalID: fmt.Sprintf("m%d", i),
+			Event: contract.Event{Type: "memory.write_candidate.observed",
+				Payload: map[string]any{"content": fmt.Sprintf("driver mirror fact %d", i), "source": "s", "confidence": "high"}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rt.Tick(); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Tick(context.Background()); err != nil {
+			t.Fatalf("driver tick %d: %v", i, err)
+		}
+	}
+
+	mirror, err := os.ReadFile(filepath.Join(root, ".codex", "mnemon-memory", "MEMORY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i <= 3; i++ {
+		if !strings.Contains(string(mirror), fmt.Sprintf("driver mirror fact %d", i)) {
+			t.Fatalf("driver must regenerate the mirror with governed content (fact %d missing):\n%s", i, mirror)
+		}
+	}
+	if after, _ := os.ReadFile(guide); !strings.HasPrefix(string(after), "# USER EDIT") {
+		t.Fatal("guarded definition file touched across real re-projection cycles")
+	}
+}
+
+// manual 模式:driver 排空照常,但镜像保持种子态(仅 prime 再生)。
+func TestDriverManualModeSkipsMirror(t *testing.T) {
+	root := t.TempDir()
+	setupHost(t, root, "codex")
+	loaded, err := channel.LoadBindingFile(root, filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	rt, err := OpenLocalRuntime(filepath.Join(root, ".mnemon", "harness", "local", "governed.db"), loaded, []string{"memory"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+	if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+		ExternalID: "m1",
+		Event: contract.Event{Type: "memory.write_candidate.observed",
+			Payload: map[string]any{"content": "must not appear", "source": "s", "confidence": "high"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := rt.Tick(); err != nil {
+		t.Fatal(err)
+	}
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "manual"), 0)
+	if err := d.Tick(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	mirror, err := os.ReadFile(filepath.Join(root, ".codex", "mnemon-memory", "MEMORY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(mirror), "must not appear") {
+		t.Fatal("manual mode must not regenerate the mirror from the driver")
+	}
+}
+
+// reproject 错误绝不杀死 driver:包装器记日志吞错,排空与修剪长存。
+func TestSwallowReprojectErrorsKeepsDriverAlive(t *testing.T) {
+	var log bytes.Buffer
+	wrapped := swallowReprojectErrors(func([]contract.ResourceRef) error {
+		return fmt.Errorf("transient mirror failure")
+	}, &log)
+	if err := wrapped(nil); err != nil {
+		t.Fatalf("wrapper must swallow reproject errors, got %v", err)
+	}
+	if !strings.Contains(log.String(), "transient mirror failure") {
+		t.Fatalf("the swallowed error must be logged, got %q", log.String())
 	}
 }

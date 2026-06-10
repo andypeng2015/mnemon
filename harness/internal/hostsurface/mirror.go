@@ -19,7 +19,13 @@ func WriteMemoryMirror(path string, proj projection.Projection) error {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, []byte(body), 0o644)
+	// Atomic on POSIX: the prime hook (another process) and the background driver may both
+	// regenerate this derived view; a reader must never observe a truncated mirror mid-write.
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(body), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
 }
 
 func scopedMemoryContent(proj projection.Projection) string {

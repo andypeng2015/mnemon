@@ -8,13 +8,17 @@ import (
 	"sort"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/assembler"
+	"github.com/mnemon-dev/mnemon/harness/internal/assets"
 	"github.com/mnemon-dev/mnemon/harness/internal/capability"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/config"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/driver"
 	"github.com/mnemon-dev/mnemon/harness/internal/hostsurface"
+	"path/filepath"
+
 	"github.com/mnemon-dev/mnemon/harness/internal/kernel"
+	"github.com/mnemon-dev/mnemon/harness/internal/manifest"
 	"github.com/mnemon-dev/mnemon/harness/internal/rule"
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
@@ -91,8 +95,8 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 		return err
 	}
 	defer rt.Close()
-	if reproject := reprojectForHosts(opts.Hosts, opts.ProjectRoot); reproject != nil {
-		d := driver.New(rt, reproject, 0)
+	if reproject := serveReproject(rt, loaded, opts.Hosts, opts.ProjectRoot, opts.MirrorMode); reproject != nil {
+		d := driver.New(rt, swallowReprojectErrors(reproject, os.Stderr), 0)
 		go func() {
 			if err := d.Run(ctx); err != nil && ctx.Err() == nil {
 				fmt.Fprintf(os.Stderr, "mnemon-harness: background driver stopped: %v\n", err)
@@ -102,10 +106,16 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 	return runtime.ServeRuntime(ctx, addr, rt, channel.NewBindingAuthenticator(loaded), out)
 }
 
-// reprojectForHosts builds the driver's re-projection callback over every recorded host surface
-// (deterministic host order). nil when no hosts are recorded — old installs get no background
-// re-projection until a setup rerun records the hosts map.
-func reprojectForHosts(hosts map[string][]string, projectRoot string) func(refs []contract.ResourceRef) error {
+// serveReproject builds the driver's reproject callback: (a) re-project every recorded host's
+// managed DEFINITION files under no-clobber (cheap no-op when unchanged), and (b) when the
+// drained refs touch the memory kind and MirrorMode permits, regenerate each host's derived
+// MEMORY.md mirror from a fresh scoped projection (I11: derived, freely regenerated — never
+// routed through conflict-preserve). nil when no hosts are recorded — old installs get no
+// background re-projection until a setup rerun records the hosts map.
+//
+// Mirror scope reconciliation: only the memory loop carries a runtime mirror today; the
+// loop-declared generic version replaces this helper when stage-2's render catalog lands.
+func serveReproject(rt *runtime.Runtime, loaded channel.LoadedBindings, hosts map[string][]string, projectRoot, mirrorMode string) func(refs []contract.ResourceRef) error {
 	if len(hosts) == 0 {
 		return nil
 	}
@@ -127,8 +137,88 @@ func reprojectForHosts(hosts map[string][]string, projectRoot string) func(refs 
 				return fmt.Errorf("re-project %s: %w", host, err)
 			}
 		}
+		if mirrorMode == "manual" || !refsTouchKind(refs, "memory") {
+			return nil
+		}
+		principal, ok := mirrorPrincipal(loaded.Bindings)
+		if !ok {
+			return nil // no memory-scoped host-agent binding: nothing to mirror
+		}
+		proj, err := rt.API().PullProjection(principal, contract.Subscription{Actor: principal})
+		if err != nil {
+			return fmt.Errorf("mirror projection: %w", err)
+		}
+		for _, host := range names {
+			if !containsLoop(hosts[host], "memory") {
+				continue
+			}
+			binding, err := manifest.LoadBinding(assets.FS, host, "memory")
+			if err != nil {
+				return fmt.Errorf("mirror binding %s: %w", host, err)
+			}
+			path := filepath.Join(projectRoot, filepath.FromSlash(binding.RuntimeSurface), "MEMORY.md")
+			if err := hostsurface.WriteMemoryMirror(path, proj); err != nil {
+				return fmt.Errorf("mirror %s: %w", host, err)
+			}
+		}
 		return nil
 	}
+}
+
+// swallowReprojectErrors keeps the background driver alive across reproject failures: the driver
+// stops on the FIRST Tick error, and a transient mirror/file failure must never permanently kill
+// outbox draining (and with it, pruning) for the process lifetime. Reproject is best-effort —
+// log and continue; store-level Tick errors still stop the driver.
+func swallowReprojectErrors(reproject func(refs []contract.ResourceRef) error, errw io.Writer) func(refs []contract.ResourceRef) error {
+	return func(refs []contract.ResourceRef) error {
+		if err := reproject(refs); err != nil {
+			fmt.Fprintf(errw, "mnemon-harness: background re-projection: %v\n", err)
+		}
+		return nil
+	}
+}
+
+// refsTouchKind reports whether any drained ref is of kind (selective refresh: a skill-only
+// write does not regenerate the memory mirror).
+func refsTouchKind(refs []contract.ResourceRef, kind contract.ResourceKind) bool {
+	for _, r := range refs {
+		if r.Kind == kind {
+			return true
+		}
+	}
+	return false
+}
+
+// mirrorPrincipal picks the projection identity for mirror regeneration: the first (by
+// principal, deterministic) host-agent binding whose scope covers the memory kind. The memory
+// resource is shared, so any in-scope principal projects identical content.
+func mirrorPrincipal(bindings []channel.ChannelBinding) (contract.ActorID, bool) {
+	var candidates []channel.ChannelBinding
+	for _, b := range bindings {
+		if b.ActorKind != contract.KindHostAgent {
+			continue
+		}
+		for _, ref := range b.SubscriptionScope {
+			if ref.Kind == "memory" {
+				candidates = append(candidates, b)
+				break
+			}
+		}
+	}
+	if len(candidates) == 0 {
+		return "", false
+	}
+	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Principal < candidates[j].Principal })
+	return candidates[0].Principal, true
+}
+
+func containsLoop(loops []string, name string) bool {
+	for _, l := range loops {
+		if l == name {
+			return true
+		}
+	}
+	return false
 }
 
 func OpenSyncImportRuntime(storePath string, refs []contract.ResourceRef) (*runtime.Runtime, error) {
