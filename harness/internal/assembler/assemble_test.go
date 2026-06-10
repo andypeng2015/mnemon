@@ -137,3 +137,14 @@ func TestAssembleSkipsUnscopedBinding(t *testing.T) {
 		t.Fatal("an unscoped binding must not produce a write")
 	}
 }
+
+// rule_ref 必须携带命名空间前缀:裸 id(如 "memory")在 Assemble 这道生产 seam
+// 上 fail-closed —— 为未来的 wasm: 等命名空间立规,与 config.Load 的校验双门一致。
+func TestAssembleRejectsBareRuleRef(t *testing.T) {
+	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
+		"memory": {Enabled: true, ResourceRef: "memory/project", RuleRef: "memory"}, // 缺 native: 前缀
+	}}
+	if _, err := Assemble(cfg, nil); err == nil {
+		t.Fatal("a bare rule_ref without the native: namespace prefix must fail closed")
+	}
+}

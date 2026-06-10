@@ -34,7 +34,11 @@ func Assemble(cfg config.File, bindings []channel.ChannelBinding) (runtime.Runti
 		if !cc.Enabled {
 			continue
 		}
-		id := strings.TrimPrefix(cc.RuleRef, "native:")
+		const nativePrefix = "native:"
+		if !strings.HasPrefix(cc.RuleRef, nativePrefix) {
+			return runtime.RuntimeConfig{}, fmt.Errorf("capability %q: rule_ref %q must be %q-prefixed (fail-closed)", name, cc.RuleRef, nativePrefix)
+		}
+		id := strings.TrimPrefix(cc.RuleRef, nativePrefix)
 		cap, ok := capability.Builtins[id]
 		if !ok {
 			return runtime.RuntimeConfig{}, fmt.Errorf("capability %q: unknown rule_ref %q (fail-closed)", name, cc.RuleRef)
