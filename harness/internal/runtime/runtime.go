@@ -89,7 +89,7 @@ func OpenRuntime(storePath string, cfg RuntimeConfig) (*Runtime, error) {
 		storePath = abs
 	}
 	if dir := filepath.Dir(storePath); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, fmt.Errorf("create control store dir: %w", err)
 		}
 	}

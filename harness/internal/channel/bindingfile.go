@@ -360,7 +360,7 @@ func writeBindingDoc(path string, doc bindingFileDoc) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)

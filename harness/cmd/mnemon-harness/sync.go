@@ -337,7 +337,7 @@ func upsertSyncRemote(path, root, id, endpoint, token, tokenFile string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
@@ -349,7 +349,7 @@ func syncCredentialRef(root, id, token, tokenFile string) (string, error) {
 	if token != "" {
 		credentialRef := filepath.ToSlash(filepath.Join(".mnemon", "harness", "sync", "credentials", id+".token"))
 		path := filepath.Join(root, filepath.FromSlash(credentialRef))
-		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 			return "", err
 		}
 		if err := os.WriteFile(path, []byte(token+"\n"), 0o600); err != nil {

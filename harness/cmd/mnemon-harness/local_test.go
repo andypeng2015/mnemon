@@ -8,6 +8,7 @@ import (
 
 	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/mnemon-dev/mnemon/harness/internal/capability"
+	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
 
@@ -155,5 +156,66 @@ func TestReadLocalConfigMirrorMode(t *testing.T) {
 	write(`{"schema_version":1,"mode":"local","mirror_mode":"bogus"}`)
 	if _, err = readLocalConfig(root); err == nil {
 		t.Fatal("unknown mirror_mode must fail closed")
+	}
+}
+
+// T1 回环地板:非回环监听地址 fail-closed,--allow-nonloopback 显式越权。
+func TestValidateListenAddrLoopbackOnly(t *testing.T) {
+	for _, ok := range []string{"127.0.0.1:8787", "localhost:8787", "[::1]:8787"} {
+		if err := validateListenAddr(ok, false); err != nil {
+			t.Fatalf("%s must be allowed: %v", ok, err)
+		}
+	}
+	for _, bad := range []string{"0.0.0.0:8787", "192.168.1.10:8787", ":8787"} {
+		if err := validateListenAddr(bad, false); err == nil {
+			t.Fatalf("%s must be refused without --allow-nonloopback", bad)
+		}
+		if err := validateListenAddr(bad, true); err != nil {
+			t.Fatalf("%s must pass with explicit override: %v", bad, err)
+		}
+	}
+}
+
+// rotate:以 bindings.json 的 credential_ref 为唯一目标,强制重写;新 token 经 LoadBindingFile
+// 生效映射,旧值不再在 Tokens 中(重启生效语义由命令输出与 USAGE 声明)。
+func TestRotateTokenInvalidatesOldValue(t *testing.T) {
+	root := t.TempDir()
+	setupProductIntegration(t, root)
+	tokPath := filepath.Join(root, ".mnemon", "harness", "channel", "credentials", "codex-project.token")
+	oldRaw, err := os.ReadFile(tokPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ref, err := rotateToken(root, "codex@project")
+	if err != nil {
+		t.Fatalf("rotate: %v", err)
+	}
+	if ref == "" {
+		t.Fatal("rotate must report the credential_ref it rewrote")
+	}
+	newRaw, err := os.ReadFile(tokPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(newRaw) == string(oldRaw) {
+		t.Fatal("rotate must change the token content")
+	}
+	if st, _ := os.Stat(tokPath); st.Mode().Perm() != 0o600 {
+		t.Fatalf("rotated token mode %o, want 0600", st.Mode().Perm())
+	}
+	loaded, err := channel.LoadBindingFile(root, filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	oldTok := strings.TrimSpace(string(oldRaw))
+	newTok := strings.TrimSpace(string(newRaw))
+	if _, stale := loaded.Tokens[oldTok]; stale {
+		t.Fatal("old token must no longer map to any principal")
+	}
+	if p := loaded.Tokens[newTok]; p != "codex@project" {
+		t.Fatalf("new token must map to the principal, got %q", p)
+	}
+	if _, err := rotateToken(root, "ghost@nowhere"); err == nil {
+		t.Fatal("rotate for an unknown principal must error clearly")
 	}
 }

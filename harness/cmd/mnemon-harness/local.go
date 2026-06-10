@@ -7,6 +7,7 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 	"io"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -16,10 +17,11 @@ import (
 )
 
 var (
-	localRoot         string
-	localAddr         string
-	localStorePath    string
-	localBindingsPath string
+	localRoot             string
+	localAddr             string
+	localStorePath        string
+	localBindingsPath     string
+	localAllowNonLoopback bool
 )
 
 var localCmd = &cobra.Command{
@@ -38,6 +40,9 @@ var localRunCmd = &cobra.Command{
 		addr := localAddr
 		if !cmd.Flags().Changed("addr") {
 			addr = listenAddrFromEndpoint(boot.Config.Endpoint, localAddr)
+		}
+		if err := validateListenAddr(addr, localAllowNonLoopback); err != nil {
+			return err
 		}
 		fmt.Fprintln(cmd.OutOrStdout(), "Local Mnemon: ready")
 		fmt.Fprintln(cmd.OutOrStdout(), "Remote Workspace: disconnected")
@@ -70,6 +75,7 @@ func init() {
 	localCmd.PersistentFlags().StringVar(&localStorePath, "store", "", "store path; defaults to the project Local Mnemon store")
 	localRunCmd.Flags().StringVar(&localAddr, "addr", "127.0.0.1:8787", "listen address")
 	localRunCmd.Flags().StringVar(&localBindingsPath, "bindings", "", "Agent Integration binding file")
+	localRunCmd.Flags().BoolVar(&localAllowNonLoopback, "allow-nonloopback", false, "explicitly allow listening on a non-loopback address (T1: loopback-only by default)")
 	_ = localRunCmd.Flags().MarkHidden("bindings")
 	localCmd.AddCommand(localRunCmd, localStatusCmd, localStopCmd)
 	localCmd.GroupID = groupSpine
@@ -107,6 +113,26 @@ func resolveProjectPath(root, path string) string {
 		return filepath.Clean(path)
 	}
 	return filepath.Join(root, path)
+}
+
+// validateListenAddr fail-closes a non-loopback listen address unless explicitly allowed:
+// the local control plane is a same-machine governance boundary (T1) — binding 0.0.0.0 or a
+// LAN address silently exposes the channel beyond it.
+func validateListenAddr(addr string, allowNonLoopback bool) error {
+	if allowNonLoopback {
+		return nil
+	}
+	host := addr
+	if h, _, err := net.SplitHostPort(addr); err == nil {
+		host = h
+	}
+	if host == "localhost" {
+		return nil
+	}
+	if ip := net.ParseIP(host); ip != nil && ip.IsLoopback() {
+		return nil
+	}
+	return fmt.Errorf("refusing non-loopback listen address %q (T1 loopback-only); pass --allow-nonloopback to override explicitly", addr)
 }
 
 // listenAddrFromEndpoint derives the listen address from the setup-written channel endpoint

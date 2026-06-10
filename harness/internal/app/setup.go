@@ -116,6 +116,7 @@ func (h *Harness) Setup(ctx context.Context, out, errw io.Writer, opts SetupOpti
 
 	// 2. Channel artifacts.
 	base := channelBase(projectRoot)
+	defer tightenHarnessDirs(projectRoot) // 重跑校正:即使目录先以宽权限存在(如 local run 先行)
 	bindingFile := filepath.Join(base, "bindings.json")
 	envFile := filepath.Join(localBase(projectRoot), "env.sh")
 	configFile := filepath.Join(localBase(projectRoot), "config.json")
@@ -250,7 +251,7 @@ func writeTokenFile(path string) error {
 	if _, err := rand.Read(buf); err != nil {
 		return fmt.Errorf("generate token: %w", err)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	return os.WriteFile(path, []byte(hex.EncodeToString(buf)+"\n"), 0o600)
@@ -332,7 +333,7 @@ func writeLocalConfig(path string, opts SetupOptions, loops []string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
@@ -350,7 +351,7 @@ func writeLocalEnv(path string, opts SetupOptions, tokenRel string, loops []stri
 	for _, loop := range loops {
 		b.WriteString(exportLine("MNEMON_"+strings.ToUpper(loop)+"_LOOP_DIR", filepath.ToSlash(filepath.Join(".mnemon", "harness", loop))))
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return err
 	}
 	return os.WriteFile(path, []byte(b.String()), 0o644)
@@ -437,4 +438,24 @@ func (h *Harness) SetupUninstall(ctx context.Context, out, errw io.Writer, opts 
 		}
 	}
 	return nil
+}
+
+// tightenHarnessDirs enforces the T1 permission floor on the PRIVATE harness state tree:
+// .mnemon/harness itself (path-blocking for everything beneath), the local/channel state dirs,
+// and both credentials dirs are owner-only (0700). Files keep their own modes (tokens 0600).
+// Idempotent and correction-oriented: a dir created earlier at 0755 (e.g. by a pre-setup
+// `local run`) is tightened on the next setup. Same-user hooks/CLI are unaffected.
+func tightenHarnessDirs(projectRoot string) {
+	for _, rel := range []string{
+		filepath.Join(".mnemon", "harness"),
+		filepath.Join(".mnemon", "harness", "local"),
+		filepath.Join(".mnemon", "harness", "channel"),
+		filepath.Join(".mnemon", "harness", "channel", "credentials"),
+		filepath.Join(".mnemon", "harness", "sync", "credentials"),
+	} {
+		p := filepath.Join(projectRoot, rel)
+		if st, err := os.Stat(p); err == nil && st.IsDir() {
+			_ = os.Chmod(p, 0o700)
+		}
+	}
 }
