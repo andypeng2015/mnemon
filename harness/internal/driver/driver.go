@@ -8,6 +8,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/hostsurface"
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
@@ -16,13 +17,13 @@ import (
 // drained an invalidation (it is nil for a runtime with no host projection).
 type Driver struct {
 	rt        *runtime.Runtime
-	reproject func() error
+	reproject func(refs []contract.ResourceRef) error
 	interval  time.Duration
 }
 
 // New builds a Driver over rt with an injected re-projection callback (the host-free seam used by
 // tests). interval <= 0 defaults to one second.
-func New(rt *runtime.Runtime, reproject func() error, interval time.Duration) *Driver {
+func New(rt *runtime.Runtime, reproject func(refs []contract.ResourceRef) error, interval time.Duration) *Driver {
 	return &Driver{rt: rt, reproject: reproject, interval: interval}
 }
 
@@ -30,7 +31,7 @@ func New(rt *runtime.Runtime, reproject func() error, interval time.Duration) *D
 // hostsurface.ReProject (the no-clobber path). Re-projection lives here, in the driver, so the runtime
 // never imports hostsurface.
 func ForHost(rt *runtime.Runtime, pc hostsurface.ProjectContext, interval time.Duration) *Driver {
-	return New(rt, func() error { _, err := hostsurface.ReProject(pc, nil); return err }, interval)
+	return New(rt, func(refs []contract.ResourceRef) error { _, err := hostsurface.ReProject(pc, refs); return err }, interval)
 }
 
 // Tick runs one background cycle: advance the governed Tick, drain any projection invalidations, and —
@@ -39,12 +40,12 @@ func (d *Driver) Tick(ctx context.Context) error {
 	if _, err := d.rt.Tick(); err != nil {
 		return err
 	}
-	n, err := d.rt.DrainOutbox()
+	refs, drained, err := d.rt.DrainOutbox()
 	if err != nil {
 		return err
 	}
-	if n > 0 && d.reproject != nil {
-		return d.reproject()
+	if drained > 0 && d.reproject != nil {
+		return d.reproject(refs)
 	}
 	return nil
 }

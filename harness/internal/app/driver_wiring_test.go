@@ -110,7 +110,7 @@ func TestDriverTickDrainsReprojectsAndPrunes(t *testing.T) {
 	if !strings.HasPrefix(string(after), "# USER EDIT") {
 		t.Fatal("driver re-projection clobbered a user-edited managed file")
 	}
-	if n, err := rt.DrainOutbox(); err != nil || n != 0 {
-		t.Fatalf("driver tick must have drained the invalidation; re-drain found %d (err %v)", n, err)
+	if _, drained, err := rt.DrainOutbox(); err != nil || drained != 0 {
+		t.Fatalf("driver tick must have drained the invalidation; re-drain found %d (err %v)", drained, err)
 	}
 }

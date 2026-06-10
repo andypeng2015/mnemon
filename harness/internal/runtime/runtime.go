@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -186,27 +187,37 @@ func (r *Runtime) Status(principal contract.ActorID) (contract.ChannelStatus, er
 
 // DrainOutbox claims, acks, AND PRUNES the pending projection-invalidation outbox rows. It is the
 // driver's out-of-band duty, UNCONDITIONAL of the job lane (a second ClaimOutbox caller, kind
-// "invalidation", with an owner distinct from the lane). It returns how many rows it drained so the
-// driver knows whether a re-projection is warranted. Acked rows are pruned in the same pass —
-// nothing re-reads them, and without the prune the outbox grows one dead row per accepted decision.
-//
-// (The locked signature was DrainOutbox() error; it also returns the count so the driver can gate
-// re-projection on whether anything was actually invalidated.)
-func (r *Runtime) DrainOutbox() (int, error) {
+// "invalidation", with an owner distinct from the lane). It returns the DEDUPED resource refs the
+// drained rows invalidated (the producer stamps d.NewVersions into every row's payload) so the
+// driver can refresh selectively, plus the drained row COUNT — re-projection triggers on the count,
+// never on the refs, so an undecodable payload loses selectivity but never the trigger. Acked rows
+// are pruned in the same pass — nothing re-reads them.
+func (r *Runtime) DrainOutbox() ([]contract.ResourceRef, int, error) {
 	const owner = "invalidation-driver"
 	rows, err := r.store.ClaimOutbox(owner, 60*time.Second, "invalidation")
 	if err != nil {
-		return 0, err
+		return nil, 0, err
 	}
+	seen := map[contract.ResourceRef]bool{}
+	var refs []contract.ResourceRef
 	for _, row := range rows {
 		if err := r.store.AckOutbox(row.ID, owner); err != nil {
-			return 0, err
+			return nil, 0, err
+		}
+		var versions []contract.ResourceVersion
+		if json.Unmarshal([]byte(row.Payload), &versions) == nil {
+			for _, v := range versions {
+				if !seen[v.Ref] {
+					seen[v.Ref] = true
+					refs = append(refs, v.Ref)
+				}
+			}
 		}
 	}
 	if _, err := r.store.DeleteAckedOutbox("invalidation"); err != nil {
-		return 0, err
+		return nil, 0, err
 	}
-	return len(rows), nil
+	return refs, len(rows), nil
 }
 
 // Close releases the store and its single-writer lock. After Close the runtime no longer owns the

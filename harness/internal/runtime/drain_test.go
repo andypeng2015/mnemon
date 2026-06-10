@@ -32,15 +32,18 @@ func TestDrainOutboxClaimsInvalidations(t *testing.T) {
 		t.Fatalf("tick: %v", err)
 	}
 
-	n, err := rt.DrainOutbox()
+	refs, drained, err := rt.DrainOutbox()
 	if err != nil {
 		t.Fatalf("drain: %v", err)
 	}
-	if n != 1 {
-		t.Fatalf("an accepted apply must enqueue exactly one invalidation to drain; got %d", n)
+	if drained != 1 {
+		t.Fatalf("an accepted apply must enqueue exactly one invalidation to drain; got %d", drained)
 	}
-	if n2, err := rt.DrainOutbox(); err != nil || n2 != 0 {
-		t.Fatalf("a re-drain must find nothing; got %d (err %v)", n2, err)
+	if len(refs) != 1 || refs[0].Kind != "memory" || refs[0].ID != "m1" {
+		t.Fatalf("drain must return the invalidated refs (deduped); got %v", refs)
+	}
+	if _, drained2, err := rt.DrainOutbox(); err != nil || drained2 != 0 {
+		t.Fatalf("a re-drain must find nothing; got %d (err %v)", drained2, err)
 	}
 }
 
@@ -64,8 +67,8 @@ func TestDrainOutboxPrunesAckedRows(t *testing.T) {
 	if _, err := rt.Tick(); err != nil {
 		t.Fatalf("tick: %v", err)
 	}
-	if n, err := rt.DrainOutbox(); err != nil || n != 1 {
-		t.Fatalf("drain: n=%d err=%v", n, err)
+	if _, drained, err := rt.DrainOutbox(); err != nil || drained != 1 {
+		t.Fatalf("drain: n=%d err=%v", drained, err)
 	}
 	if left, err := rt.store.DeleteAckedOutbox("invalidation"); err != nil || left != 0 {
 		t.Fatalf("DrainOutbox must have pruned its acked rows; a manual prune still found %d (err %v)", left, err)

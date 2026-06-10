@@ -54,13 +54,17 @@ func TestDriverDrainsAndReprojectsOutOfBand(t *testing.T) {
 	}
 
 	reprojected := 0
-	d := New(rt, func() error { reprojected++; return nil }, time.Hour)
+	var gotRefs []contract.ResourceRef
+	d := New(rt, func(refs []contract.ResourceRef) error { reprojected++; gotRefs = refs; return nil }, time.Hour)
 
 	if err := d.Tick(context.Background()); err != nil {
 		t.Fatalf("driver tick: %v", err)
 	}
 	if reprojected != 1 {
 		t.Fatalf("the driver must re-project after draining an invalidation; got %d", reprojected)
+	}
+	if len(gotRefs) != 1 || gotRefs[0].Kind != "memory" {
+		t.Fatalf("the reproject callback must receive the invalidated refs; got %v", gotRefs)
 	}
 	// the apply landed in the runtime's own store
 	if v, _, _ := rt.Resource(contract.ResourceRef{Kind: "memory", ID: "m1"}); v == 0 {
@@ -78,7 +82,7 @@ func TestDriverDrainsAndReprojectsOutOfBand(t *testing.T) {
 // Run loops until the context is cancelled and returns cleanly (clean shutdown).
 func TestDriverRunStopsOnContextCancel(t *testing.T) {
 	rt := bootRuntime(t)
-	d := New(rt, func() error { return nil }, 10*time.Millisecond)
+	d := New(rt, func(refs []contract.ResourceRef) error { return nil }, 10*time.Millisecond)
 	ctx, cancel := context.WithTimeout(context.Background(), 40*time.Millisecond)
 	defer cancel()
 	if err := d.Run(ctx); err != context.DeadlineExceeded {

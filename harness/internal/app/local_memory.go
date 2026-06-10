@@ -104,7 +104,7 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 // reprojectForHosts builds the driver's re-projection callback over every recorded host surface
 // (deterministic host order). nil when no hosts are recorded — old installs get no background
 // re-projection until a setup rerun records the hosts map.
-func reprojectForHosts(hosts map[string][]string, projectRoot string) func() error {
+func reprojectForHosts(hosts map[string][]string, projectRoot string) func(refs []contract.ResourceRef) error {
 	if len(hosts) == 0 {
 		return nil
 	}
@@ -113,7 +113,7 @@ func reprojectForHosts(hosts map[string][]string, projectRoot string) func() err
 		names = append(names, h)
 	}
 	sort.Strings(names)
-	return func() error {
+	return func(refs []contract.ResourceRef) error {
 		for _, host := range names {
 			if len(hosts[host]) == 0 {
 				continue
@@ -122,7 +122,7 @@ func reprojectForHosts(hosts map[string][]string, projectRoot string) func() err
 				Host:        host,
 				ProjectRoot: projectRoot,
 				Loops:       hosts[host],
-			}, nil); err != nil {
+			}, refs); err != nil {
 				return fmt.Errorf("re-project %s: %w", host, err)
 			}
 		}
