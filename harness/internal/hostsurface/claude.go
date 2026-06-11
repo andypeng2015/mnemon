@@ -318,7 +318,13 @@ func (p claudeProjector) projectSkills(loop manifest.LoopManifest, binding manif
 	hostSkillsDir := p.hostSkillsDir(loop.Name)
 	for _, skill := range loop.Assets.Skills {
 		target := pathJoin(hostSkillsDir, skillID(skill), "SKILL.md")
-		if err := p.projectManaged(p.loopAsset(loop, skill), target, 0o644); err != nil {
+		// canonicalSkillContent expands the payload-contract marker; skills without the
+		// marker still project byte-identically to their canonical asset.
+		content, err := p.canonicalSkillContent(loop, skill)
+		if err != nil {
+			return err
+		}
+		if err := p.projectManagedBytes(content, target, 0o644); err != nil {
 			return err
 		}
 	}

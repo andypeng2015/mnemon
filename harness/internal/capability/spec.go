@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
+	"path"
 	"strings"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
@@ -149,6 +151,22 @@ func FromSpec(spec CapabilitySpec) (Capability, error) {
 		Decode:       compileDecode(spec),
 		Header:       compileHeader(spec),
 	}, nil
+}
+
+// LoadSpec reads capabilities/<name>.json from fsys and strictly decodes it into its DATA form,
+// for consumers that need the spec itself rather than the compiled Capability (e.g. the SKILL
+// payload-contract generator). It goes through decodeSpec — the one fail-closed decode path —
+// so there is no second, weaker decoding scheme to drift from it.
+func LoadSpec(fsys fs.FS, name string) (CapabilitySpec, error) {
+	raw, err := fs.ReadFile(fsys, path.Join("capabilities", name+".json"))
+	if err != nil {
+		return CapabilitySpec{}, fmt.Errorf("read capability spec %s: %w", name, err)
+	}
+	spec, err := decodeSpec(raw)
+	if err != nil {
+		return CapabilitySpec{}, fmt.Errorf("parse capability spec %s: %w", name, err)
+	}
+	return spec, nil
 }
 
 // decodeSpec is the ONE way a CapabilitySpec is read from JSON: DisallowUnknownFields makes the

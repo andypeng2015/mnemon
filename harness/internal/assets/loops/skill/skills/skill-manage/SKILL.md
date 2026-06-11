@@ -15,12 +15,6 @@ host skill directories or canonical files directly. New active skills become
 host-visible after Local Mnemon accepts the declaration and the host projection
 refreshes.
 
-Use the Local Mnemon environment installed by setup when it is available:
-
-```bash
-source .mnemon/harness/local/env.sh 2>/dev/null || true
-```
-
 ## Allowed MVP Operations
 
 - submit an approved active skill declaration
@@ -39,20 +33,11 @@ source .mnemon/harness/local/env.sh 2>/dev/null || true
    it.
 4. Submit the smallest approved declaration through Local Mnemon:
 
-```bash
-mnemon-harness control observe \
-  --addr "${MNEMON_CONTROL_ADDR:-http://127.0.0.1:8787}" \
-  --principal "$MNEMON_CONTROL_PRINCIPAL" \
-  ${MNEMON_CONTROL_TOKEN_FILE:+--token-file "$MNEMON_CONTROL_TOKEN_FILE"} \
-  --type skill.write_candidate_observed \
-  --external-id "skill-${SKILL_ID}-${STATUS}-${PROPOSAL_ID}" \
-  --payload '{"skill_id":"release-checklist","name":"release-checklist","status":"active","content":"...","source":"approved-proposal","confidence":"high"}'
-```
+<!-- mnemon:payload-contract -->
 
-5. Prefer `status:"archived"` over deletion.
-6. Do not edit the host skill surface directly. Let Local Mnemon and Prime
+5. Do not edit the host skill surface directly. Let Local Mnemon and Prime
    regenerate mirrors.
-7. Record the submitted declaration in the proposal or usage log when useful.
+6. Record the submitted declaration in the proposal or usage log when useful.
 
 ## Safety
 

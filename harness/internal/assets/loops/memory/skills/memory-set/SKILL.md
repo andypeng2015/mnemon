@@ -21,38 +21,10 @@ the canonical write target.
 
 1. Identify the smallest durable memory worth keeping.
 2. Reject unstable, unsafe, or redundant candidates before writing.
-3. Use the Local Mnemon environment installed by setup when it is available:
 
-   ```bash
-   source .mnemon/harness/local/env.sh 2>/dev/null || true
-   ```
+<!-- mnemon:payload-contract -->
 
-4. Build a valid JSON payload with:
-   - `content`: one concise durable statement
-   - `source`: `user`, `repo`, `agent`, or `command`
-   - `confidence`: `high`, `medium`, or `low`
-   - `tags`: optional short labels
-
-5. Choose a stable idempotency key for this candidate. A content hash is
-   acceptable when the same candidate should dedupe:
-
-   ```bash
-   EXTERNAL_ID="memory-set-$(printf '%s' "$CONTENT" | shasum -a 256 | awk '{print substr($1,1,16)}')"
-   ```
-
-6. Submit the candidate to Local Mnemon:
-
-   ```bash
-   mnemon-harness control observe \
-     --type memory.write_candidate_observed \
-     --addr "${MNEMON_CONTROL_ADDR:-http://127.0.0.1:8787}" \
-     --principal "${MNEMON_CONTROL_PRINCIPAL}" \
-     ${MNEMON_CONTROL_TOKEN_FILE:+--token-file "${MNEMON_CONTROL_TOKEN_FILE}"} \
-     --external-id "${EXTERNAL_ID}" \
-     --payload '{"content":"Prefer focused commits for harness work.","source":"user","confidence":"high","tags":["workflow"]}'
-   ```
-
-7. Verify the result by pulling scoped memory:
+3. Verify the result by pulling scoped memory:
 
    ```bash
    mnemon-harness control pull --json \
@@ -61,7 +33,7 @@ the canonical write target.
      ${MNEMON_CONTROL_TOKEN_FILE:+--token-file "${MNEMON_CONTROL_TOKEN_FILE}"}
    ```
 
-8. If Local Mnemon rejects the candidate, leave `MEMORY.md` unchanged and report
+4. If Local Mnemon rejects the candidate, leave `MEMORY.md` unchanged and report
    the rejection reason if it is visible. Do not retry with weaker wording unless
    the rejected content was malformed rather than unsafe.
 

@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -361,9 +360,11 @@ func (p codexProjector) projectSkills(loop manifest.LoopManifest, binding manife
 }
 
 func (p codexProjector) projectedSkillContent(loop manifest.LoopManifest, binding manifest.BindingManifest, skill string) ([]byte, error) {
-	content, err := fs.ReadFile(assets.FS, p.loopAsset(loop, skill))
+	// canonicalSkillContent expands the payload-contract marker in place; the codex runtimeNote
+	// still appends at the end, after whatever position the contract section occupies.
+	content, err := p.canonicalSkillContent(loop, skill)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", skill, err)
+		return nil, err
 	}
 	note := runtimeNote(loopDirVarName(loop.Name), pathJoin(binding.RuntimeSurface, "env.sh"), p.stateDir(loop.Name))
 	return append(content, []byte(note)...), nil

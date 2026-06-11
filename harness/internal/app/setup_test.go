@@ -166,7 +166,7 @@ func TestSetupInstallsRealCodexMemoryLocalAssets(t *testing.T) {
 		t.Fatalf("memory-get must pull scoped Local Mnemon content:\n%s", memoryGet)
 	}
 	memorySet := string(mustRead(t, filepath.Join(projectRoot, ".codex", "skills", "memory-set", "SKILL.md")))
-	if !strings.Contains(memorySet, "memory.write_candidate_observed") || !strings.Contains(memorySet, "mnemon-harness control observe") {
+	if !strings.Contains(memorySet, "memory.write_candidate.observed") || !strings.Contains(memorySet, "mnemon-harness control observe") {
 		t.Fatalf("memory-set must observe local memory candidates:\n%s", memorySet)
 	}
 	primeHook := string(mustRead(t, filepath.Join(projectRoot, ".codex", "hooks", "mnemon-memory", "prime.sh")))
