@@ -97,11 +97,11 @@ type ServeOptions struct {
 // Tick + DrainOutbox and re-projecting each recorded host's managed definition files when an
 // invalidation drained. A driver error stops the driver (logged to stderr); the hot path serves on.
 func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string, loaded channel.LoadedBindings, opts ServeOptions, out io.Writer) error {
-	catalog, err := resolveBootCatalog(opts.ProjectRoot, opts.IgnoreExternal, os.Stderr)
+	catalog, ignored, err := resolveBootCatalog(opts.ProjectRoot, opts.IgnoreExternal, os.Stderr)
 	if err != nil {
 		return err
 	}
-	rt, err := OpenLocalRuntime(storePath, loaded, opts.Loops, catalog)
+	rt, err := OpenLocalRuntime(storePath, loaded, disableIgnoredLoops(opts.Loops, ignored, os.Stderr), catalog)
 	if err != nil {
 		return err
 	}
@@ -123,21 +123,52 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 // stays a contract-level leaf), fail-closed: a bad external package REFUSES to start Local Mnemon
 // — the directory's presence is a contract, not a hint. ignoreExternal is the operator escape
 // hatch (`local run --ignore-external`): boot the embedded-only catalog and name each ignored
-// package on errw, one line per package, so what is offline is visible, never silent.
-func resolveBootCatalog(projectRoot string, ignoreExternal bool, errw io.Writer) (map[string]capability.Capability, error) {
+// package on errw, one line per package, so what is offline is visible, never silent. The second
+// return is those ignored package names — the serve path must drop them from the enabled loops
+// too (disableIgnoredLoops), or an enabled-then-corrupted package would still sink the boot on
+// `unknown rule_ref`.
+func resolveBootCatalog(projectRoot string, ignoreExternal bool, errw io.Writer) (map[string]capability.Capability, []string, error) {
 	if !ignoreExternal {
-		return capability.ResolveCatalog(projectRoot, kernel.DefaultSchemaGuard().Required)
+		catalog, err := capability.ResolveCatalog(projectRoot, kernel.DefaultSchemaGuard().Required)
+		return catalog, nil, err
 	}
 	entries, err := os.ReadDir(filepath.Join(projectRoot, ".mnemon", "loops"))
 	if err != nil {
-		return capability.Builtins, nil // absent (or unreadable) external root: nothing to ignore
+		return capability.Builtins, nil, nil // absent (or unreadable) external root: nothing to ignore
 	}
+	var ignored []string
 	for _, e := range entries {
 		if e.IsDir() || e.Type()&os.ModeSymlink != 0 {
+			ignored = append(ignored, e.Name())
 			fmt.Fprintf(errw, "mnemon-harness: --ignore-external: ignoring external package .mnemon/loops/%s\n", e.Name())
 		}
 	}
-	return capability.Builtins, nil
+	return capability.Builtins, ignored, nil
+}
+
+// disableIgnoredLoops is the loop-list half of --ignore-external: the PRIMARY ignore scenario is
+// an external package the operator already ENABLED (config.loops carries its name) that has since
+// gone bad. Ignoring only the catalog would still sink boot — the assembler would fail on
+// `unknown rule_ref "native:<name>"` — so the ignored package names are dropped from the enabled
+// loops too, one stderr line per disabled loop, visible, never silent. Names that match no
+// ignored package pass through untouched (a typo in config.loops keeps its diagnostic).
+func disableIgnoredLoops(loops, ignored []string, errw io.Writer) []string {
+	if len(ignored) == 0 {
+		return loops
+	}
+	skip := map[string]bool{}
+	for _, name := range ignored {
+		skip[name] = true
+	}
+	kept := make([]string, 0, len(loops))
+	for _, loop := range loops {
+		if skip[loop] {
+			fmt.Fprintf(errw, "mnemon-harness: --ignore-external: disabling loop %s\n", loop)
+			continue
+		}
+		kept = append(kept, loop)
+	}
+	return kept
 }
 
 // serveReproject builds the driver's reproject callback: (a) re-project every recorded host's

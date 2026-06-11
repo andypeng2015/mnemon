@@ -7,7 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/capability"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
@@ -39,19 +41,20 @@ func writeExternalGoalPackage(t *testing.T, projectRoot, name, spec string) stri
 func TestResolveBootCatalogFailClosedOnBadExternalPackage(t *testing.T) {
 	root := t.TempDir()
 	writeExternalGoalPackage(t, root, "bad", `{nope`)
-	if _, err := resolveBootCatalog(root, false, io.Discard); err == nil || !strings.Contains(err.Error(), ".mnemon/loops/bad") {
+	if _, _, err := resolveBootCatalog(root, false, io.Discard); err == nil || !strings.Contains(err.Error(), ".mnemon/loops/bad") {
 		t.Fatalf("bad external package must refuse boot and name its path, got %v", err)
 	}
 }
 
-// The operator escape hatch: --ignore-external boots the embedded-only catalog and names every
-// ignored package on stderr, one line each.
+// The operator escape hatch: --ignore-external boots the embedded-only catalog, names every
+// ignored package on stderr (one line each), and returns the ignored names so the serve path can
+// disable the matching loops.
 func TestResolveBootCatalogIgnoreExternalNamesIgnoredPackages(t *testing.T) {
 	root := t.TempDir()
 	writeExternalGoalPackage(t, root, "bad", `{nope`)
 	writeExternalGoalPackage(t, root, "goal", goalPackageSpec)
 	var errw bytes.Buffer
-	catalog, err := resolveBootCatalog(root, true, &errw)
+	catalog, ignored, err := resolveBootCatalog(root, true, &errw)
 	if err != nil {
 		t.Fatalf("--ignore-external must boot embedded-only even with a bad package present: %v", err)
 	}
@@ -60,6 +63,9 @@ func TestResolveBootCatalogIgnoreExternalNamesIgnoredPackages(t *testing.T) {
 	}
 	if len(catalog) != len(capability.Builtins) {
 		t.Fatalf("--ignore-external catalog must be embedded-only (%d), got %d", len(capability.Builtins), len(catalog))
+	}
+	if len(ignored) != 2 || ignored[0] != "bad" || ignored[1] != "goal" {
+		t.Fatalf("ignored names must carry both packages [bad goal], got %v", ignored)
 	}
 	lines := strings.Split(strings.TrimSpace(errw.String()), "\n")
 	if len(lines) != 2 {
@@ -86,6 +92,80 @@ func TestRunLocalServerRefusesToStartOnBadExternalPackage(t *testing.T) {
 		ServeOptions{Loops: []string{"memory"}, ProjectRoot: root}, io.Discard)
 	if err == nil || !strings.Contains(err.Error(), ".mnemon/loops/bad") {
 		t.Fatalf("local serve must refuse to start on a bad external package, got %v", err)
+	}
+}
+
+// firstWriteNotifier closes ready on the first write: the serve path's "listening" banner is the
+// boot-succeeded signal for the test below.
+type firstWriteNotifier struct {
+	once  sync.Once
+	ready chan struct{}
+}
+
+func (n *firstWriteNotifier) Write(p []byte) (int, error) {
+	n.once.Do(func() { close(n.ready) })
+	return len(p), nil
+}
+
+// The PRIMARY --ignore-external scenario: the operator ENABLED an external loop (config.loops
+// carries its name) and the package then went bad. Ignoring only the catalog would still sink
+// boot on `unknown rule_ref "native:goal"` — the serve path must also DISABLE the ignored
+// package's loop, name it on stderr, and serve on the embedded loops.
+func TestRunLocalServerIgnoreExternalDisablesEnabledExternalLoop(t *testing.T) {
+	root := t.TempDir()
+	writeExternalGoalPackage(t, root, "goal", `{nope`)
+	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787",
+		[]contract.ResourceRef{{Kind: "memory", ID: "project"}})
+	binding.AllowedObservedTypes = []string{"memory.write_candidate.observed"}
+
+	// Both ignore lines are product stderr surface (the serve path hardcodes os.Stderr), so the
+	// test captures os.Stderr through a pipe for the duration of the boot.
+	oldStderr := os.Stderr
+	t.Cleanup(func() { os.Stderr = oldStderr })
+	pr, pw, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stderr = pw
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	ready := make(chan struct{})
+	errc := make(chan error, 1)
+	go func() {
+		errc <- RunLocalHTTPServerWithBindings(ctx, "127.0.0.1:0",
+			filepath.Join(t.TempDir(), "governed.db"),
+			channel.LoadedBindings{Bindings: []channel.ChannelBinding{binding}},
+			ServeOptions{Loops: []string{"memory", "goal"}, ProjectRoot: root, IgnoreExternal: true},
+			&firstWriteNotifier{ready: ready})
+	}()
+	select {
+	case <-ready: // boot reached the listening banner
+	case bootErr := <-errc:
+		os.Stderr = oldStderr
+		t.Fatalf("--ignore-external boot with an enabled-then-corrupted external loop must succeed, got %v", bootErr)
+	case <-time.After(10 * time.Second):
+		os.Stderr = oldStderr
+		t.Fatal("server never reported listening")
+	}
+	cancel()
+	if serveErr := <-errc; serveErr != nil {
+		os.Stderr = oldStderr
+		t.Fatalf("serve must shut down cleanly, got %v", serveErr)
+	}
+	pw.Close()
+	os.Stderr = oldStderr
+	captured, err := io.ReadAll(pr)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"mnemon-harness: --ignore-external: ignoring external package .mnemon/loops/goal",
+		"mnemon-harness: --ignore-external: disabling loop goal",
+	} {
+		if !strings.Contains(string(captured), want) {
+			t.Fatalf("stderr must carry %q, got:\n%s", want, captured)
+		}
 	}
 }
 

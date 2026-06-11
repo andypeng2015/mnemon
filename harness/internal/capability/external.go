@@ -23,6 +23,20 @@ const externalRootRel = ".mnemon/loops"
 // It kills case aliasing ("Goal" vs "goal") and path-meaningful names at the door.
 var externalNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 
+// externalIdentifierPattern pins every spec-authored IDENTIFIER surface of an external package:
+// field names, items_field, and render static KEYS. Identifiers are class-⑧ surfaces the text
+// scan cannot judge (they land verbatim in payload contracts, headers, and deny messages as bare
+// tokens), so they are pattern-locked instead of scanned. Underscore is allowed — the builtin
+// shapes (skill_id, items_field) carry it — which is why this is a separate pattern from
+// externalNamePattern.
+var externalIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
+
+// externalReservedKinds are the kernel-internal control-plane lanes (job/coordination state) no
+// external package may claim (class ⑪): their governed writes are kernel-produced, so a
+// static-literal header would satisfy the class-⑦ lockstep trivially while meaning nothing —
+// and an external claim would route untrusted specs into the coordination loop itself.
+var externalReservedKinds = map[string]bool{"lease": true, "budget": true, "receipt": true, "coordination": true}
+
 func externalPkgPath(name string) string { return externalRootRel + "/" + name }
 
 // LoadExternal compiles every external capability package under fsys. Each TOP-LEVEL directory is
@@ -39,8 +53,10 @@ func externalPkgPath(name string) string { return externalRootRel + "/" + name }
 // outside contract.KindCatalog (FromSpec); ⑥ any hooks/ or skills/ presence (no host projection
 // assets in v1 — deliberately WIDER than loop-package-v1's minimum obligation); ⑦ statically
 // derived header keys that cannot satisfy requiredFields (the kernel SchemaGuard lockstep, at
-// LOAD time); ⑧ unsafe spec TEXT (external only — see scanExternalSpecText); ⑨ directory name ≠
-// spec name or off-pattern. Classes ④⑤ (shadowing/dups beyond one package) are enforced by the
+// LOAD time); ⑧ unsafe spec surfaces, external only, in two halves — VALUES are scanned
+// (scanExternalSpecText), IDENTIFIERS are pattern-locked (checkExternalSpecIdentifiers);
+// ⑨ directory ≠ name ≠ kind or an off-pattern directory name; ⑪ a kernel-internal reserved kind
+// (externalReservedKinds). Classes ④⑤ (shadowing/dups beyond one package) are enforced by the
 // shared specRegistry here and the four-axis merge in ResolveCatalog; class ⑩ (symlinks) needs
 // the real OS path — fs.FS has no lstat — and lives in ResolveCatalog's screening.
 func LoadExternal(fsys fs.FS, requiredFields map[contract.ResourceKind][]string) (map[string]Capability, error) {
@@ -75,15 +91,19 @@ func LoadExternal(fsys fs.FS, requiredFields map[contract.ResourceKind][]string)
 
 func loadExternalPackage(fsys fs.FS, name string, requiredFields map[contract.ResourceKind][]string) (Capability, error) {
 	pkg := externalPkgPath(name)
-	if !externalNamePattern.MatchString(name) { // class ⑨ (pattern half)
+	if !externalNamePattern.MatchString(name) { // class ⑨ (pattern first)
 		return Capability{}, fmt.Errorf("external package %s: directory name must match %s (fail-closed)", pkg, externalNamePattern)
 	}
 	// Class ⑥, deliberately WIDER than loop-package-v1's minimum (fragments/include/template.json):
 	// hooks/ or skills/ present AT ALL — empty or not — rejects the whole package. v1 external
-	// packages carry NO host projection assets; admission-equal-rights only.
+	// packages carry NO host projection assets; admission-equal-rights only. An unknown stat
+	// error is never treated as absence — only fs.ErrNotExist means "not there"; anything else
+	// fails closed on the error itself.
 	for _, sub := range []string{"hooks", "skills"} {
 		if _, err := fs.Stat(fsys, path.Join(name, sub)); err == nil {
 			return Capability{}, fmt.Errorf("external package %s: %s/ is forbidden in an external package (v1 carries no host projection assets; fail-closed)", pkg, sub)
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return Capability{}, fmt.Errorf("external package %s: stat %s/: %w", pkg, sub, err)
 		}
 	}
 	raw, err := fs.ReadFile(fsys, path.Join(name, "capability.json"))
@@ -94,7 +114,7 @@ func loadExternalPackage(fsys fs.FS, name string, requiredFields map[contract.Re
 	if err != nil {
 		return Capability{}, fmt.Errorf("external package %s: parse capability.json: %w", pkg, err)
 	}
-	// Class ⑨ (identity half), directory-as-declaration: the directory IS the name claim.
+	// Class ⑨ (name second), directory-as-declaration: the directory IS the name claim.
 	if spec.Name != name {
 		return Capability{}, fmt.Errorf("external package %s: directory name %q must equal spec name %q (directory-as-declaration)", pkg, name, spec.Name)
 	}
@@ -102,7 +122,20 @@ func loadExternalPackage(fsys fs.FS, name string, requiredFields map[contract.Re
 	if err != nil {
 		return Capability{}, fmt.Errorf("external package %s: %w", pkg, err)
 	}
-	if err := scanExternalSpecText(spec); err != nil { // class ⑧
+	// Class ⑪: the kernel-internal job/coordination lanes are deny-listed for external claim.
+	if externalReservedKinds[spec.ResourceKind] {
+		return Capability{}, fmt.Errorf("external package %s: resource_kind %q is kernel-internal (control-plane job/coordination lane) and may not be claimed by an external package (fail-closed)", pkg, spec.ResourceKind)
+	}
+	// Class ⑨ (kind third): directory == name == kind in v1. Enablement derives the catalog entry
+	// from the binding scope KIND — a name/kind divergence would make the package unreachable (or
+	// reachable under a name the operator never wrote).
+	if spec.ResourceKind != spec.Name {
+		return Capability{}, fmt.Errorf("external package %s: spec name %q must equal resource_kind %q (directory == name == kind in v1; enablement derives the catalog entry from the binding scope kind)", pkg, spec.Name, spec.ResourceKind)
+	}
+	if err := checkExternalSpecIdentifiers(spec); err != nil { // class ⑧ (identifier half)
+		return Capability{}, fmt.Errorf("external package %s: %w", pkg, err)
+	}
+	if err := scanExternalSpecText(spec); err != nil { // class ⑧ (value half)
 		return Capability{}, fmt.Errorf("external package %s: %w", pkg, err)
 	}
 	if err := headerCoversRequired(spec, requiredFields); err != nil { // class ⑦
@@ -111,27 +144,52 @@ func loadExternalPackage(fsys fs.FS, name string, requiredFields map[contract.Re
 	return cap, nil
 }
 
-// scanExternalSpecText runs the embedded safety scanners over every spec-authored TEXT surface of
-// an EXTERNAL spec: the name, each enum validator's deny message, each render static value, and
-// the bullet-list title. These strings flow into deny messages and rendered governed content;
-// embedded spec text is reviewed code (pinned by the golden tests), external spec text is
-// untrusted input — scanned at load time, fail-closed. External path only by design.
+// checkExternalSpecIdentifiers is the IDENTIFIER half of class ⑧ (external only): every field
+// name, the items_field, and every render static KEY must match externalIdentifierPattern.
+// These are the spec surfaces the text scan cannot judge — a bare token is never
+// injection-shaped, yet it lands verbatim in payload contracts, headers, and deny messages — so
+// they are pattern-locked, fail-closed, naming the offending identifier (the caller prefixes the
+// package path). The spec name needs no entry here: it is pattern-locked via directory == name
+// (class ⑨). Validator field REFERENCES (default-from, bullet-list) resolve to declared fields
+// in FromSpec, so they are transitively covered.
+func checkExternalSpecIdentifiers(spec CapabilitySpec) error {
+	if !externalIdentifierPattern.MatchString(spec.ItemsField) {
+		return fmt.Errorf("spec identifier items_field %q must match %s (fail-closed)", spec.ItemsField, externalIdentifierPattern)
+	}
+	for _, f := range spec.Fields {
+		if !externalIdentifierPattern.MatchString(f.Name) {
+			return fmt.Errorf("spec identifier field name %q must match %s (fail-closed)", f.Name, externalIdentifierPattern)
+		}
+	}
+	for _, k := range sortedStaticKeys(spec.Render.Static) {
+		if !externalIdentifierPattern.MatchString(k) {
+			return fmt.Errorf("spec identifier render static key %q must match %s (fail-closed)", k, externalIdentifierPattern)
+		}
+	}
+	return nil
+}
+
+// scanExternalSpecText is the VALUE half of class ⑧: the embedded safety scanners run over every
+// spec-authored free-text surface of an EXTERNAL spec — the name, each enum validator's deny
+// message, each default validator's value (free prose that lands verbatim in items when the host
+// omits the field), each render static value, and the bullet-list title. These strings flow into
+// deny messages, governed items, and rendered governed content; embedded spec text is reviewed
+// code (pinned by the golden tests), external spec text is untrusted input — scanned at load
+// time, fail-closed. External path only by design.
 func scanExternalSpecText(spec CapabilitySpec) error {
 	type surface struct{ where, text string }
 	surfaces := []surface{{"name", spec.Name}}
 	for _, f := range spec.Fields {
 		for _, v := range f.Validators {
-			if v.ID == "enum" {
+			switch v.ID {
+			case "enum":
 				surfaces = append(surfaces, surface{fmt.Sprintf("field %q enum message", f.Name), v.Params["message"]})
+			case "default":
+				surfaces = append(surfaces, surface{fmt.Sprintf("field %q default value", f.Name), v.Params["value"]})
 			}
 		}
 	}
-	keys := make([]string, 0, len(spec.Render.Static))
-	for k := range spec.Render.Static {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys) // deterministic first-error
-	for _, k := range keys {
+	for _, k := range sortedStaticKeys(spec.Render.Static) {
 		surfaces = append(surfaces, surface{fmt.Sprintf("render static %q", k), spec.Render.Static[k]})
 	}
 	if c := spec.Render.Content; c != nil && c.Member == "bullet-list" {
@@ -143,6 +201,17 @@ func scanExternalSpecText(spec CapabilitySpec) error {
 		}
 	}
 	return nil
+}
+
+// sortedStaticKeys keeps both class-⑧ halves deterministic: the FIRST offending static key (by
+// sort order) is the one named, run after run.
+func sortedStaticKeys(static map[string]string) []string {
+	keys := make([]string, 0, len(static))
+	for k := range static {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // headerCoversRequired is the load-time kernel-schema lockstep (class ⑦): the keys a capability's
@@ -184,11 +253,20 @@ func ResolveCatalog(projectRoot string, requiredFields map[contract.ResourceKind
 	return mergeExternal(Builtins, external)
 }
 
-// screenExternalSymlinks is fault class ⑩, on the REAL path because fs.FS has no lstat: a
-// symlinked package directory or capability.json is rejected before any fsys is built. Without
-// this, os.DirFS would silently SKIP a symlinked dir (not IsDir to ReadDir) and silently FOLLOW a
-// symlinked capability.json — and silent is the one thing this loader must never be.
+// screenExternalSymlinks is fault class ⑩, on the REAL path because fs.FS has no lstat: the
+// external ROOT itself, a package directory, or a capability.json arriving via symlink is
+// rejected before any fsys is built. Without this, os.DirFS would silently TRAVERSE a symlinked
+// root, silently SKIP a symlinked dir (not IsDir to ReadDir) and silently FOLLOW a symlinked
+// capability.json — and silent is the one thing this loader must never be. An unknown lstat
+// error is never treated as absence (only fs.ErrNotExist is).
 func screenExternalSymlinks(rootDir string) error {
+	if fi, err := os.Lstat(rootDir); err == nil {
+		if fi.Mode()&fs.ModeSymlink != 0 {
+			return fmt.Errorf("external capability root %s: symlinked root directory rejected (fail-closed)", externalRootRel)
+		}
+	} else if !errors.Is(err, fs.ErrNotExist) {
+		return fmt.Errorf("lstat external capability root %s: %w", externalRootRel, err)
+	}
 	entries, err := os.ReadDir(rootDir)
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil

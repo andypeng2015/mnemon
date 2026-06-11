@@ -73,13 +73,18 @@ Embedded specs are compile-time artifacts: corruption panics at init (a build de
 `TestBuiltinsLoadFromEmbeddedSpecs` + CI before merge). External capability packages
 (`.mnemon/loops/<name>/capability.json`; loop-package-v1 "External capability packages") load
 through `capability.ResolveCatalog`: the SAME strict decode + FromSpec compile takes the ERROR
-path, never the panic — any failure (ten fail-closed fault classes, every message naming the
+path, never the panic — any failure (the fail-closed fault classes, every message naming the
 package path) refuses Local Mnemon boot. Two deliberate differences from embedded loading:
-(a) external spec TEXT — name, enum deny messages, render `static` values, the bullet-list
-`title` — is scanned by the secret/prompt-injection scanners at load time, because embedded spec
-text is reviewed code pinned by golden parity (TestSpecGoldens) while external spec text is
-untrusted input; (b) the merge rejects shadowing on FOUR axes (name, observed type, proposed
-type, resource kind) — an external spec can never displace or impersonate an embedded one.
+(a) every external spec surface is vetted at load time, in two halves — VALUES (enum deny
+messages, `default` validator values — free prose that lands verbatim in items when the host
+omits the field — render `static` values, and the bullet-list `title`) are scanned by the
+secret/prompt-injection scanners; IDENTIFIERS (field names, `items_field`, render `static` keys)
+are pattern-locked to `^[a-z][a-z0-9_-]*$` (underscore allowed — the builtin `skill_id` and
+`items_field` shapes carry it); the spec `name` is pattern-locked via directory == name (== kind)
+— because embedded spec text is reviewed code pinned by golden parity (TestSpecGoldens) while
+external spec text is untrusted input; (b) the merge rejects shadowing on FOUR axes (name,
+observed type, proposed type, resource kind) — an external spec can never displace or impersonate
+an embedded one.
 
 ## Stability promise
 

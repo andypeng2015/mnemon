@@ -314,10 +314,27 @@ run_external_goal() {
 
 		# NEGATIVE: a malformed second package must REFUSE boot (directory presence is contract;
 		# split streams — the "ready" banner goes to stdout, the refusal names the path on stderr).
+		# Background launch + bounded poll: a foreground run would HANG the suite if fail-closed
+		# ever regressed into a serving process, so the refusal must arrive within ~6s or the
+		# process is killed and the leg fails.
 		mkdir -p .mnemon/loops/bad
 		printf '{nope' >.mnemon/loops/bad/capability.json
-		if "$MH" local run >"$WORK/external-bad.out.log" 2>"$WORK/external-bad.err.log"; then
-			echo "local run must refuse to start with a malformed external package"; exit 1
+		"$MH" local run >"$WORK/external-bad.out.log" 2>"$WORK/external-bad.err.log" &
+		local badpid=$! refused=0
+		for i in $(seq 1 60); do
+			if ! kill -0 "$badpid" 2>/dev/null; then
+				refused=1
+				break
+			fi
+			sleep 0.1
+		done
+		if [ "$refused" != 1 ]; then
+			kill "$badpid" 2>/dev/null || true
+			wait "$badpid" 2>/dev/null || true
+			echo "local run still alive after 6s with a malformed external package (fail-closed regressed)"; exit 1
+		fi
+		if wait "$badpid"; then
+			echo "local run must exit non-zero with a malformed external package"; exit 1
 		fi
 		grep -q ".mnemon/loops/bad" "$WORK/external-bad.err.log" || { echo "boot refusal must name the bad package path on stderr"; cat "$WORK/external-bad.err.log"; exit 1; }
 		rm -rf .mnemon/loops/bad

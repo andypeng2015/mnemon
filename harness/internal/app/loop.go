@@ -47,7 +47,9 @@ func (h *Harness) LoopValidate() ([]string, error) {
 	// External capability packages: run the SAME fail-closed resolution boot uses (symlink screen
 	// + LoadExternal + four-axis shadowing merge), so a package that would refuse `local run`
 	// fails validate too. One OK line per package — the v1 source label (status integration is
-	// explicitly deferred).
+	// explicitly deferred). --root must be the PROJECT root for external-package validation —
+	// ResolveCatalog reads <root>/.mnemon/loops (manifest-tree root and project root coincide in
+	// product use; the legacy <root>/loops branch above is manifest-tree validation).
 	merged, err := capability.ResolveCatalog(h.root, kernel.DefaultSchemaGuard().Required)
 	if err != nil {
 		return nil, err

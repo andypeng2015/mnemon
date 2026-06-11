@@ -44,8 +44,10 @@ change to this document plus the compiled catalog.
 
 Fragments are loop-side shell bodies referenced by `include{fragment}`. They are concatenated
 into the generated hook at GENERATION time and never evaluated by the generator or the runtime.
-**v1: fragments are valid only in EMBEDDED loop packages.** Today this is enforced structurally —
-the renderer reads fragments exclusively from the embedded asset FS; no external loader exists.
+**v1: fragments are valid only in EMBEDDED loop packages.** Originally this was enforced
+structurally (the renderer reads fragments exclusively from the embedded asset FS, and no
+external loader existed); since stage 5 the external loader also enforces it directly — fault
+class ⑥ rejects any `hooks/` or `skills/` presence in an external package.
 **Binding stage-5 obligation: any external-package loader MUST reject a package containing
 `hooks/fragments/`, an `include` intent, or a `skills/*/template.json` whose recipe/notes were not
 shipped embedded — fail closed, with a regression test, before external packages gain "same
@@ -77,9 +79,14 @@ ROOT — `.mnemon/loops/` is the ONLY external root in v1:
 ```
 
 **Directory-as-declaration**: the package directory name IS the capability name. It must equal
-`capability.json`'s `name` and match `^[a-z][a-z0-9-]*$` (fault class ⑨ — kills case aliasing
-and path-meaningful names). Putting the directory in place declares the capability; enabling it
-is the same `config.loops` + binding scope/types edit the note/decision precedent uses.
+`capability.json`'s `name` AND its `resource_kind` — **directory == name == kind for v1** — and
+match `^[a-z][a-z0-9-]*$` (fault class ⑨ — kills case aliasing, path-meaningful names, and
+name/kind divergence: enablement derives the catalog entry from the binding scope KIND, so a
+divergent package would be unreachable or confusing). Putting the directory in place declares the
+capability; enabling it is the same `config.loops` + binding scope/types edit the note/decision
+precedent uses. The kernel-internal kinds `lease`, `budget`, `receipt`, `coordination` are
+control-plane job/coordination lanes and may never be claimed by an external package (fault
+class ⑪, fail-closed at load).
 
 **Admission-equal rights only — an operator-visible deviation, stated openly.** An external
 package is the EQUAL of an embedded capability for admission and governance (same generic kind,
@@ -101,14 +108,17 @@ document maps to an enforcing fault class:
 | strict spec decode | class ① bad JSON / trailing data / unknown keys (decodeSpec); ② unknown vocabulary, ③ kind outside KindCatalog (FromSpec) |
 | no shadowing | class ④ four-axis merge rejection — name, observed type, proposed type, resource kind — external may not claim what embedded claims; ⑤ two externals may not collide either (incl. sharing a kind) |
 | kernel-satisfiable | class ⑦ load-time SchemaGuard lockstep: statically derived header keys (static ∪ content ∪ items_field ∪ updated_by) must cover the kind's required fields |
-| untrusted spec text | class ⑧, EXTERNAL ONLY: name, enum deny messages, render static values, bullet-list title pass the secret + prompt-injection scanners |
-| no symlinks | class ⑩: a symlinked package dir or capability.json is rejected by ResolveCatalog's lstat screening on the real path |
+| untrusted spec surfaces | class ⑧, EXTERNAL ONLY, two halves. VALUES → scanned by the secret + prompt-injection scanners: enum deny messages, `default` validator values, render static values, the bullet-list title. IDENTIFIERS → pattern-locked to `^[a-z][a-z0-9_-]*$` (underscore allowed; the builtin `skill_id`/`items_field` shapes carry it): field names, `items_field`, render static keys. The spec `name` is pattern-locked via directory == name (class ⑨) and scanned as belt-and-braces |
+| no kernel-internal kinds | class ⑪: `lease`/`budget`/`receipt`/`coordination` are deny-listed for external claim |
+| no symlinks | class ⑩: a symlinked external root, package dir, or capability.json is rejected by ResolveCatalog's lstat screening on the real path |
 
 A bad package REFUSES `local run` boot — the directory's presence is a contract, not a hint;
 `local run --ignore-external` is the operator escape hatch (embedded-only catalog, each ignored
 package named on stderr). `loop validate` reports each loadable package as
 `external capability <name>: OK` and goes red on any loader failure. Sync-import stays
-Builtins-only: external capabilities have no remote producer in v1.
+memory/skill-only — narrower than Builtins: pushes are kind-agnostic, but the puller imports only
+memory and skill commits and drops every other kind; external capabilities have no remote
+producer in v1.
 
 ## Migration provenance
 
