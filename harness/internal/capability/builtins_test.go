@@ -7,7 +7,7 @@ import (
 )
 
 func TestBuiltinsLoadFromEmbeddedSpecs(t *testing.T) {
-	for _, id := range []string{"memory", "skill", "note"} {
+	for _, id := range []string{"memory", "skill"} {
 		cap, ok := Builtins[id]
 		if !ok {
 			t.Fatalf("builtin %q must load from assets/capabilities", id)
@@ -15,6 +15,17 @@ func TestBuiltinsLoadFromEmbeddedSpecs(t *testing.T) {
 		if cap.Decode == nil || cap.Header == nil {
 			t.Fatalf("builtin %q must carry compiled decode/header", id)
 		}
+	}
+	// The P1 demotion pin: note/decision are EXTERNAL-package/test fixtures now (their specs live
+	// in testdata/capabilities and the e2e external-package leg), never embedded — Builtins is
+	// exactly {memory, skill}.
+	for _, id := range []string{"note", "decision"} {
+		if _, ok := Builtins[id]; ok {
+			t.Fatalf("%q must NOT be embedded (demoted to a test/external-package fixture)", id)
+		}
+	}
+	if len(Builtins) != 2 {
+		t.Fatalf("Builtins must be exactly {memory, skill}, got %d entries", len(Builtins))
 	}
 }
 

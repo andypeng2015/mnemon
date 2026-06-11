@@ -60,7 +60,8 @@ func sanitizePrincipal(p string) string {
 // validateProductLoops fail-closes setup to loops that are BOTH a built-in capability
 // (capability.Builtins) AND carry projectable assets for the host (manifest.LoopsForHost over the
 // embedded FS) — derived, not hardcoded, so a future loop whose assets land is admitted without
-// editing a literal. Today the intersection is exactly {memory, skill} (note has no host assets).
+// editing a literal. Today the intersection is exactly {memory, skill} (the whole builtin set
+// since the P1 note/decision demotion to external-package fixtures).
 // A requested loop that is instead an EXTERNAL capability package under projectRoot gets the
 // pinned admission-vs-projection diagnosis: external packages carry no host assets in v1.
 func validateProductLoops(host string, loops []string, projectRoot string) error {

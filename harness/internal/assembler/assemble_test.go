@@ -1,6 +1,7 @@
 package assembler
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -13,9 +14,35 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
 
+// fixtureCatalog is Builtins plus the DEMOTED note/decision capabilities, compiled from their
+// canonical fixture specs (capability/testdata/capabilities/*.json — formerly embedded, now
+// supplied the way an external package would supply them). Mirrors the shape the boot path gets
+// from capability.ResolveCatalog when the operator lays the packages under .mnemon/loops.
+func fixtureCatalog(t *testing.T, names ...string) map[string]capability.Capability {
+	t.Helper()
+	catalog := map[string]capability.Capability{}
+	for id, c := range capability.Builtins {
+		catalog[id] = c
+	}
+	fixtures := os.DirFS(filepath.Join("..", "capability", "testdata"))
+	for _, name := range names {
+		spec, err := capability.LoadSpec(fixtures, name)
+		if err != nil {
+			t.Fatalf("load fixture spec %s: %v", name, err)
+		}
+		cap, err := capability.FromSpec(spec)
+		if err != nil {
+			t.Fatalf("compile fixture spec %s: %v", name, err)
+		}
+		catalog[cap.Name] = cap
+	}
+	return catalog
+}
+
 // A 3rd capability (note) stands up end-to-end through config + the generic kind alone — no new rule
-// code: Assemble compiles the config into a runtime config whose note rule admits a note candidate
-// through the channel -> tick -> kernel -> projection.
+// code: Assemble selects the note rule from the provided catalog (note is a fixture/external-package
+// capability since the P1 demotion, not a builtin) and admits a note candidate through the
+// channel -> tick -> kernel -> projection.
 func TestAssembleAdmitsConfiguredNoteCapabilityEndToEnd(t *testing.T) {
 	ref := contract.ResourceRef{Kind: "note", ID: "project"}
 	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
@@ -24,7 +51,7 @@ func TestAssembleAdmitsConfiguredNoteCapabilityEndToEnd(t *testing.T) {
 	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
 		"note": {Enabled: true, ResourceRef: "note/project", RuleRef: "native:note"},
 	}}
-	rc, err := Assemble(cfg, []channel.ChannelBinding{binding}, nil)
+	rc, err := Assemble(cfg, []channel.ChannelBinding{binding}, fixtureCatalog(t, "note"))
 	if err != nil {
 		t.Fatalf("assemble: %v", err)
 	}
@@ -128,6 +155,22 @@ func TestAssembleFailsClosedOnUnknownCapability(t *testing.T) {
 	}
 }
 
+// The P1 demotion nail: config enables note but NO external package supplies its spec (nil
+// catalog = Builtins, which is exactly {memory, skill} now) — Assemble must land on the
+// 'unknown rule_ref' fail-closed path, never a silent no-op or a builtin fallback.
+func TestAssembleFailsClosedOnNoteWithoutExternalPackage(t *testing.T) {
+	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
+		"note": {Enabled: true, ResourceRef: "note/project", RuleRef: "native:note"},
+	}}
+	_, err := Assemble(cfg, nil, nil)
+	if err == nil {
+		t.Fatal("native:note without an external package must fail closed against the Builtins catalog")
+	}
+	if !strings.Contains(err.Error(), `unknown rule_ref "native:note"`) {
+		t.Fatalf("want the 'unknown rule_ref' fail-closed diagnostic, got %v", err)
+	}
+}
+
 // A binding scoped to a non-default ref of the capability's kind must get a rule targeting ITS ref
 // (parity with the production memoryRefForBinding fallback), not the config-pinned default.
 func TestAssembleDerivesRefFromBindingScope(t *testing.T) {
@@ -214,8 +257,9 @@ func TestAssembleRejectsBareRuleRef(t *testing.T) {
 	}
 }
 
-// 阶段二验收:第四能力 decision 的全部 Go 足迹 = KindCatalog/SchemaGuard 各一行;
-// 行为完全来自 assets/capabilities/decision.json(spec 文件)。端到端与 note 同构。
+// 阶段二验收(P1 降级后):第四能力 decision 的全部 Go 足迹 = KindCatalog/SchemaGuard 各一行;
+// 行为完全来自 spec 文件(capability/testdata/capabilities/decision.json,经 P1 降级为
+// fixture/外部包供给——曾内嵌于 assets)。端到端与 note 同构。
 func TestAssembleAdmitsDecisionCapabilityEndToEnd(t *testing.T) {
 	ref := contract.ResourceRef{Kind: "decision", ID: "project"}
 	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
@@ -224,7 +268,7 @@ func TestAssembleAdmitsDecisionCapabilityEndToEnd(t *testing.T) {
 	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
 		"decision": {Enabled: true, ResourceRef: "decision/project", RuleRef: "native:decision"},
 	}}
-	rc, err := Assemble(cfg, []channel.ChannelBinding{binding}, nil)
+	rc, err := Assemble(cfg, []channel.ChannelBinding{binding}, fixtureCatalog(t, "decision"))
 	if err != nil {
 		t.Fatalf("assemble: %v", err)
 	}

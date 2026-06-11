@@ -85,7 +85,10 @@ match `^[a-z][a-z0-9_]*$` — the ONE grammar shared with the spec name / event-
 name/kind divergence: enablement derives the catalog entry from the binding scope KIND, so a
 divergent package would be unreachable or confusing). Putting the directory in place declares the
 capability; enabling it is the same `config.loops` + binding scope/types edit the note/decision
-precedent uses. The kernel-internal kinds `lease`, `budget`, `receipt`, `coordination` are
+external packages use as the worked precedent. (Errata: this sentence previously called
+note/decision an embedded precedent; they were demoted from embedded builtins to external-package
+fixtures in P1 — the enablement mechanism is unchanged.) The kernel-internal kinds `lease`,
+`budget`, `receipt`, `coordination` are
 control-plane job/coordination lanes and may never be claimed by an external package (fault
 class ⑪, fail-closed at load).
 

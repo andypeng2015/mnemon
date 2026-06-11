@@ -3,6 +3,7 @@ package capability
 import (
 	"fmt"
 	"io/fs"
+	"os"
 	"reflect"
 	"testing"
 
@@ -12,13 +13,16 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/internal/rule"
 )
 
-// testSpecs decodes the EMBEDDED assets/capabilities/*.json (single source with production — test
-// and runtime can never drift). The handwritten dual-net side served the Task-2/3 migration and is
-// deleted; the inline golden assertions below are the permanent protocol pin.
+// testSpecs decodes the EMBEDDED assets/capabilities/*.json for memory/skill (single source with
+// production — test and runtime can never drift), plus the demoted note spec from
+// testdata/capabilities (note is no longer embedded; the fixture keeps its golden parity coverage
+// alive, pinning the FromSpec compile pipeline for fixture/external-package specs). The
+// handwritten dual-net side served the Task-2/3 migration and is deleted; the inline golden
+// assertions below are the permanent protocol pin.
 func testSpecs(t *testing.T) map[string]CapabilitySpec {
 	t.Helper()
 	out := map[string]CapabilitySpec{}
-	for _, id := range []string{"memory", "skill", "note"} {
+	for _, id := range []string{"memory", "skill"} {
 		raw, err := fs.ReadFile(assets.FS, "capabilities/"+id+".json")
 		if err != nil {
 			t.Fatalf("read embedded spec %s: %v", id, err)
@@ -29,6 +33,11 @@ func testSpecs(t *testing.T) map[string]CapabilitySpec {
 		}
 		out[id] = spec
 	}
+	spec, err := LoadSpec(os.DirFS("testdata"), "note")
+	if err != nil {
+		t.Fatalf("load fixture spec note: %v", err)
+	}
+	out["note"] = spec
 	return out
 }
 

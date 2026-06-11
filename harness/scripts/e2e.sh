@@ -150,23 +150,75 @@ run_skill() {
 	echo "    skill loop ($host) OK"
 }
 
-# run_note proves the platform claim on the PRODUCT path (note AND the 4th capability decision):
-# a capability whose descriptor +
-# KindCatalog entry exist in code (note) stands up via CONFIG EDIT ALONE — no new Go in app/cmd.
-# setup fail-closes `--loop note` (note has no host assets, correctly), so the stanza does what a
-# platform operator would: edit the setup-written config.json loops list + bindings.json scope.
+# run_note proves the platform claim on the PRODUCT path (note AND the 4th capability decision)
+# via the EXTERNAL-PACKAGE route: since the P1 demotion neither capability is embedded — only
+# their KindCatalog/SchemaGuard kind registrations remain in code — so each stands up from a
+# .mnemon/loops/<name>/capability.json package directory plus the SAME config.loops +
+# bindings.json edit (the run_external_goal mechanism; supply path changed, admission semantics
+# unchanged). setup still fail-closes `--loop note` (external packages carry no host assets), so
+# the stanza does what a platform operator would: lay the packages, then edit the setup-written
+# config.json loops list + bindings.json scope.
 run_note() {
 	local principal="codex@project" addr="http://127.0.0.1:8787"
-	CUR_HOST="note-via-config"
+	CUR_HOST="note-external-package"
 	local proj="$WORK/proj-note"
 	mkdir -p "$proj"
-	echo "=== E2E note capability via config alone ==="
+	echo "=== E2E note+decision external capability packages ==="
 	(
 		cd "$proj"
 		local tok=".mnemon/harness/channel/credentials/codex-project.token"
 		"$MH" setup --host codex --memory --principal "$principal" --control-url "$addr" >/dev/null
 
-		# The config edit: enable the note loop + widen the binding to the note type/scope.
+		# The external packages: directory presence = capability declaration (loop-package-v1).
+		# capability.json carries the spec formerly embedded as assets/capabilities/note.json /
+		# decision.json (now canonical at harness/internal/capability/testdata/capabilities/).
+		mkdir -p .mnemon/loops/note .mnemon/loops/decision
+		cat >.mnemon/loops/note/capability.json <<-'JSONEOF'
+		{
+		  "schema_version": 1,
+		  "name": "note",
+		  "observed_type": "note.write_candidate.observed",
+		  "proposed_type": "note.write.proposed",
+		  "resource_kind": "note",
+		  "items_field": "items",
+		  "fields": [
+		    {
+		      "name": "text",
+		      "validators": [
+		        {"id": "required", "params": {"missing_style": "empty"}},
+		        {"id": "safety:unsafe"}
+		      ]
+		    }
+		  ],
+		  "render": {
+		    "content": {"member": "bullet-list", "params": {"title": "# Notes", "field": "text"}}
+		  }
+		}
+		JSONEOF
+		cat >.mnemon/loops/decision/capability.json <<-'JSONEOF'
+		{
+		  "schema_version": 1,
+		  "name": "decision",
+		  "observed_type": "decision.write_candidate.observed",
+		  "proposed_type": "decision.write.proposed",
+		  "resource_kind": "decision",
+		  "items_field": "items",
+		  "fields": [
+		    {
+		      "name": "text",
+		      "validators": [
+		        {"id": "required", "params": {"missing_style": "empty"}},
+		        {"id": "safety:unsafe"}
+		      ]
+		    }
+		  ],
+		  "render": {
+		    "content": {"member": "bullet-list", "params": {"title": "# Decisions", "field": "text"}}
+		  }
+		}
+		JSONEOF
+
+		# The config edit: enable the note/decision loops + widen the binding to their types/scopes.
 		python3 - <<-'PYEOF'
 		import json
 		cfg = json.load(open(".mnemon/harness/local/config.json"))
@@ -197,7 +249,8 @@ run_note() {
 
 		# `resources=N` counts SCOPED refs (version-0 included), so it cannot prove existence.
 		# The content digest folds Kind:ID:Version+fields per scoped ref: an admitted note write
-		# necessarily changes it. ticked=true + digest delta = the note landed.
+		# necessarily changes it. ticked=true + digest delta = the note landed (admitted through
+		# the EXTERNAL note rule — note is no longer embedded, so no builtin could fake this).
 		local out pre post
 		out="$("$MH" control pull --addr "$addr" --principal "$principal" --token-file "$tok")"
 		pre="${out##*digest=}"; pre="${pre%% *}"
@@ -209,7 +262,8 @@ run_note() {
 		post="${out##*digest=}"; post="${post%% *}"
 		[ -n "$pre" ] && [ -n "$post" ] && [ "$pre" != "$post" ] || { echo "note write did not change the scoped digest (pre=$pre post=$post)"; exit 1; }
 
-		# 阶段二:第四能力 decision —— spec 文件 + KindCatalog/SchemaGuard 一行,零新增行为代码。
+		# 阶段二(P1 降级后):第四能力 decision —— 外部包 spec 文件 + KindCatalog/SchemaGuard
+		# 各一行 kind 注册,零新增行为代码。
 		out="$("$MH" control observe --addr "$addr" --principal "$principal" --token-file "$tok" \
 			--type decision.write_candidate.observed --external-id d1 \
 			--payload '{"text":"decision stands up from a spec file"}')"
@@ -222,14 +276,15 @@ run_note() {
 		rm -f "$PIDFILE"
 	) || fail "note flow failed (see $WORK/run-note.log)"
 	sleep 0.3
-	echo "    note via config alone OK"
+	echo "    note+decision external packages OK"
 }
 
-# run_external_goal proves stage 5 on the product path: a capability NEVER embedded (goal) stands
-# up from a pure external package directory (.mnemon/loops/goal/capability.json) + the SAME
-# config.loops/binding edit note/decision use — admission-equal rights. Includes the governed pull
-# CONTENT leg (the goal text arrives via the pull verb, not only a digest delta) and the negative
-# path: a malformed second package REFUSES `local run` boot, naming its path on stderr.
+# run_external_goal proves stage 5 on the product path: a capability that NEVER had a kind
+# registration in code (goal) stands up from a pure external package directory
+# (.mnemon/loops/goal/capability.json) + the SAME config.loops/binding edit the note/decision
+# external packages use — admission-equal rights. Includes the governed pull CONTENT leg (the
+# goal text arrives via the pull verb, not only a digest delta) and the negative path: a
+# malformed second package REFUSES `local run` boot, naming its path on stderr.
 run_external_goal() {
 	local principal="codex@project" addr="http://127.0.0.1:8787"
 	CUR_HOST="external-goal"
@@ -268,8 +323,8 @@ run_external_goal() {
 		}
 		JSONEOF
 
-		# The enablement edit — EXACTLY isomorphic to note/decision: config.loops + binding
-		# scope/types (config.loops stays the product-path authority).
+		# The enablement edit — EXACTLY isomorphic to the note/decision external packages:
+		# config.loops + binding scope/types (config.loops stays the product-path authority).
 		python3 - <<-'PYEOF'
 		import json
 		cfg = json.load(open(".mnemon/harness/local/config.json"))
@@ -507,4 +562,4 @@ run_note
 run_external_goal
 run_sync_pair
 
-echo "E2E PASS (codex + claude-code; memory + skill + note-via-config + external-goal + sync-pair)"
+echo "E2E PASS (codex + claude-code; memory + skill + note-external-package + external-goal + sync-pair)"

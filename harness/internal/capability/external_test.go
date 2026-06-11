@@ -292,9 +292,9 @@ func TestMergeExternalRejectsKindCollisions(t *testing.T) {
 		return Capability{Name: name, ObservedType: family + ".write_candidate.observed",
 			ProposedType: family + ".write.proposed", ResourceKind: contract.ResourceKind(kind)}
 	}
-	_, err := mergeExternal(Builtins, map[string]Capability{"alt-note": ext("alt-note", "altnote", "note")})
-	if err == nil || !strings.Contains(err.Error(), `resource_kind "note" already claimed`) ||
-		!strings.Contains(err.Error(), ".mnemon/loops/alt-note") {
+	_, err := mergeExternal(Builtins, map[string]Capability{"alt-memory": ext("alt-memory", "altmemory", "memory")})
+	if err == nil || !strings.Contains(err.Error(), `resource_kind "memory" already claimed`) ||
+		!strings.Contains(err.Error(), ".mnemon/loops/alt-memory") {
 		t.Fatalf("external claiming an embedded kind must fail the merge with the package path, got %v", err)
 	}
 	_, err = mergeExternal(Builtins, map[string]Capability{
