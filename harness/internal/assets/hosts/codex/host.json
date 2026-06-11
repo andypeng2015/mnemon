@@ -28,5 +28,19 @@
     "skills": true,
     "hooks": true,
     "subagents": false
+  },
+  "mechanics": {
+    "stdin_read": {
+      "default": "tolerant"
+    },
+    "dialect": {
+      "default": "system-message-only",
+      "overrides": {
+        "memory": {
+          "compact": "codex-continue"
+        }
+      }
+    },
+    "json_escape": true
   }
 }
