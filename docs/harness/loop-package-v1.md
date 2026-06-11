@@ -80,7 +80,8 @@ ROOT — `.mnemon/loops/` is the ONLY external root in v1:
 
 **Directory-as-declaration**: the package directory name IS the capability name. It must equal
 `capability.json`'s `name` AND its `resource_kind` — **directory == name == kind for v1** — and
-match `^[a-z][a-z0-9-]*$` (fault class ⑨ — kills case aliasing, path-meaningful names, and
+match `^[a-z][a-z0-9_]*$` — the ONE grammar shared with the spec name / event-family segment
+(capability-spec-v1 Type grammar; no dash) — (fault class ⑨ — kills case aliasing, path-meaningful names, and
 name/kind divergence: enablement derives the catalog entry from the binding scope KIND, so a
 divergent package would be unreachable or confusing). Putting the directory in place declares the
 capability; enabling it is the same `config.loops` + binding scope/types edit the note/decision

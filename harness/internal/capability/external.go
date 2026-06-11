@@ -18,17 +18,12 @@ import (
 // rooted here, so every loader error names the real package path under this prefix.
 const externalRootRel = ".mnemon/loops"
 
-// externalNamePattern pins the package directory name (which IS the capability name, class ⑨):
-// lowercase alphanumeric + dash, letter-first — the same shape as the built-in capability ids.
-// It kills case aliasing ("Goal" vs "goal") and path-meaningful names at the door.
-var externalNamePattern = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
-
 // externalIdentifierPattern pins every spec-authored IDENTIFIER surface of an external package:
 // field names, items_field, and render static KEYS. Identifiers are class-⑧ surfaces the text
 // scan cannot judge (they land verbatim in payload contracts, headers, and deny messages as bare
 // tokens), so they are pattern-locked instead of scanned. Underscore is allowed — the builtin
 // shapes (skill_id, items_field) carry it — which is why this is a separate pattern from
-// externalNamePattern.
+// specNamePattern (one grammar across the boundary).
 var externalIdentifierPattern = regexp.MustCompile(`^[a-z][a-z0-9_-]*$`)
 
 // externalReservedKinds are the kernel-internal control-plane lanes (job/coordination state) no
@@ -91,8 +86,12 @@ func LoadExternal(fsys fs.FS, requiredFields map[contract.ResourceKind][]string)
 
 func loadExternalPackage(fsys fs.FS, name string, requiredFields map[contract.ResourceKind][]string) (Capability, error) {
 	pkg := externalPkgPath(name)
-	if !externalNamePattern.MatchString(name) { // class ⑨ (pattern first)
-		return Capability{}, fmt.Errorf("external package %s: directory name must match %s (fail-closed)", pkg, externalNamePattern)
+	// class ⑨ (pattern first): the directory IS the capability name, which IS the event-family
+	// segment — ONE grammar (specNamePattern, no dash) on both sides of the boundary, so a name
+	// can never pass the directory door and then die in FromSpec (or vice versa). Also kills
+	// case aliasing ("Goal" vs "goal") and path-meaningful names.
+	if !specNamePattern.MatchString(name) {
+		return Capability{}, fmt.Errorf("external package %s: directory name must match %s (fail-closed)", pkg, specNamePattern)
 	}
 	// Class ⑥, deliberately WIDER than loop-package-v1's minimum (fragments/include/template.json):
 	// hooks/ or skills/ present AT ALL — empty or not — rejects the whole package. v1 external

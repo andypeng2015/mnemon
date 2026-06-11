@@ -101,8 +101,8 @@ func TestLoadExternalFailClosedClasses(t *testing.T) {
 				`"static":{"statement":"project","Bad Key":"v"}`, 1)},
 			[]string{".mnemon/loops/goal", `render static key "Bad Key"`, "must match"}},
 		{"class9 directory name mismatch",
-			map[string]string{"goal-pkg/capability.json": goalSpecJSON},
-			[]string{".mnemon/loops/goal-pkg", "must equal spec name"}},
+			map[string]string{"goalpkg/capability.json": goalSpecJSON},
+			[]string{".mnemon/loops/goalpkg", "must equal spec name"}},
 		{"class9 directory name pattern",
 			map[string]string{"Goal/capability.json": strings.Replace(goalSpecJSON, `"name":"goal"`, `"name":"Goal"`, 1)},
 			[]string{".mnemon/loops/Goal", "directory name"}},
@@ -385,5 +385,23 @@ func TestResolveCatalogRejectsSymlinkedExternalRoot(t *testing.T) {
 	_, err := ResolveCatalog(root, testRequiredFields())
 	if err == nil || !strings.Contains(err.Error(), "symlink") || !strings.Contains(err.Error(), ".mnemon/loops") {
 		t.Fatalf("symlinked external root must be rejected with the root path, got %v", err)
+	}
+}
+
+// 边界两侧一个文法:下划线名通过目录文法(失败点是 KindCatalog 成员资格——目录之门已让行),
+// dash 名在目录文法即拒(不会穿门后死在 FromSpec)。
+func TestExternalDirectoryGrammarMatchesSpecNameGrammar(t *testing.T) {
+	root := t.TempDir()
+	writeExternalPackage(t, root, "my_loop", extSpec("my_loop", "my_loop", "my_loop"))
+	_, err := ResolveCatalog(root, testRequiredFields())
+	if err == nil || !strings.Contains(err.Error(), "not in KindCatalog") {
+		t.Fatalf("underscore name must pass the directory door and fail on kind membership, got %v", err)
+	}
+
+	root2 := t.TempDir()
+	writeExternalPackage(t, root2, "my-loop", extSpec("my-loop", "my-loop", "my-loop"))
+	_, err = ResolveCatalog(root2, testRequiredFields())
+	if err == nil || !strings.Contains(err.Error(), "directory name must match") {
+		t.Fatalf("dashed name must be rejected at the directory grammar, got %v", err)
 	}
 }
