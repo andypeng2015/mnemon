@@ -33,7 +33,8 @@
           "prime": "tolerant"
         },
         "skill": {
-          "nudge": "grep-direct"
+          "nudge": "grep-direct",
+          "prime": "tolerant"
         }
       }
     },
@@ -45,12 +46,7 @@
         }
       }
     },
-    "json_escape": false,
-    "marker_overrides": {
-      "skill": {
-        "prime": false
-      }
-    },
+    "json_escape": true,
     "wording_overrides": {
       "memory": {
         "remind": {

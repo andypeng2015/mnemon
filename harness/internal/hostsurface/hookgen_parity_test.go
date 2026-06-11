@@ -19,13 +19,13 @@ var (
 // behavior change (e.g. the claude compact escape fix) updates the golden in the same commit that
 // records the decision.
 var hookGoldens = map[string]string{
-	"claude-code/memory/compact": "0281afc8283922df9ee4b7a1fabf9910776079c66b107f3d2d8179337ce3eec1",
+	"claude-code/memory/compact": "2359c03a511ba4d8a2939b9311b4b562c1591a3998fb8b8ae06ea32825327e08",
 	"claude-code/memory/nudge":   "870336ca55cc85bb891f3abdfe6477bc851d4b7215476ffb4d70427c6be15c59",
 	"claude-code/memory/prime":   "7d3f4fc0c0438371a5d4d5f1b9451f4b84bdb8adede836d2e52f5ceb5a1b9b3e",
 	"claude-code/memory/remind":  "6b755a8e8325abf9e52442402a04d6f3e9da77dfe40762ea187ff170be95b4d0",
 	"claude-code/skill/compact":  "dd0c690b9e8b12b0bce3ea35c2fd0e7396d6dc3752d2e74afcb46b7340914aa5",
 	"claude-code/skill/nudge":    "4177fa0388447132f26e3bee2b33254272fd164c8f0e7a95b00ca9d35576b6fb",
-	"claude-code/skill/prime":    "c7309e602979940c0d0aa62e75ceb0bf15ddd36d37e05f5d83e50caf4f818db1",
+	"claude-code/skill/prime":    "93621a58110dcd1ee6ff97745dcac64e04436a7cb7a32f38c4d7b4df49270d64",
 	"claude-code/skill/remind":   "39508d6cc8ec74307b8f8b65719a4e48f36f87e741aeaaf8f87166484c466a9e",
 	"codex/memory/compact":       "d7021b8ce2bf4a00bab6946254a93e5fe4512ba0fb7be7b87955ef79aab76b7e",
 	"codex/memory/nudge":         "6673d442815e416ebdebac471deefadfa5f5340c70c9326a866368030a4aa585",
