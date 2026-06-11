@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/spf13/cobra"
@@ -24,6 +25,7 @@ var (
 	localAllowNonLoopback    bool
 	localIgnoreExternal      bool
 	localAllowInsecureRemote bool
+	localSyncInterval        time.Duration
 )
 
 var localCmd = &cobra.Command{
@@ -55,6 +57,7 @@ var localRunCmd = &cobra.Command{
 			MirrorMode:          boot.Config.MirrorMode,
 			IgnoreExternal:      localIgnoreExternal,
 			AllowInsecureRemote: localAllowInsecureRemote,
+			SyncInterval:        localSyncInterval,
 		}, io.Discard)
 	},
 }
@@ -79,6 +82,7 @@ func init() {
 	localCmd.PersistentFlags().StringVar(&localStorePath, "store", "", "store path; defaults to the project Local Mnemon store")
 	localRunCmd.Flags().StringVar(&localAddr, "addr", "127.0.0.1:8787", "listen address")
 	localRunCmd.Flags().StringVar(&localBindingsPath, "bindings", "", "Agent Integration binding file")
+	localRunCmd.Flags().DurationVar(&localSyncInterval, "sync-interval", 0, "sync worker cadence (0 = default 30s)")
 	localRunCmd.Flags().BoolVar(&localAllowNonLoopback, "allow-nonloopback", false, "explicitly allow listening on a non-loopback address (T1: loopback-only by default)")
 	localRunCmd.Flags().BoolVar(&localIgnoreExternal, "ignore-external", false, "boot the embedded-only capability catalog, ignoring external packages under .mnemon/loops (each ignored package is named on stderr)")
 	localRunCmd.Flags().BoolVar(&localAllowInsecureRemote, "allow-insecure-remote", false, "let the background sync worker use a plaintext http:// Remote Workspace endpoint with a non-loopback host (T2: fail-closed by default)")

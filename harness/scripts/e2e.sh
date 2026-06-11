@@ -12,6 +12,12 @@ MH="$WORK/mnemon-harness"
 PIDFILE="$WORK/run.pid"
 cleanup() {
 	[ -f "$PIDFILE" ] && kill "$(cat "$PIDFILE")" 2>/dev/null || true
+	# the sync-pair stanza runs three background processes; reap any survivor on ANY exit path
+	local f
+	for f in "$WORK"/*.pid; do
+		[ -f "$f" ] && kill "$(cat "$f")" 2>/dev/null || true
+	done
+	pkill -f "$WORK/mnemond" 2>/dev/null || true
 	rm -rf "$WORK"
 }
 trap cleanup EXIT
@@ -346,11 +352,147 @@ run_external_goal() {
 # Both hosts run sequentially (the server is stopped between them). codex stays on the default
 # port (covering the bare default path); claude-code deliberately runs on a NON-default port to
 # pin the stage-0 promise that a bare `local run` listens where setup's --control-url pointed.
+
+# run_sync_pair proves the stage-6 Remote MVP on the product path: two replicas (A, B) sync
+# through a standalone mnemond hub over TLS — A writes, the in-process sync worker pushes, B's
+# worker pulls and the content arrives via B's governed pull (attribution carried end to end).
+# Offline leg pins I13 (hub down = local fully functional); the bad-token leg pins authn on the
+# wire. Conflict adjudication (hub idempotency + B-side import conflict) is pinned at the Go
+# integration layer (syncserver_test.go, sync_import_test.go) per the v1.1 redefinition.
+run_sync_pair() {
+	CUR_HOST="sync-pair"
+	echo "=== E2E sync pair via mnemond (TLS) ==="
+	local hubdir="$WORK/hub" tlsdir="$WORK/synctls"
+	mkdir -p "$hubdir" "$tlsdir"
+
+	go build -o "$WORK/mnemond" ./harness/cmd/mnemond
+
+	"$WORK/mnemond" --dev-selfsigned "$tlsdir" >/dev/null
+	[ -f "$tlsdir/cert.pem" ] && [ -f "$tlsdir/key.pem" ] || fail "dev-selfsigned did not write cert/key"
+
+	# hub credentials: two replicas, distinct principals (multi-replica acceptance).
+	printf '%s\n' "aaaa1111bbbb2222cccc3333dddd4444eeee5555ffff6666" >"$hubdir/replica-a.token"
+	printf '%s\n' "9999aaaa8888bbbb7777cccc6666dddd5555eeee4444ffff" >"$hubdir/replica-b.token"
+	chmod 600 "$hubdir/replica-a.token" "$hubdir/replica-b.token"
+	cat >"$hubdir/replicas.json" <<-'JSON'
+	{
+	  "schema_version": 1,
+	  "replicas": [
+	    {"principal": "replica-a@hub", "credential_ref": "replica-a.token",
+	     "scopes": [{"kind": "memory", "id": "project"}, {"kind": "skill", "id": "project"}]},
+	    {"principal": "replica-b@hub", "credential_ref": "replica-b.token",
+	     "scopes": [{"kind": "memory", "id": "project"}]}
+	  ]
+	}
+	JSON
+	chmod 600 "$hubdir/replicas.json"
+
+	"$WORK/mnemond" --addr 127.0.0.1:9787 --store "$hubdir/hub.db" --replicas "$hubdir/replicas.json" \
+		--tls-cert "$tlsdir/cert.pem" --tls-key "$tlsdir/key.pem" >"$WORK/mnemond.log" 2>&1 &
+	local hubpid=$!
+	sleep 0.5
+	kill -0 "$hubpid" 2>/dev/null || { cat "$WORK/mnemond.log"; fail "mnemond did not start"; }
+
+	local proja="$WORK/proj-sync-a" projb="$WORK/proj-sync-b"
+	mkdir -p "$proja" "$projb"
+	local apid="" bpid=""
+	(
+		cd "$proja"
+		local tok=".mnemon/harness/channel/credentials/codex-project.token"
+		"$MH" setup --host codex --memory --principal codex@project --control-url http://127.0.0.1:8787 >/dev/null
+		"$MH" sync connect hub --remote-url https://127.0.0.1:9787 \
+			--token-file "$hubdir/replica-a.token" --ca-file "$tlsdir/cert.pem" >/dev/null
+		"$MH" local run --sync-interval 300ms >"$WORK/run-sync-a.log" 2>&1 &
+		echo $! >"$WORK/sync-a.pid"
+		local up=0 i
+		for i in $(seq 1 60); do
+			"$MH" control status --addr http://127.0.0.1:8787 --principal codex@project --token-file "$tok" >/dev/null 2>&1 && { up=1; break; }
+			sleep 0.1
+		done
+		[ "$up" = 1 ] || { cat "$WORK/run-sync-a.log"; exit 1; }
+		"$MH" control observe --addr http://127.0.0.1:8787 --principal codex@project --token-file "$tok" \
+			--type memory.write_candidate.observed --external-id sp1 \
+			--payload '{"content":"sync pair payload from replica A","source":"user","confidence":"high"}' >/dev/null
+	) || fail "replica A flow failed (see $WORK/run-sync-a.log / $WORK/mnemond.log)"
+	apid="$(cat "$WORK/sync-a.pid")"
+
+	(
+		cd "$projb"
+		local tok=".mnemon/harness/channel/credentials/codex-project.token"
+		"$MH" setup --host codex --memory --principal codex@project --control-url http://127.0.0.1:8899 >/dev/null
+		"$MH" sync connect hub --remote-url https://127.0.0.1:9787 \
+			--token-file "$hubdir/replica-b.token" --ca-file "$tlsdir/cert.pem" >/dev/null
+		"$MH" local run --sync-interval 300ms >"$WORK/run-sync-b.log" 2>&1 &
+		echo $! >"$WORK/sync-b.pid"
+		local up=0 i seen=0
+		for i in $(seq 1 60); do
+			"$MH" control status --addr http://127.0.0.1:8899 --principal codex@project --token-file "$tok" >/dev/null 2>&1 && { up=1; break; }
+			sleep 0.1
+		done
+		[ "$up" = 1 ] || { cat "$WORK/run-sync-b.log"; exit 1; }
+		# A worker pushes -> hub -> B worker pulls -> import re-enters intake -> governed pull sees it.
+		for i in $(seq 1 100); do
+			if "$MH" control pull --json --addr http://127.0.0.1:8899 --principal codex@project --token-file "$tok" 2>/dev/null | grep -q "sync pair payload from replica A"; then
+				seen=1
+				break
+			fi
+			sleep 0.2
+		done
+		[ "$seen" = 1 ] || { echo "B never saw A's commit within 20s"; tail -5 "$WORK/run-sync-b.log"; exit 1; }
+		# attribution: the import preserves A's entries VERBATIM (faithful provenance) and the
+		# write itself is attributed to the sync importer; the full origin chain (replica id,
+		# decision id) lives in B's event log + decisions, pinned by sync_import Go tests.
+		"$MH" control pull --json --addr http://127.0.0.1:8899 --principal codex@project --token-file "$tok" | grep -q '"sync@local"' \
+			|| { echo "imported resource lacks sync@local attribution"; exit 1; }
+	) || fail "replica B flow failed (see $WORK/run-sync-b.log / $WORK/mnemond.log)"
+	bpid="$(cat "$WORK/sync-b.pid")"
+
+	# offline leg (I13): hub down, A stays fully functional on the product path.
+	kill "$hubpid" 2>/dev/null; wait "$hubpid" 2>/dev/null || true
+	(
+		cd "$proja"
+		local tok=".mnemon/harness/channel/credentials/codex-project.token"
+		out="$("$MH" control observe --addr http://127.0.0.1:8787 --principal codex@project --token-file "$tok" \
+			--type memory.write_candidate.observed --external-id sp-offline \
+			--payload '{"content":"offline write while hub is down","source":"user","confidence":"high"}')"
+		case "$out" in *ticked=true*) ;; *) echo "offline observe: $out"; exit 1 ;; esac
+		"$MH" control pull --addr http://127.0.0.1:8787 --principal codex@project --token-file "$tok" >/dev/null
+	) || fail "I13 offline leg failed"
+
+	# authn leg: with A's server stopped (lock released), a manual push with the WRONG token is refused.
+	{ kill "$apid" 2>/dev/null; wait "$apid"; } 2>/dev/null || true
+	{ kill "$bpid" 2>/dev/null; wait "$bpid"; } 2>/dev/null || true
+	"$WORK/mnemond" --addr 127.0.0.1:9787 --store "$hubdir/hub.db" --replicas "$hubdir/replicas.json" \
+		--tls-cert "$tlsdir/cert.pem" --tls-key "$tlsdir/key.pem" >>"$WORK/mnemond.log" 2>&1 &
+	hubpid=$!
+	sleep 0.5
+	(
+		cd "$proja"
+		# sp-offline is still pending (hub was down when it was written), so the push really
+		# sends a request. The stored credential is what the client uses - corrupt it for the
+		# negative, restore for the positive (true product-path authn probe).
+		# connect stored the absolute --token-file path as credential_ref; mnemond loaded the
+		# token into memory at boot, so editing the file flips only the CLIENT side.
+		local cred="$hubdir/replica-a.token"
+		cp "$cred" "$WORK/cred.bak"
+		printf '%s\n' "000000000000000000000000000000000000000000000000" >"$cred"
+		if "$MH" sync push --once >/dev/null 2>&1; then
+			echo "unknown-token push must be refused"; exit 1
+		fi
+		cp "$WORK/cred.bak" "$cred"
+		"$MH" sync push --once >/dev/null 2>&1 || { echo "right-token push must succeed"; exit 1; }
+	) || fail "authn leg failed"
+	kill "$hubpid" 2>/dev/null; wait "$hubpid" 2>/dev/null || true
+	rm -f "$PIDFILE"
+	echo "    sync pair via mnemond OK"
+}
+
 run_host codex codex@project 8787 .codex
 run_host claude-code claude@project 8899 .claude
 run_skill codex codex@project
 run_skill claude-code claude@project
 run_note
 run_external_goal
+run_sync_pair
 
-echo "E2E PASS (codex + claude-code; memory + skill + note-via-config + external-goal)"
+echo "E2E PASS (codex + claude-code; memory + skill + note-via-config + external-goal + sync-pair)"

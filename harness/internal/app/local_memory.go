@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sort"
+	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/assembler"
 	"github.com/mnemon-dev/mnemon/harness/internal/assets"
@@ -139,6 +140,7 @@ type ServeOptions struct {
 	// AllowInsecureRemote is the sync worker's T2 downgrade override (v1.1 #3): permit a plaintext
 	// non-loopback remote endpoint. Default false — fail closed.
 	AllowInsecureRemote bool
+	SyncInterval        time.Duration // sync worker cadence; <= 0 = default (30s)
 }
 
 // RunLocalHTTPServerWithBindings serves Local Mnemon from a binding manifest. It is the product boot
@@ -170,6 +172,7 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 	go RunSyncWorker(ctx, rt, SyncWorkerOptions{
 		ProjectRoot:         opts.ProjectRoot,
 		AllowInsecureRemote: opts.AllowInsecureRemote,
+		Interval:            opts.SyncInterval,
 	}, os.Stderr)
 	return runtime.ServeRuntime(ctx, addr, rt, channel.NewBindingAuthenticator(loaded), out)
 }
