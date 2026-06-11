@@ -132,7 +132,10 @@ func syncPullCursorName(remoteID string) string {
 
 func openLocalSyncStore(path string) (*store.Store, error) {
 	if dir := filepath.Dir(path); dir != "" && dir != "." {
-		if err := os.MkdirAll(dir, 0o755); err != nil {
+		// T1 floor: this is a user-reachable creation path for the PRIVATE store dir
+		// (`sync pull --once` can precede setup/local run) — owner-only, like every other
+		// private-dir creation site.
+		if err := os.MkdirAll(dir, 0o700); err != nil {
 			return nil, err
 		}
 	}

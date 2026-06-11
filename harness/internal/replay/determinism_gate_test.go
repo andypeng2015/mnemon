@@ -145,3 +145,52 @@ func TestMaskedComparatorDetectsTampering(t *testing.T) {
 		}
 	}
 }
+
+// 冻结契约:IngestSeq 是唯一 ordering key —— Replay/Shadow 不得依赖调用方 slice 顺序。
+// 反转日志后,Replay 决策序列与有序输入逐字段一致;Shadow 报告亦不变(乱序曾可能让后续
+// proposal 先应用,腐蚀派发时视图)。
+func TestReplayAndShadowHonorIngestSeqOverSliceOrder(t *testing.T) {
+	rt := gateRuntime(t)
+	for _, step := range deterministicScript() {
+		for _, env := range step.envs {
+			if _, _, err := rt.API().Ingest(gateActor, env); err != nil {
+				t.Fatal(err)
+			}
+		}
+		if _, err := rt.Tick(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	events, err := rt.PendingEvents(0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reversed := make([]contract.Event, len(events))
+	for i, ev := range events {
+		reversed[len(events)-1-i] = ev
+	}
+
+	want := Replay(events, rule.RuleSet{})
+	got := Replay(reversed, rule.RuleSet{})
+	if len(got) != len(want) {
+		t.Fatalf("reversed-input replay count %d != %d", len(got), len(want))
+	}
+	for i := range want {
+		if !reflect.DeepEqual(maskDynamic(want[i]), maskDynamic(got[i])) {
+			t.Fatalf("decision %d differs under reversed input", i)
+		}
+	}
+
+	subs := map[contract.ActorID]contract.Subscription{
+		gateActor: {Actor: gateActor, Refs: []contract.ResourceRef{{Kind: "memory", ID: "project"}}},
+	}
+	live := rule.NewRuleSet(capability.MemoryAdmissionRule(gateActor, contract.ResourceRef{Kind: "memory", ID: "project"}))
+	a := Shadow(events, subs, live, live)
+	b := Shadow(reversed, subs, live, live)
+	if a != b {
+		t.Fatalf("Shadow must be slice-order independent: ordered=%+v reversed=%+v", a, b)
+	}
+	if !a.Clean {
+		t.Fatalf("self-shadow over the gate log must be clean, got %+v", a)
+	}
+}

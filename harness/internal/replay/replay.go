@@ -26,6 +26,16 @@ var canonicalModes = contract.DefaultModes()
 
 func isProposal(ev contract.Event) bool { return strings.HasSuffix(ev.Type, ".proposed") }
 
+// ordered returns a defensive copy of events stable-sorted by IngestSeq — the contract's ONE
+// ordering key (decision-contract-v1.md). Replay and Shadow must not depend on the caller's slice
+// order: an unordered log fed to Shadow could apply a later proposal before an earlier observed
+// event, corrupting the dispatch-time view into a false-clean/false-dirty.
+func ordered(events []contract.Event) []contract.Event {
+	out := append([]contract.Event(nil), events...)
+	sort.SliceStable(out, func(i, j int) bool { return out[i].IngestSeq < out[j].IngestSeq })
+	return out
+}
+
 // permissiveAuthority lets every actor that appears in the events write every catalog kind, so replay does
 // not introduce authz rejections the live run did not have (the live authority is reproduced by the events
 // themselves having been accepted; replay only re-derives, it does not re-police).
@@ -48,7 +58,7 @@ func permissiveAuthority(events []contract.Event) kernel.AuthorityRules {
 // masked dynamic fields. The candidate ruleset is retained for signature symmetry with Shadow — pure replay
 // needs no policy because the logged proposals are authoritative (event-sourcing).
 func Replay(events []contract.Event, candidate rule.RuleSet) []contract.Decision {
-	return drive(events)
+	return drive(ordered(events))
 }
 
 // PROOF-ONLY: S7/S8 shadow-promotion spec proof; no production caller yet — see .insight
@@ -81,7 +91,7 @@ func Shadow(events []contract.Event, subs map[contract.ActorID]contract.Subscrip
 	r := reconcile.NewReconciler(s, k)
 
 	diffs := 0
-	for _, ev := range events {
+	for _, ev := range ordered(events) {
 		if isProposal(ev) {
 			// evolve the canonical state at dispatch granularity: apply this proposal so observed events LATER in
 			// the log see it, while observed events BEFORE it (already compared) saw the pre-proposal state.
