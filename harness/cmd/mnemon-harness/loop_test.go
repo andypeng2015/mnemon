@@ -39,7 +39,6 @@ func writeLoopValidateFixture(t *testing.T, root string) {
 	hostDir := filepath.Join(root, "harness", "hosts", "codex")
 	bindingsDir := filepath.Join(root, "harness", "bindings")
 	for _, dir := range []string{
-		filepath.Join(loopDir, "hook-prompts"),
 		filepath.Join(loopDir, "skills", "memory-get"),
 		hostDir,
 		bindingsDir,
@@ -52,10 +51,6 @@ func writeLoopValidateFixture(t *testing.T, root string) {
 		filepath.Join(loopDir, "GUIDE.md"),
 		filepath.Join(loopDir, "env.sh"),
 		filepath.Join(loopDir, "MEMORY.md"),
-		filepath.Join(loopDir, "hook-prompts", "prime.md"),
-		filepath.Join(loopDir, "hook-prompts", "remind.md"),
-		filepath.Join(loopDir, "hook-prompts", "nudge.md"),
-		filepath.Join(loopDir, "hook-prompts", "compact.md"),
 		filepath.Join(loopDir, "skills", "memory-get", "SKILL.md"),
 	} {
 		writeLoopValidateFile(t, path, "fixture\n")
@@ -79,12 +74,6 @@ func writeLoopValidateFixture(t *testing.T, root string) {
     "guide": "GUIDE.md",
     "env": "env.sh",
     "runtime_files": ["MEMORY.md"],
-    "hook_prompts": {
-      "prime": "hook-prompts/prime.md",
-      "remind": "hook-prompts/remind.md",
-      "nudge": "hook-prompts/nudge.md",
-      "compact": "hook-prompts/compact.md"
-    },
     "skills": ["skills/memory-get/SKILL.md"],
     "subagents": []
   },

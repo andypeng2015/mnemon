@@ -313,8 +313,8 @@ func (p projectorCore) projectHooks(loop manifest.LoopManifest, binding manifest
 	if err != nil {
 		return fmt.Errorf("hook intents for %s: %w", loop.Name, err)
 	}
-	if len(timings) == 0 && len(loop.Assets.HookPrompts) > 0 {
-		return fmt.Errorf("loop %s declares hook_prompts but no hook intents: refusing to install zero hooks", loop.Name)
+	if len(timings) == 0 && hasHookIntents(loop.Name) {
+		return fmt.Errorf("loop %s declares hook intents but renders zero hook timings: refusing to install zero hooks", loop.Name)
 	}
 	for _, phase := range timings {
 		content, err := RenderHook(loop.Name, p.host, phase)

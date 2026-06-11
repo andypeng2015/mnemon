@@ -7,24 +7,19 @@ the loop into concrete runtimes such as Claude Code or Codex.
 ## File Tree
 
 ```text
-harness/loops/memory/
+harness/internal/assets/loops/memory/
 ├── README.md
 ├── loop.json
 ├── env.sh
 ├── GUIDE.md
 ├── MEMORY.md
-├── hook-prompts/
-│   ├── prime.md
-│   ├── remind.md
-│   ├── nudge.md
-│   └── compact.md
+├── hooks/
+│   └── intents.json
 ├── skills/
 │   ├── memory-get/
 │   │   └── SKILL.md
 │   └── memory-set/
 │       └── SKILL.md
-├── subagents/
-│   └── dreaming.md
 ```
 
 ## Core Parts
@@ -40,13 +35,12 @@ harness/loops/memory/
 | Asset | Purpose |
 | --- | --- |
 | `loop.json` | Machine-readable loop manifest for standard lifecycle events, assets, state, and host adapters. |
-| `env.sh` | Runtime config: memory directory, env path, and dreaming threshold. |
+| `env.sh` | Runtime config: memory directory, env path, and mirror size threshold. |
 | `GUIDE.md` | Policy: when to read memory, when to write memory, and what is worth keeping. |
-| `hook-prompts/*.md` | Four lifecycle reminders: Prime, Remind, Nudge, and Compact. |
+| `hooks/intents.json` | Declarative hook intents; the generated hook shells for Prime, Remind, Nudge, and Compact render from these plus host mechanics. |
 | `skills/memory-get/SKILL.md` | Scoped memory read skill backed by `mnemon-harness control pull`. |
 | `skills/memory-set/SKILL.md` | Local memory candidate write skill backed by `mnemon-harness control observe`. |
-| `subagents/dreaming.md` | Experimental consolidation worker retained inside the memory loop, not the canonical write path. |
-| Host adapter | Host-specific projection lives outside the loop under `harness/hosts/<host>/`. |
+| Host adapter | Host-specific projection lives outside the loop under `harness/internal/assets/hosts/<host>/`. |
 
 ## Runtime Directory Protocol
 

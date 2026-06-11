@@ -11,12 +11,5 @@
     "nudge": "Stop",
     "compact": "PreCompact"
   },
-  "runner_bindings": {
-    "memory.dreaming": {
-      "mode": "app_server",
-      "runner": "codex-app-server",
-      "prompt_from": "subagents/dreaming.md"
-    }
-  },
   "reconcile": ["read", "write", "compact", "consolidate", "no-op"]
 }

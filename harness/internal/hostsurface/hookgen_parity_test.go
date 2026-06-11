@@ -19,8 +19,8 @@ var (
 // behavior change (e.g. the claude compact escape fix) updates the golden in the same commit that
 // records the decision.
 var hookGoldens = map[string]string{
-	"claude-code/memory/compact": "2359c03a511ba4d8a2939b9311b4b562c1591a3998fb8b8ae06ea32825327e08",
-	"claude-code/memory/nudge":   "870336ca55cc85bb891f3abdfe6477bc851d4b7215476ffb4d70427c6be15c59",
+	"claude-code/memory/compact": "e4e9f929acd2af5778a0c6250c7aee0c5b5ee524f3392eba69fd400cfb572f5b",
+	"claude-code/memory/nudge":   "0e76864b495a8dfc22f5feedd06e008657fdca5f338cf94033c6aa465613d811",
 	"claude-code/memory/prime":   "7d3f4fc0c0438371a5d4d5f1b9451f4b84bdb8adede836d2e52f5ceb5a1b9b3e",
 	"claude-code/memory/remind":  "6b755a8e8325abf9e52442402a04d6f3e9da77dfe40762ea187ff170be95b4d0",
 	"claude-code/skill/compact":  "dd0c690b9e8b12b0bce3ea35c2fd0e7396d6dc3752d2e74afcb46b7340914aa5",

@@ -53,12 +53,12 @@
           "text": "[mnemon-memory] Remind: apply GUIDE.md; if prior memory could change this task, load memory-get and run a focused Mnemon recall."
         },
         "nudge": {
-          "over": "[mnemon-memory] MEMORY.md is long (${NON_EMPTY_LINES} lines); consider mnemon-dreaming.",
+          "over": "[mnemon-memory] MEMORY.md is long (${NON_EMPTY_LINES} lines); consolidate durable content into Mnemon with memory-set and trim MEMORY.md.",
           "under": "[mnemon-memory] Consider: does this exchange warrant memory-set?"
         },
         "compact": {
-          "over": "[mnemon-memory] Compact: MEMORY.md has ${NON_EMPTY_LINES} non-empty lines. Before compaction, spawn mnemon-dreaming to write durable content to Mnemon and compact MEMORY.md, then retry compaction.",
-          "under": "[mnemon-memory] Compact: MNEMON_MEMORY_LOOP_DIR=${MEMORY_DIR:-unset}. Before compaction, preserve critical continuity with memory-set when needed. If this boundary should consolidate working memory, spawn mnemon-dreaming, then retry compaction."
+          "over": "[mnemon-memory] Compact: MEMORY.md has ${NON_EMPTY_LINES} non-empty lines. Before compaction, write durable content to Mnemon with memory-set and compact MEMORY.md, then retry compaction.",
+          "under": "[mnemon-memory] Compact: MNEMON_MEMORY_LOOP_DIR=${MEMORY_DIR:-unset}. Before compaction, preserve critical continuity with memory-set when needed. If this boundary should consolidate working memory, do it with memory-set, then retry compaction."
         }
       }
     }

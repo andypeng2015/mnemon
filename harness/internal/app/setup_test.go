@@ -19,7 +19,6 @@ func writeMemoryFixture(t *testing.T, root string) {
 	hostDir := filepath.Join(root, "harness", "hosts", "codex")
 	bindingDir := filepath.Join(root, "harness", "bindings")
 	for _, dir := range []string{
-		filepath.Join(loopDir, "hook-prompts"),
 		filepath.Join(loopDir, "skills", "memory-get"),
 		filepath.Join(hostDir, "memory", "hooks"),
 		bindingDir,
@@ -35,8 +34,6 @@ func writeMemoryFixture(t *testing.T, root string) {
 	}
 	for _, p := range []string{
 		filepath.Join(loopDir, "GUIDE.md"), filepath.Join(loopDir, "env.sh"), filepath.Join(loopDir, "MEMORY.md"),
-		filepath.Join(loopDir, "hook-prompts", "prime.md"), filepath.Join(loopDir, "hook-prompts", "remind.md"),
-		filepath.Join(loopDir, "hook-prompts", "nudge.md"), filepath.Join(loopDir, "hook-prompts", "compact.md"),
 		filepath.Join(loopDir, "skills", "memory-get", "SKILL.md"),
 	} {
 		write(p, "fixture\n")
@@ -49,7 +46,6 @@ func writeMemoryFixture(t *testing.T, root string) {
   "control_model": {"state": [], "intent": "fixture", "reality": [], "reconcile": []},
   "entity_profiles": {}, "surfaces": {"projection": [], "observation": []},
   "assets": {"guide": "GUIDE.md", "env": "env.sh", "runtime_files": ["MEMORY.md"],
-    "hook_prompts": {"prime": "hook-prompts/prime.md", "remind": "hook-prompts/remind.md", "nudge": "hook-prompts/nudge.md", "compact": "hook-prompts/compact.md"},
     "skills": ["skills/memory-get/SKILL.md"], "subagents": []},
   "host_adapters": {"codex": "../../hosts/codex"}}`)
 	write(filepath.Join(hostDir, "host.json"), `{

@@ -590,6 +590,16 @@ func DeclaredHookTimings(loop string) ([]string, error) {
 	return out, nil
 }
 
+// hasHookIntents reports whether the embedded loop ships a hooks/intents.json declaration — the
+// signal that the loop is supposed to install hooks, backing the zero-hook refuse-install guard.
+func hasHookIntents(loop string) bool {
+	if !markerNamePattern.MatchString(loop) {
+		return false
+	}
+	_, err := fs.Stat(assets.FS, "loops/"+loop+"/hooks/intents.json")
+	return err == nil
+}
+
 // EmbeddedHookUniverse discovers the (hosts, loops-with-intents) coverage universe from the
 // embedded assets — derived, not hardcoded, so a future loop or host that ships hook data is
 // admitted to every gate (loop validate, golden pins) without editing a literal.

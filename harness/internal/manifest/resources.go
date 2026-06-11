@@ -22,12 +22,11 @@ type LoopManifest struct {
 }
 
 type LoopAssets struct {
-	Guide        string            `json:"guide"`
-	Env          string            `json:"env"`
-	RuntimeFiles []string          `json:"runtime_files,omitempty"`
-	HookPrompts  map[string]string `json:"hook_prompts"`
-	Skills       []string          `json:"skills"`
-	Subagents    []string          `json:"subagents"`
+	Guide        string   `json:"guide"`
+	Env          string   `json:"env"`
+	RuntimeFiles []string `json:"runtime_files,omitempty"`
+	Skills       []string `json:"skills"`
+	Subagents    []string `json:"subagents"`
 }
 
 type HostManifest struct {

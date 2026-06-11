@@ -52,18 +52,15 @@
   "surfaces": {
     "projection": [
       "GUIDE.md",
-      "hook-prompts",
       "memory-get",
       "memory-set",
-      "dreaming",
       "runtime env"
     ],
     "observation": [
       "hook output",
       "MEMORY.md length",
       "scoped pull results",
-      "write outcomes",
-      "dreaming reports"
+      "write outcomes"
     ]
   },
   "lifecycle_events": [
@@ -78,12 +75,6 @@
     "runtime_files": [
       "MEMORY.md"
     ],
-    "hook_prompts": {
-      "prime": "hook-prompts/prime.md",
-      "remind": "hook-prompts/remind.md",
-      "nudge": "hook-prompts/nudge.md",
-      "compact": "hook-prompts/compact.md"
-    },
     "skills": [
       "skills/memory-get/SKILL.md",
       "skills/memory-set/SKILL.md"

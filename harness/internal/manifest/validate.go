@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io/fs"
 	"path"
-	"sort"
 	"strings"
 )
 
@@ -411,15 +410,6 @@ func loopAssetPaths(assets map[string]json.RawMessage) ([]string, error) {
 		}
 		paths = append(paths, values...)
 	}
-	hookPromptsRaw, ok := assets["hook_prompts"]
-	if !ok {
-		return nil, errors.New("missing hook_prompts")
-	}
-	hookPrompts, err := stringMapValues(hookPromptsRaw)
-	if err != nil {
-		return nil, fmt.Errorf("hook_prompts: %w", err)
-	}
-	paths = append(paths, hookPrompts...)
 	for _, field := range []string{"skills", "subagents"} {
 		raw, ok := assets[field]
 		if !ok {
@@ -621,22 +611,6 @@ func stringMapField(data map[string]json.RawMessage, field string) (map[string]s
 	return value, nil
 }
 
-func stringMapValues(raw json.RawMessage) ([]string, error) {
-	var object map[string]string
-	if err := json.Unmarshal(raw, &object); err == nil && object != nil {
-		keys := make([]string, 0, len(object))
-		for key := range object {
-			keys = append(keys, key)
-		}
-		sort.Strings(keys)
-		values := make([]string, 0, len(keys))
-		for _, key := range keys {
-			values = append(values, object[key])
-		}
-		return values, nil
-	}
-	return stringSlice(raw)
-}
 
 func stringSlice(raw json.RawMessage) ([]string, error) {
 	var values []string

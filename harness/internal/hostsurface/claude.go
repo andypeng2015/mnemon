@@ -442,7 +442,10 @@ func (p claudeProjector) loopOwnership(loop manifest.LoopManifest, binding manif
 	for _, subagent := range loop.Assets.Subagents {
 		files = append(files, pathJoin(binding.ProjectionPath, "agents", agentFile(loop.Name, subagent)))
 	}
-	for phase := range loop.Assets.HookPrompts {
+	// Ownership enumerates the generated hook shells from the same intents source projectHooks
+	// writes them from, so the audit stays truthful to what install can produce.
+	hookTimings, _ := DeclaredHookTimings(loop.Name)
+	for _, phase := range hookTimings {
 		hook := pathJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name, phase+".sh")
 		if p.exists(hook) || p.hostHookExists(loop.Name, phase) {
 			files = append(files, hook)

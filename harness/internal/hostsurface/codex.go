@@ -478,7 +478,10 @@ func (p codexProjector) loopOwnership(loop manifest.LoopManifest, binding manife
 	if p.codexHooksEnabled(loop.Name) {
 		files = append(files, pathJoin(binding.ProjectionPath, "hooks.json"))
 	}
-	for phase := range loop.Assets.HookPrompts {
+	// Ownership enumerates the generated hook shells from the same intents source projectHooks
+	// writes them from, so the audit stays truthful to what install can produce.
+	hookTimings, _ := DeclaredHookTimings(loop.Name)
+	for _, phase := range hookTimings {
 		hook := pathJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name, phase+".sh")
 		if p.exists(hook) || p.hostHookExists(loop.Name, phase) {
 			files = append(files, hook)

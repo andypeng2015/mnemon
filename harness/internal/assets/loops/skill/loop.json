@@ -80,12 +80,6 @@
   "assets": {
     "guide": "GUIDE.md",
     "env": "env.sh",
-    "hook_prompts": {
-      "prime": "hook-prompts/prime.md",
-      "remind": "hook-prompts/remind.md",
-      "nudge": "hook-prompts/nudge.md",
-      "compact": "hook-prompts/compact.md"
-    },
     "skills": [
       "skills/skill-observe/SKILL.md",
       "skills/skill-curate/SKILL.md",

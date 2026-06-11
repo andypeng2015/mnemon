@@ -7,16 +7,13 @@ lifecycle state and the evidence used to evolve it.
 ## File Tree
 
 ```text
-harness/loops/skill/
+harness/internal/assets/loops/skill/
 ├── README.md
 ├── loop.json
 ├── env.sh
 ├── GUIDE.md
-├── hook-prompts/
-│   ├── prime.md
-│   ├── remind.md
-│   ├── nudge.md
-│   └── compact.md
+├── hooks/
+│   └── intents.json
 ├── skills/
 │   ├── skill-observe/
 │   │   └── SKILL.md
@@ -45,7 +42,7 @@ harness/loops/skill/
 | `loop.json` | Machine-readable loop manifest for standard lifecycle events, assets, state, and host adapters. |
 | `env.sh` | Runtime config: canonical skill library, host skill surface, usage log, and proposal paths. |
 | `GUIDE.md` | Policy for evidence, review triggers, lifecycle movement, and proposal-first changes. |
-| `hook-prompts/*.md` | Four lifecycle reminders. Prime syncs active skills; Nudge records evidence; Compact may trigger review; Remind is no-op by default. |
+| `hooks/intents.json` | Declarative hook intents; the generated hook shells (Prime syncs active skills; Nudge records evidence; Compact may trigger review) render from these plus host mechanics. |
 | `skills/skill-observe/SKILL.md` | Online evidence capture protocol. |
 | `skills/skill-curate/SKILL.md` | Protocol for starting a curator review. |
 | `skills/skill-author/SKILL.md` | Protocol for drafting reviewable `SKILL.md` content. |
