@@ -57,6 +57,82 @@ func TestValidateHarnessRejectsDuplicateBindingName(t *testing.T) {
 	}
 }
 
+// G6: unknown manifest keys are junk that decoded silently for an entire dev cycle (the P1
+// clearcut stripped six of them). Both decode paths must refuse them — the struct path
+// (LoadLoop/LoadBinding, install) and the map path (ValidateFS) must agree, fail-closed.
+func TestLoadLoopRejectsUnknownKey(t *testing.T) {
+	root := t.TempDir()
+	writeFixtureHarness(t, root, "skills/memory-get/SKILL.md")
+	writeFile(t, filepath.Join(root, "loops", "memory", "loop.json"), `{
+  "schema_version": 2,
+  "name": "memory",
+  "surfaces": { "projection": [], "observation": [] },
+  "assets": { "guide": "GUIDE.md", "env": "env.sh", "skills": [], "subagents": [] },
+  "host_adapters": {},
+  "lifecycle_events": ["prime"]
+}`)
+
+	if _, err := LoadLoop(os.DirFS(root), "memory"); err == nil || !strings.Contains(err.Error(), "lifecycle_events") {
+		t.Fatalf("LoadLoop must reject an unknown manifest key; got %v", err)
+	}
+}
+
+func TestValidateHarnessRejectsUnknownLoopKey(t *testing.T) {
+	root := t.TempDir()
+	writeFixtureHarness(t, root, "skills/memory-get/SKILL.md")
+	writeFile(t, filepath.Join(root, "loops", "memory", "loop.json"), `{
+  "schema_version": 2,
+  "name": "memory",
+  "surfaces": { "projection": [], "observation": [] },
+  "assets": { "guide": "GUIDE.md", "env": "env.sh", "skills": [], "subagents": [] },
+  "host_adapters": {},
+  "controllers": []
+}`)
+
+	_, err := ValidateFS(os.DirFS(root))
+	if err == nil || !strings.Contains(err.Error(), "unknown key") || !strings.Contains(err.Error(), "controllers") {
+		t.Fatalf("validate must reject an unknown loop manifest key; got %v", err)
+	}
+}
+
+func TestValidateHarnessRejectsUnknownAssetsKey(t *testing.T) {
+	root := t.TempDir()
+	writeFixtureHarness(t, root, "skills/memory-get/SKILL.md")
+	writeFile(t, filepath.Join(root, "loops", "memory", "loop.json"), `{
+  "schema_version": 2,
+  "name": "memory",
+  "surfaces": { "projection": [], "observation": [] },
+  "assets": { "guide": "GUIDE.md", "env": "env.sh", "skills": [], "subagents": [], "hook_prompts": {} },
+  "host_adapters": {}
+}`)
+
+	_, err := ValidateFS(os.DirFS(root))
+	if err == nil || !strings.Contains(err.Error(), "unknown key") || !strings.Contains(err.Error(), "hook_prompts") {
+		t.Fatalf("validate must reject an unknown assets key; got %v", err)
+	}
+}
+
+func TestValidateHarnessRejectsUnknownBindingKey(t *testing.T) {
+	root := t.TempDir()
+	writeFixtureHarness(t, root, "skills/memory-get/SKILL.md")
+	writeFile(t, filepath.Join(root, "bindings", "codex.memory.json"), `{
+  "schema_version": 1,
+  "name": "codex.memory",
+  "host": "codex",
+  "loop": "memory",
+  "projection_path": ".codex",
+  "runtime_surface": ".codex/mnemon-memory",
+  "lifecycle_mapping": {},
+  "reconcile": [],
+  "runner_bindings": {}
+}`)
+
+	_, err := ValidateFS(os.DirFS(root))
+	if err == nil || !strings.Contains(err.Error(), "unknown key") || !strings.Contains(err.Error(), "runner_bindings") {
+		t.Fatalf("validate must reject an unknown binding manifest key; got %v", err)
+	}
+}
+
 // The speculative v2 binding format never shipped an instance; P1 clearcut removed it. Any
 // non-v1 schema_version must be rejected so validate and LoadBinding agree (fail-closed).
 func TestValidateHarnessRejectsNonV1BindingSchema(t *testing.T) {
@@ -67,7 +143,10 @@ func TestValidateHarnessRejectsNonV1BindingSchema(t *testing.T) {
   "name": "codex.memory",
   "host": "codex",
   "loop": "memory",
-  "spec": {}
+  "projection_path": ".codex",
+  "runtime_surface": ".codex/mnemon-memory",
+  "lifecycle_mapping": {},
+  "reconcile": []
 }`)
 
 	_, err := ValidateFS(os.DirFS(root))

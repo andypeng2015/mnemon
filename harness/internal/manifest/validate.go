@@ -1,6 +1,7 @@
 package manifest
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,6 +71,9 @@ func (v *harnessValidator) validateLoop(loopDir string) error {
 	if err := readManifest(v.fsys, manifest, &data); err != nil {
 		return err
 	}
+	if err := rejectUnknownKeys(data, allowedLoopKeys, manifest); err != nil {
+		return fmt.Errorf("loop manifest %w", err)
+	}
 	name, err := requiredString(data, "name", "loop manifest", manifest)
 	if err != nil {
 		return err
@@ -101,6 +105,9 @@ func (v *harnessValidator) validateLoop(loopDir string) error {
 	assets, err := objectField(data, "assets")
 	if err != nil {
 		return fmt.Errorf("loop manifest invalid assets: %s: %w", manifest, err)
+	}
+	if err := rejectUnknownKeys(assets, allowedLoopAssetKeys, manifest); err != nil {
+		return fmt.Errorf("loop assets %w", err)
 	}
 	assetPaths, err := loopAssetPaths(assets)
 	if err != nil {
@@ -212,6 +219,9 @@ func (v *harnessValidator) validateBinding(manifest string) (string, error) {
 	if err := readManifest(v.fsys, manifest, &data); err != nil {
 		return "", err
 	}
+	if err := rejectUnknownKeys(data, allowedBindingKeys, manifest); err != nil {
+		return "", fmt.Errorf("binding manifest %w", err)
+	}
 	schemaVersion, err := intField(data, "schema_version")
 	if err != nil {
 		return "", fmt.Errorf("binding manifest invalid schema_version: %s: %w", manifest, err)
@@ -308,13 +318,45 @@ func loopAssetPaths(assets map[string]json.RawMessage) ([]string, error) {
 	return paths, nil
 }
 
+// readManifest decodes strictly (G6): an unknown key in a manifest is junk that once hid six
+// dead protocol fields for a full dev cycle — fail closed instead of silently dropping it.
+// Strictness binds on struct targets (LoadLoop/LoadBinding); map targets see every key and are
+// checked against the allowed-key sets by the validate path.
 func readManifest(fsys fs.FS, name string, target any) error {
 	data, err := fs.ReadFile(fsys, name)
 	if err != nil {
 		return fmt.Errorf("read manifest %s: %w", name, err)
 	}
-	if err := json.Unmarshal(data, target); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(target); err != nil {
 		return fmt.Errorf("parse manifest %s: %w", name, err)
+	}
+	return nil
+}
+
+var (
+	allowedLoopKeys = map[string]bool{
+		"schema_version": true, "name": true, "version": true, "description": true,
+		"surfaces": true, "assets": true, "host_adapters": true,
+	}
+	allowedLoopAssetKeys = map[string]bool{
+		"guide": true, "env": true, "runtime_files": true, "skills": true, "subagents": true,
+	}
+	allowedBindingKeys = map[string]bool{
+		"schema_version": true, "name": true, "host": true, "loop": true,
+		"projection_path": true, "runtime_surface": true, "lifecycle_mapping": true,
+		"reconcile": true,
+	}
+)
+
+// rejectUnknownKeys keeps the map-decoding validate path in agreement with the strict struct
+// decode — without it, validate would bless a manifest that LoadLoop/LoadBinding then refuse.
+func rejectUnknownKeys(data map[string]json.RawMessage, allowed map[string]bool, manifest string) error {
+	for key := range data {
+		if !allowed[key] {
+			return fmt.Errorf("unknown key %q: %s", key, manifest)
+		}
 	}
 	return nil
 }
