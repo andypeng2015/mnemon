@@ -15,7 +15,7 @@ func openLocalMemoryRuntime(t *testing.T) (*Runtime, *channel.Client) {
 	t.Helper()
 	ref := contract.ResourceRef{Kind: "memory", ID: "project"}
 	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{ref})
-	binding.AllowedObservedTypes = []string{"session.observed", "memory.write_candidate_observed"}
+	binding.AllowedObservedTypes = []string{"session.observed", "memory.write_candidate.observed"}
 	rt, err := OpenRuntime(filepath.Join(t.TempDir(), "governed.db"), localRuntimeConfigT([]channel.ChannelBinding{binding}))
 	if err != nil {
 		t.Fatalf("open local runtime: %v", err)
@@ -31,7 +31,7 @@ func observeMemoryCandidate(t *testing.T, c *channel.Client, ext, content string
 	rec, err := c.IngestObserve("codex@project", contract.ObservationEnvelope{
 		ExternalID: ext,
 		Event: contract.Event{
-			Type: "memory.write_candidate_observed",
+			Type: "memory.write_candidate.observed",
 			Payload: map[string]any{
 				"content":    content,
 				"source":     "user",

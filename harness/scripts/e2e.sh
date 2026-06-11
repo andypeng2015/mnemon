@@ -82,9 +82,8 @@ run_host() {
 		case "$out" in *resources=1*) ;; *) echo "negative pull leaked: $out"; exit 1 ;; esac
 
 		# 阶段一:写入即见 —— 不跑任何 prime,driver 在 invalidation 后自动再生镜像。
-		# (m2 deliberately keeps the legacy underscore type: the standing ALIAS PIN.)
 		"$MH" control observe --addr "$addr" --principal "$principal" --token-file "$tok" \
-			--type memory.write_candidate_observed --external-id m2 \
+			--type memory.write_candidate.observed --external-id m2 \
 			--payload '{"content":"E2E driver mirror '"$host"'","source":"user","confidence":"high"}' >/dev/null
 		local mirror="$configdir/mnemon-memory/MEMORY.md" seen=0
 		for i in $(seq 1 100); do

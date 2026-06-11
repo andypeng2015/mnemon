@@ -67,13 +67,17 @@ func TestSetupCommandUsesProductDefaults(t *testing.T) {
 	for _, want := range []string{
 		`"principal": "codex@project"`,
 		`"endpoint": "http://127.0.0.1:8787"`,
-		`"memory.write_candidate_observed"`,
-		`"skill.write_candidate_observed"`,
+		`"memory.write_candidate.observed"`,
+		`"skill.write_candidate.observed"`,
 		`.mnemon/harness/channel/credentials/codex-project.token`,
 	} {
 		if !strings.Contains(bindingJSON, want) {
 			t.Fatalf("setup defaults missing %q from bindings:\n%s", want, bindingJSON)
 		}
+	}
+	// Single canonical pin: setup must no longer dual-emit the legacy underscore alias.
+	if strings.Contains(bindingJSON, "write_candidate_observed") {
+		t.Fatalf("setup bindings must not carry the legacy underscore observed-type alias:\n%s", bindingJSON)
 	}
 	if _, err := os.Stat(filepath.Join(projectRoot, ".mnemon", "harness", "channel", "credentials", "codex-project.token")); err != nil {
 		t.Fatalf("setup must generate the default local token: %v", err)

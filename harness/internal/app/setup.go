@@ -237,9 +237,7 @@ func (h *Harness) channelBinding(opts SetupOptions) channel.ChannelBinding {
 	observed := []string{"session.observed"}
 	var scope []contract.ResourceRef
 	for _, loop := range opts.Loops {
-		// Dual-emit the dotted canonical observed type and its legacy underscore alias, so a host
-		// that still sends either form is admitted during the naming convergence (gate-1).
-		observed = append(observed, capability.ObservedTypeAndAliases(loop+".write_candidate.observed")...)
+		observed = append(observed, loop+".write_candidate.observed")
 		scope = append(scope, contract.ResourceRef{Kind: contract.ResourceKind(loop), ID: "project"})
 	}
 	return channel.ChannelBinding{

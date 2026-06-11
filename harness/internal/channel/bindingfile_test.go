@@ -29,7 +29,7 @@ func TestLoadBindingFile(t *testing.T) {
 	    "transport": "http",
 	    "endpoint": "http://127.0.0.1:8787",
 	    "allowed_verbs": ["observe","pull","status"],
-	    "allowed_observed_types": ["session.observed","memory.write_candidate_observed"],
+	    "allowed_observed_types": ["session.observed","memory.write_candidate.observed"],
 	    "subscription_scope": [{"kind":"memory","id":"project"}],
 	    "idempotency_namespace": "host:codex@project",
 	    "credential_ref": ".mnemon/harness/channel/tokens/codex.token"

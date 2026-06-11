@@ -55,12 +55,11 @@ func Assemble(cfg config.File, bindings []channel.ChannelBinding, catalog map[st
 		if err != nil {
 			return runtime.RuntimeConfig{}, fmt.Errorf("capability %q: %w", name, err)
 		}
-		observed := capability.ObservedTypeAndAliases(cap.ObservedType)
 		for _, b := range bindings {
 			if b.ActorKind != contract.KindHostAgent {
 				continue
 			}
-			if !b.Allows(channel.VerbObserve) || !allowsAnyObservedType(b, observed) {
+			if !b.Allows(channel.VerbObserve) || !b.AllowsObservedType(cap.ObservedType) {
 				continue
 			}
 			ref, ok := refForBinding(b, cap.ResourceKind, defRef)
