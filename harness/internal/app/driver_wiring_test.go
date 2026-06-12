@@ -246,6 +246,25 @@ func TestServeReprojectBudgetsMirror(t *testing.T) {
 			t.Fatalf("digest-only must drop older entry %q from the derived mirror:\n%s", dropped, mirror)
 		}
 	}
+
+	// P4d / A4 hard-stop: budget bounds PRESENTATION, not AUTHORITY. The digest-only tier shrank the
+	// derived mirror, but it never reduced what was admitted/stored — the authoritative projection
+	// (un-budgeted) still carries the full set. Remote/budget never bypasses or shrinks local authority.
+	proj, err := rt.API().PullProjection("codex@project", contract.Subscription{Actor: "codex@project"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := -1
+	for _, rc := range proj.Content {
+		if rc.Ref.Kind == "memory" {
+			if es, ok := rc.Fields["entries"].([]any); ok {
+				entries = len(es)
+			}
+		}
+	}
+	if entries != 3 {
+		t.Fatalf("budget must NOT reduce authority: stored memory has %d entries, want the full 3", entries)
+	}
 }
 
 // manual 模式:driver 排空照常,但镜像保持种子态(仅 prime 再生)。
