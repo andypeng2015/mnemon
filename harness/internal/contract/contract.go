@@ -1,5 +1,7 @@
 package contract
 
+import "fmt"
+
 // ---- resources ----
 type ResourceKind string // "memory", "goal", "skill"
 type ResourceID string
@@ -159,6 +161,43 @@ type Subscription struct {
 	Actor       ActorID
 	Refs        []ResourceRef
 	PrivacyTier string
+	// Budget is the context-budget tier (P4): a LOCAL derived-mirror shape (hot/warm/digest-only),
+	// never a hub-side filter. It bounds how much of the pulled commit set the local packet renders;
+	// the remote serves the same scoped set regardless (I11: remote settles, local decides). Empty
+	// resolves to hot (full) — budget is not a security axis (the grant scope is), so the empty default
+	// PRESERVES existing full-delivery behavior, mirroring ClampRefs's "empty requested = full scope".
+	Budget BudgetTier
+}
+
+// BudgetTier is the closed set of context-budget tiers (P4). It SELECTS a local rendering shape from a
+// fixed catalog — it never DEFINES behavior (A3/define≠select). The tier is applied where the local
+// replica derives its mirror from already-pulled commits; the hub is never tier-aware (B1/B2 no remote
+// reducer). Tiers, smallest context first:
+//   - BudgetDigestOnly: derive only a digest form (summary/count), not the full item list.
+//   - BudgetWarm:       derive the most-recent K items (ordered by local import seq — replica-deterministic).
+//   - BudgetHot:        derive the full item set.
+type BudgetTier string
+
+const (
+	BudgetHot        BudgetTier = "hot"
+	BudgetWarm       BudgetTier = "warm"
+	BudgetDigestOnly BudgetTier = "digest-only"
+)
+
+// budgetTiers is the closed validator set. A value outside it is an error (never silently widened).
+var budgetTiers = map[BudgetTier]bool{BudgetHot: true, BudgetWarm: true, BudgetDigestOnly: true}
+
+// ResolveBudgetTier normalizes a declared tier: empty resolves to hot (migration-safe full delivery),
+// a catalogued tier passes through, and any other value is rejected (fail-loud, never silently widened
+// or narrowed). This is the ONE place the empty=hot default and the closed-set guard live.
+func ResolveBudgetTier(t BudgetTier) (BudgetTier, error) {
+	if t == "" {
+		return BudgetHot, nil
+	}
+	if !budgetTiers[t] {
+		return "", fmt.Errorf("unknown budget tier %q (want one of hot|warm|digest-only)", t)
+	}
+	return t, nil
 }
 
 // LocalCommit is the append-only local sync unit materialized from an accepted local decision.
