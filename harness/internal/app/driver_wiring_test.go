@@ -126,7 +126,7 @@ func TestDriverTickDrainsReprojectsAndPrunes(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh"), 0)
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh", nil), 0)
 	if err := d.Tick(context.Background()); err != nil {
 		t.Fatalf("driver tick: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestDriverTickRegeneratesMemoryMirror(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh"), 0)
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh", nil), 0)
 	for i := 1; i <= 3; i++ { // 每轮一个新 accepted write → 每轮一次真实重投影
 		if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
 			ExternalID: fmt.Sprintf("m%d", i),
@@ -195,6 +195,59 @@ func TestDriverTickRegeneratesMemoryMirror(t *testing.T) {
 	}
 }
 
+// P4c-2: the endpoint's declared context-budget tier shapes the LIVE derived mirror. A digest-only
+// host-agent sees only its most-recent memory entry in MEMORY.md — older entries are dropped by the
+// local budget transform (never a hub-side reduction), while the full hot mirror (other tests) keeps
+// all. This is the keystone wiring: binding.Budget -> serveReproject -> budgetShapeProjection -> mirror.
+func TestServeReprojectBudgetsMirror(t *testing.T) {
+	root := t.TempDir()
+	setupHost(t, root, "codex")
+	loaded, err := channel.LoadBindingFile(root, filepath.Join(root, ".mnemon", "harness", "channel", "bindings.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := range loaded.Bindings { // declare the host endpoint's budget = digest-only (latest only)
+		if loaded.Bindings[i].Principal == "codex@project" {
+			loaded.Bindings[i].Budget = contract.BudgetDigestOnly
+		}
+	}
+	rt, err := OpenLocalRuntime(filepath.Join(root, ".mnemon", "harness", "local", "governed.db"), loaded, []string{"memory"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rt.Close()
+
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "prime-refresh", nil), 0)
+	for i := 1; i <= 3; i++ {
+		if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+			ExternalID: fmt.Sprintf("m%d", i),
+			Event: contract.Event{Type: "memory.write_candidate.observed",
+				Payload: map[string]any{"content": fmt.Sprintf("budget fact %d", i), "source": "s", "confidence": "high"}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := rt.Tick(); err != nil {
+			t.Fatal(err)
+		}
+		if err := d.Tick(context.Background()); err != nil {
+			t.Fatalf("driver tick %d: %v", i, err)
+		}
+	}
+
+	mirror, err := os.ReadFile(filepath.Join(root, ".codex", "mnemon-memory", "MEMORY.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(mirror), "budget fact 3") {
+		t.Fatalf("digest-only must keep the newest entry (fact 3):\n%s", mirror)
+	}
+	for _, dropped := range []string{"budget fact 1", "budget fact 2"} {
+		if strings.Contains(string(mirror), dropped) {
+			t.Fatalf("digest-only must drop older entry %q from the derived mirror:\n%s", dropped, mirror)
+		}
+	}
+}
+
 // manual 模式:driver 排空照常,但镜像保持种子态(仅 prime 再生)。
 func TestDriverManualModeSkipsMirror(t *testing.T) {
 	root := t.TempDir()
@@ -218,7 +271,7 @@ func TestDriverManualModeSkipsMirror(t *testing.T) {
 	if _, err := rt.Tick(); err != nil {
 		t.Fatal(err)
 	}
-	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "manual"), 0)
+	d := driver.New(rt, serveReproject(rt, loaded, map[string][]string{"codex": {"memory"}}, root, "manual", nil), 0)
 	if err := d.Tick(context.Background()); err != nil {
 		t.Fatal(err)
 	}

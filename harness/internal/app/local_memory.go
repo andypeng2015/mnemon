@@ -272,7 +272,7 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 	defer rt.Close()
 	var wg sync.WaitGroup
 	defer wg.Wait()
-	if reproject := serveReproject(rt, loaded, opts.Hosts, opts.ProjectRoot, opts.MirrorMode); reproject != nil {
+	if reproject := serveReproject(rt, loaded, opts.Hosts, opts.ProjectRoot, opts.MirrorMode, catalog); reproject != nil {
 		d := driver.New(rt, swallowReprojectErrors(reproject, os.Stderr), 0)
 		wg.Add(1)
 		go func() {
@@ -378,10 +378,11 @@ func disableIgnoredLoops(loops, ignored []string, errw io.Writer) []string {
 // loop-declared generic version replaces this helper when loop packages carry mirror
 // declarations (stage 3 final form / stage 5 external packages — the stage-2 render catalog
 // is the building block, not the trigger).
-func serveReproject(rt *runtime.Runtime, loaded channel.LoadedBindings, hosts map[string][]string, projectRoot, mirrorMode string) func(refs []contract.ResourceRef) error {
+func serveReproject(rt *runtime.Runtime, loaded channel.LoadedBindings, hosts map[string][]string, projectRoot, mirrorMode string, catalog map[string]capability.Capability) func(refs []contract.ResourceRef) error {
 	if len(hosts) == 0 {
 		return nil
 	}
+	catalog = resolveSyncCatalog(catalog) // never nil at the budget-shaping site
 	names := make([]string, 0, len(hosts))
 	for h := range hosts {
 		names = append(names, h)
@@ -411,14 +412,18 @@ func serveReproject(rt *runtime.Runtime, loaded channel.LoadedBindings, hosts ma
 		if mirrorMode == "manual" || !refsTouchKind(refs, "memory") {
 			return nil
 		}
-		principal, ok := mirrorPrincipal(loaded.Bindings)
+		mbind, ok := mirrorPrincipal(loaded.Bindings)
 		if !ok {
 			return nil // no memory-scoped host-agent binding: nothing to mirror
 		}
-		proj, err := rt.API().PullProjection(principal, contract.Subscription{Actor: principal})
+		proj, err := rt.API().PullProjection(mbind.Principal, contract.Subscription{Actor: mbind.Principal})
 		if err != nil {
 			return fmt.Errorf("mirror projection: %w", err)
 		}
+		// Budget the DERIVED MIRROR to the endpoint's declared tier (P4): a LOCAL presentation
+		// transform on what this host sees, never a hub-side reduction (I11 — local decides). The
+		// Digest still attests the full authoritative scope; hot/empty budget is exact passthrough.
+		proj = budgetShapeProjection(proj, catalog, mbind.Budget)
 		for _, host := range names {
 			if !containsLoop(hosts[host], "memory") {
 				continue
@@ -463,7 +468,10 @@ func refsTouchKind(refs []contract.ResourceRef, kind contract.ResourceKind) bool
 // mirrorPrincipal picks the projection identity for mirror regeneration: the first (by
 // principal, deterministic) host-agent binding whose scope covers the memory kind. The memory
 // resource is shared, so any in-scope principal projects identical content.
-func mirrorPrincipal(bindings []channel.ChannelBinding) (contract.ActorID, bool) {
+// mirrorPrincipal returns the binding whose derived memory mirror is written (the lexically-first
+// memory-scoped host-agent). The whole binding is returned, not just the principal, so the caller can
+// budget the mirror to that endpoint's declared tier (P4).
+func mirrorPrincipal(bindings []channel.ChannelBinding) (channel.ChannelBinding, bool) {
 	var candidates []channel.ChannelBinding
 	for _, b := range bindings {
 		if b.ActorKind != contract.KindHostAgent {
@@ -477,10 +485,10 @@ func mirrorPrincipal(bindings []channel.ChannelBinding) (contract.ActorID, bool)
 		}
 	}
 	if len(candidates) == 0 {
-		return "", false
+		return channel.ChannelBinding{}, false
 	}
 	sort.Slice(candidates, func(i, j int) bool { return candidates[i].Principal < candidates[j].Principal })
-	return candidates[0].Principal, true
+	return candidates[0], true
 }
 
 func containsLoop(loops []string, name string) bool {
