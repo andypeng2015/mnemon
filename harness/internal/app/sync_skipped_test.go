@@ -102,10 +102,10 @@ func TestImportLocalSyncPullSkippedKindParity(t *testing.T) {
 		foreignMemoryCommit("dec-mem-off", "remote-mem-off", "offline memory import works"),
 		foreignGoalCommit("dec-goal-off"),
 	}
-	if err := ImportLocalSyncPull(storePath, "hub", "2", commits); err != nil {
+	if err := ImportLocalSyncPull(storePath, "hub", "2", commits, nil); err != nil {
 		t.Fatalf("offline import: %v", err)
 	}
-	if err := ImportLocalSyncPull(storePath, "hub", "2", commits); err != nil {
+	if err := ImportLocalSyncPull(storePath, "hub", "2", commits, nil); err != nil {
 		t.Fatalf("offline re-import: %v", err)
 	}
 

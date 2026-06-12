@@ -243,7 +243,8 @@ func syncPullOnce() (syncPullResult, error) {
 	if err != nil {
 		return syncPullResult{}, fmt.Errorf("sync pull failed: %w", err)
 	}
-	if err := app.ImportLocalSyncPull(storePath, remote.ID, resp.NextCursor, resp.Commits); err != nil {
+	catalog := app.SyncImportCatalog(syncProjectRoot(), os.Stderr)
+	if err := app.ImportLocalSyncPull(storePath, remote.ID, resp.NextCursor, resp.Commits, catalog); err != nil {
 		return syncPullResult{}, err
 	}
 	return syncPullResult{commits: len(resp.Commits)}, nil

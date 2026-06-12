@@ -13,70 +13,66 @@ import (
 
 const (
 	SkillWriteCandidateObserved = "skill.write_candidate.observed"
-	RemoteSkillCommitObserved   = "remote.skill.commit_observed"
 	SkillWriteProposed          = "skill.write.proposed"
 )
 
 
-// RemoteSkillImportRule admits a remote skill commit for the sync import actor, merging non-conflicting
-// declarations into the local skill resource.
-func RemoteSkillImportRule(principal contract.ActorID) rule.Rule {
-	return rule.NewNativeRule("remote-skill-import:"+string(principal), principal, SkillWriteProposed, []string{RemoteSkillCommitObserved},
-		func(in rule.RuleInput) (contract.RuleDecision, error) {
-			if in.Event.Actor != principal {
-				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+// declarationDedupImport is the "declaration-dedup" remote-import strategy (capability-spec v2
+// §Sync): merge non-conflicting DECLARATIONS from a remote commit into the resource's declaration
+// list, VALIDATING each imported declaration (id format, status enum, secret/injection scan — I15,
+// receiving-side admission is not relaxed) and rejecting a same-id-different-content conflict.
+// Parameterized by cap (kind/proposed type); skill selects it.
+func declarationDedupImport(cap Capability, in rule.RuleInput) (contract.RuleDecision, error) {
+	commit, err := decodeRemoteSkillCommit(in.Event.Payload)
+	if err != nil {
+		return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{err.Error()}}, nil
+	}
+	if commit.ResourceRef.Kind != cap.ResourceKind {
+		return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote import denied: resource kind does not match the importing capability"}}, nil
+	}
+	incoming := skillDeclarationsFromFields(commit.Fields)
+	if len(incoming) == 0 {
+		return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote import denied: no declarations"}}, nil
+	}
+	for _, decl := range incoming {
+		if reason := validateRemoteSkillDeclaration(decl); reason != "" {
+			return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{reason}}, nil
+		}
+	}
+	version, fields := skillResourceFromProjection(in.View, commit.ResourceRef)
+	existing := skillDeclarationsFromFields(fields)
+	byID := make(map[string]skillDeclaration, len(existing))
+	for _, decl := range existing {
+		byID[decl.ID] = decl
+	}
+	var additions []skillDeclaration
+	for _, decl := range incoming {
+		if current, ok := byID[decl.ID]; ok {
+			if !sameSkillDeclaration(current, decl) {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote import conflict: declaration " + decl.ID + " already exists with different content"}}, nil
 			}
-			commit, err := decodeRemoteSkillCommit(in.Event.Payload)
-			if err != nil {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{err.Error()}}, nil
-			}
-			if commit.ResourceRef.Kind != "skill" {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote skill import denied: non-skill resource"}}, nil
-			}
-			incoming := skillDeclarationsFromFields(commit.Fields)
-			if len(incoming) == 0 {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote skill import denied: no skill declarations"}}, nil
-			}
-			for _, decl := range incoming {
-				if reason := validateRemoteSkillDeclaration(decl); reason != "" {
-					return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{reason}}, nil
-				}
-			}
-			version, fields := skillResourceFromProjection(in.View, commit.ResourceRef)
-			existing := skillDeclarationsFromFields(fields)
-			byID := make(map[string]skillDeclaration, len(existing))
-			for _, decl := range existing {
-				byID[decl.ID] = decl
-			}
-			var additions []skillDeclaration
-			for _, decl := range incoming {
-				if current, ok := byID[decl.ID]; ok {
-					if !sameSkillDeclaration(current, decl) {
-						return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote skill conflict: declaration " + decl.ID + " already exists with different content"}}, nil
-					}
-					continue
-				}
-				additions = append(additions, decl)
-			}
-			if len(additions) == 0 {
-				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
-			}
-			declarations := append(append([]skillDeclaration(nil), existing...), additions...)
-			newFields := map[string]any{
-				"name":         "project",
-				"declarations": declarations,
-				"updated_by":   string(in.Event.Actor),
-			}
-			write := contract.ResourceWrite{Ref: commit.ResourceRef, Kind: contract.OpCreate, Fields: newFields}
-			if version > 0 {
-				write.Kind = contract.OpUpdate
-				write.BasedOn = version
-			}
-			return contract.RuleDecision{Verdict: contract.VerdictPropose, Proposal: &contract.ProposedEvent{
-				Type:    SkillWriteProposed,
-				Payload: map[string]any{"writes": []contract.ResourceWrite{write}},
-			}}, nil
-		})
+			continue
+		}
+		additions = append(additions, decl)
+	}
+	if len(additions) == 0 {
+		return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+	}
+	declarations := append(append([]skillDeclaration(nil), existing...), additions...)
+	newFields := map[string]any{
+		"name":         "project",
+		"declarations": declarations,
+		"updated_by":   string(in.Event.Actor),
+	}
+	write := contract.ResourceWrite{Ref: commit.ResourceRef, Kind: contract.OpCreate, Fields: newFields}
+	if version > 0 {
+		write.Kind = contract.OpUpdate
+		write.BasedOn = version
+	}
+	return contract.RuleDecision{Verdict: contract.VerdictPropose, Proposal: &contract.ProposedEvent{
+		Type:    cap.ProposedType,
+		Payload: map[string]any{"writes": []contract.ResourceWrite{write}},
+	}}, nil
 }
 
 type skillDeclaration struct {

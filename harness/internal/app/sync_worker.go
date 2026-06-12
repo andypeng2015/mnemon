@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mnemon-dev/mnemon/harness/internal/capability"
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/remotesync"
@@ -28,6 +29,9 @@ type SyncWorkerOptions struct {
 	Interval            time.Duration // <= 0 defaults to defaultSyncWorkerInterval
 	Timeout             time.Duration // per-call transport bound; <= 0 defaults to channel.DefaultSyncTimeout
 	AllowInsecureRemote bool          // explicit T2 downgrade override (v1.1 #3)
+	// Catalog is the boot-resolved capability catalog the pull import derives its kind→observation
+	// mapping from (descriptor-derived, PD6). nil falls back to the embedded first-party catalog.
+	Catalog map[string]capability.Capability
 }
 
 const defaultSyncWorkerInterval = 30 * time.Second
@@ -76,7 +80,7 @@ func syncWorkerPass(rt *runtime.Runtime, opts SyncWorkerOptions) error {
 	if err := syncWorkerPush(rt, client, entry.ID); err != nil {
 		return err
 	}
-	return syncWorkerPull(rt, client, entry.ID)
+	return syncWorkerPull(rt, client, entry.ID, opts.Catalog)
 }
 
 // syncWorkerClient builds the bounded sync client from the remote entry: credential_ref + ca_file
@@ -134,7 +138,7 @@ func syncWorkerPush(rt *runtime.Runtime, client *channel.Client, remoteID string
 // syncWorkerPull pulls after the durable cursor, re-enters each commit through the live runtime's
 // trusted intake (importPulledCommits — the same loop the offline path uses), then advances the
 // cursor.
-func syncWorkerPull(rt *runtime.Runtime, client *channel.Client, remoteID string) error {
+func syncWorkerPull(rt *runtime.Runtime, client *channel.Client, remoteID string, catalog map[string]capability.Capability) error {
 	state, err := remotesync.ReadPullState(rt, remoteID)
 	if err != nil {
 		return err
@@ -146,7 +150,7 @@ func syncWorkerPull(rt *runtime.Runtime, client *channel.Client, remoteID string
 	if err != nil {
 		return fmt.Errorf("sync pull failed: %w", err)
 	}
-	if err := importPulledCommits(rt, remoteID, resp.Commits); err != nil {
+	if err := importPulledCommits(rt, remoteID, resp.Commits, catalog); err != nil {
 		return err
 	}
 	return remotesync.SetPullCursor(rt, remoteID, resp.NextCursor)

@@ -241,7 +241,7 @@ func TestServingRuntimeMergesSyncImportWithoutDisturbingHostFlow(t *testing.T) {
 	// Import flow on the SAME runtime: a foreign commit merges under sync@local.
 	if err := importPulledCommits(rt, "hub", []contract.LocalCommit{
 		foreignMemoryCommit("dec-coexist", "remote-coexist", "imported entry coexists"),
-	}); err != nil {
+	}, nil); err != nil {
 		t.Fatalf("in-process import: %v", err)
 	}
 	_, fields, err = rt.Resource(memRef)

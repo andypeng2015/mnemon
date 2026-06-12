@@ -32,7 +32,21 @@ type CapabilitySpec struct {
 	// each entry must be a render-produced key (a kind cannot require a field its writes never carry).
 	// It is the single source the assembly-time SchemaGuard derives a user kind's required set from.
 	Required []string `json:"required,omitempty"`
+	// Sync declares whether this capability's kind is imported from Remote Workspace pulls, and which
+	// CLOSED merge strategy the import uses (capability-spec v2 §Sync). Omitted = not importable.
+	Sync *SyncSpec `json:"sync,omitempty"`
 }
+
+// SyncSpec is the sync-import descriptor: a kind opts into remote import (Importable) and selects a
+// merge strategy from the CLOSED set. The strategies encapsulate the per-shape append/conflict
+// logic; a kind SELECTS one, it never defines behavior (define≠select).
+type SyncSpec struct {
+	Importable bool   `json:"importable"`
+	Merge      string `json:"merge"` // closed set: see syncMergeStrategies
+}
+
+// syncMergeStrategies is the CLOSED set of remote-import merge strategies a spec may select.
+var syncMergeStrategies = map[string]bool{"entry-dedup": true, "declaration-dedup": true}
 
 type FieldSpec struct {
 	Name       string         `json:"name"`
@@ -191,6 +205,19 @@ func FromSpec(spec CapabilitySpec) (Capability, error) {
 		return Capability{}, err
 	}
 
+	// Sync descriptor: an importable kind selects a merge strategy from the CLOSED set (fail-closed
+	// on an unknown strategy or a non-importable kind that names one).
+	var sync SyncOptions
+	if spec.Sync != nil {
+		sync = SyncOptions{Importable: spec.Sync.Importable, Merge: spec.Sync.Merge}
+		if sync.Importable && !syncMergeStrategies[sync.Merge] {
+			return Capability{}, fmt.Errorf("capability spec %q: sync merge %q not in the closed set (entry-dedup|declaration-dedup)", spec.Name, sync.Merge)
+		}
+		if !sync.Importable && sync.Merge != "" {
+			return Capability{}, fmt.Errorf("capability spec %q: sync merge %q set on a non-importable kind", spec.Name, sync.Merge)
+		}
+	}
+
 	return Capability{
 		Name:           spec.Name,
 		ObservedType:   spec.ObservedType,
@@ -200,6 +227,7 @@ func FromSpec(spec CapabilitySpec) (Capability, error) {
 		Decode:         compileDecode(spec),
 		Header:         compileHeader(spec),
 		RequiredHeader: required,
+		Sync:           sync,
 	}, nil
 }
 

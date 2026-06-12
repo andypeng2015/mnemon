@@ -16,14 +16,14 @@ import (
 // (above remotesync's pure store helpers) — never bypassing the kernel. It is the OFFLINE path: it
 // boots its own import runtime by path, so it must never run inside a serving process (the in-process
 // worker drives importPulledCommits over the LIVE runtime instead — flock, v1.1 #2).
-func ImportLocalSyncPull(storePath, remoteID, nextCursor string, commits []contract.LocalCommit) error {
+func ImportLocalSyncPull(storePath, remoteID, nextCursor string, commits []contract.LocalCommit, catalog map[string]capability.Capability) error {
 	if len(commits) > 0 {
 		refs := refsFromCommits(commits)
-		rt, err := OpenSyncImportRuntime(storePath, refs)
+		rt, err := OpenSyncImportRuntime(storePath, refs, catalog)
 		if err != nil {
 			return fmt.Errorf("open Local Mnemon import runtime: %w", err)
 		}
-		if err := importPulledCommits(rt, remoteID, commits); err != nil {
+		if err := importPulledCommits(rt, remoteID, commits, catalog); err != nil {
 			_ = rt.Close()
 			return err
 		}
@@ -41,11 +41,12 @@ func ImportLocalSyncPull(storePath, remoteID, nextCursor string, commits []contr
 // sync.import_skipped.observed (ExternalID = six-part key + ":skipped") carrying the attribution
 // payload, and the sync-import deny rule turns it into a durable sync.diagnostic. The pull cursor
 // still advances either way — a skip is visible, never wedging.
-func importPulledCommits(rt *runtime.Runtime, remoteID string, commits []contract.LocalCommit) error {
+func importPulledCommits(rt *runtime.Runtime, remoteID string, commits []contract.LocalCommit, catalog map[string]capability.Capability) error {
+	catalog = resolveSyncCatalog(catalog)
 	pulledAt := time.Now().UTC().Format(time.RFC3339)
 	for _, commit := range commits {
 		var env contract.ObservationEnvelope
-		if eventType, ok := remoteImportEventType(commit.ResourceRef.Kind); ok {
+		if eventType, ok := capability.RemoteCommitEventType(catalog, commit.ResourceRef.Kind); ok {
 			env = contract.ObservationEnvelope{
 				ExternalID: syncPullExternalID(remoteID, commit),
 				Event: contract.Event{
@@ -82,21 +83,6 @@ func importPulledCommits(rt *runtime.Runtime, remoteID string, commits []contrac
 		}
 	}
 	return nil
-}
-
-// remoteImportEventType maps a synced commit's resource kind to its import observation. Remote
-// import is memory/skill-only by design (see SyncImportRuntimeConfig); an unsupported kind returns
-// false and the caller ingests the skipped-kind observation instead (durable diagnostic, never a
-// silent drop) while the pull cursor still advances.
-func remoteImportEventType(kind contract.ResourceKind) (string, bool) {
-	switch kind {
-	case "memory":
-		return capability.RemoteMemoryCommitObserved, true
-	case "skill":
-		return capability.RemoteSkillCommitObserved, true
-	default:
-		return "", false
-	}
 }
 
 func refsFromCommits(commits []contract.LocalCommit) []contract.ResourceRef {

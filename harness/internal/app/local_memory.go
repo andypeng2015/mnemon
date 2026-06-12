@@ -40,20 +40,22 @@ func OpenLocalRuntime(storePath string, loaded channel.LoadedBindings, loops []s
 	if err != nil {
 		return nil, err
 	}
-	return runtime.OpenRuntime(storePath, withSyncImport(rc, loaded.Bindings))
+	return runtime.OpenRuntime(storePath, withSyncImport(rc, loaded.Bindings, catalog))
 }
 
 // withSyncImport merges the sync-import half into an assembled runtime policy (v1.1 #2): sync@local
-// gets the two import rules + the skipped-kind deny rule, kernel authority for the syncable kinds,
-// and a subscription covering the binding scope's syncable refs (the import rules read the current
-// resource through this view to merge against). Co-existence is by construction: the added rules
-// Handle only the remote.* / sync.* observation types AND gate on the sync principal, so host-agent
-// events never match them and host rules never see the import events — pinned by a test.
-func withSyncImport(rc runtime.RuntimeConfig, bindings []channel.ChannelBinding) runtime.RuntimeConfig {
-	rules := append(append([]rule.Rule(nil), rc.Rules.Rules()...),
-		capability.RemoteMemoryImportRule(contract.SyncImportActor),
-		capability.RemoteSkillImportRule(contract.SyncImportActor),
-		capability.SyncImportSkippedRule(contract.SyncImportActor))
+// gets one import rule per importable capability (descriptor-derived, PD6) + the skipped-kind deny
+// rule, kernel authority for the importable kinds, and a subscription covering the binding scope's
+// syncable refs (the import rules read the current resource through this view to merge against).
+// Co-existence is by construction: the added rules Handle only the <kind>.remote_commit.observed /
+// sync.* observation types AND gate on the sync principal, so host-agent events never match them and
+// host rules never see the import events — pinned by a test. catalog selects the importable universe
+// (nil = embedded first-party).
+func withSyncImport(rc runtime.RuntimeConfig, bindings []channel.ChannelBinding, catalog map[string]capability.Capability) runtime.RuntimeConfig {
+	catalog = resolveSyncCatalog(catalog)
+	rules := append([]rule.Rule(nil), rc.Rules.Rules()...)
+	rules = append(rules, capability.RemoteImportRules(catalog, contract.SyncImportActor)...)
+	rules = append(rules, capability.SyncImportSkippedRule(contract.SyncImportActor))
 	rc.Rules = rule.NewRuleSet(rules...)
 	if rc.Subs == nil {
 		rc.Subs = map[contract.ActorID]contract.Subscription{}
@@ -62,8 +64,18 @@ func withSyncImport(rc runtime.RuntimeConfig, bindings []channel.ChannelBinding)
 	if rc.Authority.Allow == nil {
 		rc.Authority.Allow = map[contract.ActorID][]contract.ResourceKind{}
 	}
-	rc.Authority.Allow[contract.SyncImportActor] = []contract.ResourceKind{"memory", "skill"}
+	rc.Authority.Allow[contract.SyncImportActor] = capability.ImportableKinds(catalog)
 	return rc
+}
+
+// resolveSyncCatalog resolves the catalog the sync-import path derives its rules/authority/guard
+// from: nil falls back to the embedded first-party catalog (memory/skill), so callers without a
+// boot-resolved catalog still get the first-party importable kinds.
+func resolveSyncCatalog(catalog map[string]capability.Capability) map[string]capability.Capability {
+	if catalog == nil {
+		return capability.EmbeddedCatalog()
+	}
+	return catalog
 }
 
 // syncableScopeRefs collects the deduped binding-scope refs of syncable kinds — the resources a
@@ -186,6 +198,7 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 			ProjectRoot:         opts.ProjectRoot,
 			AllowInsecureRemote: opts.AllowInsecureRemote,
 			Interval:            opts.SyncInterval,
+			Catalog:             catalog,
 		}, os.Stderr)
 	}()
 	return runtime.ServeRuntime(ctx, addr, rt, channel.NewBindingAuthenticator(loaded), out)
@@ -218,6 +231,21 @@ func resolveBootCatalog(projectRoot string, ignoreExternal bool, errw io.Writer)
 		}
 	}
 	return capability.EmbeddedCatalog(), ignored, nil
+}
+
+// SyncImportCatalog resolves the capability catalog the OFFLINE `sync pull` verb derives its import
+// rules from (descriptor-derived, PD6): the embedded first-party catalog plus every external package
+// under <projectRoot>/.mnemon/loops, so a remote commit of an external importable kind imports the
+// same way the in-process worker imports it. Unlike serve boot, the manual pull verb degrades to the
+// embedded catalog (with a stderr warning) when an external package is unreadable — a corrupt loop
+// must not block importing first-party memory/skill commits.
+func SyncImportCatalog(projectRoot string, errw io.Writer) map[string]capability.Capability {
+	catalog, err := capability.ResolveCatalog(projectRoot, kernel.DefaultSchemaGuard().Required)
+	if err != nil {
+		fmt.Fprintf(errw, "mnemon-harness: sync import: external package unreadable, importing first-party kinds only: %v\n", err)
+		return capability.EmbeddedCatalog()
+	}
+	return catalog
 }
 
 // disableIgnoredLoops is the loop-list half of --ignore-external: the PRIMARY ignore scenario is
@@ -362,35 +390,35 @@ func containsLoop(loops []string, name string) bool {
 	return false
 }
 
-func OpenSyncImportRuntime(storePath string, refs []contract.ResourceRef) (*runtime.Runtime, error) {
-	return runtime.OpenRuntime(storePath, SyncImportRuntimeConfig(refs))
+func OpenSyncImportRuntime(storePath string, refs []contract.ResourceRef, catalog map[string]capability.Capability) (*runtime.Runtime, error) {
+	return runtime.OpenRuntime(storePath, SyncImportRuntimeConfig(refs, catalog))
 }
 
-// SyncImportRuntimeConfig is the sync-import policy. Remote import is memory/skill-only by design:
-// the two import rules carry genuinely different merge semantics and are NOT derived from the
-// capability descriptors — revisit when a third capability gains a remote producer. The skipped-kind
-// deny rule (v1.1 #4) keeps any OTHER pulled kind a durable diagnostic instead of a silent drop —
-// the same three-rule set withSyncImport merges into the serving runtime, so the offline and
-// in-process import paths share one policy.
-func SyncImportRuntimeConfig(refs []contract.ResourceRef) runtime.RuntimeConfig {
-	// The sync-import kernel guard registers the importable kinds on top of the governance base
-	// (memory/skill are no longer compiled into DefaultSchemaGuard; PD5/PD6). TRANSITIONAL: the kinds
-	// are still named here because the import rules are hand-written; PD6 descriptor-derived import
-	// replaces this with a catalog-derived guard.
-	guard := kernel.DefaultSchemaGuard()
-	guard.Required["memory"] = []string{"content"}
-	guard.Required["skill"] = []string{"name"}
+// SyncImportRuntimeConfig is the sync-import policy, fully descriptor-derived (PD6): one import rule
+// per importable capability (each selecting its declared closed-set merge strategy), kernel authority
+// for exactly the importable kinds, and a guard registering each importable kind's required header
+// onto the governance base. The skipped-kind deny rule (v1.1 #4) keeps any OTHER pulled kind a
+// durable diagnostic instead of a silent drop — the same rule set withSyncImport merges into the
+// serving runtime, so the offline and in-process import paths share one policy. catalog selects the
+// importable universe (nil = embedded first-party).
+func SyncImportRuntimeConfig(refs []contract.ResourceRef, catalog map[string]capability.Capability) runtime.RuntimeConfig {
+	catalog = resolveSyncCatalog(catalog)
+	extra := map[contract.ResourceKind][]string{}
+	for _, cap := range catalog {
+		if cap.Sync.Importable {
+			extra[cap.ResourceKind] = cap.RequiredHeader
+		}
+	}
+	rules := append(capability.RemoteImportRules(catalog, contract.SyncImportActor),
+		capability.SyncImportSkippedRule(contract.SyncImportActor))
 	return runtime.RuntimeConfig{
 		Subs: map[contract.ActorID]contract.Subscription{
 			contract.SyncImportActor: {Actor: contract.SyncImportActor, Refs: refs},
 		},
-		Rules: rule.NewRuleSet(
-			capability.RemoteMemoryImportRule(contract.SyncImportActor),
-			capability.RemoteSkillImportRule(contract.SyncImportActor),
-			capability.SyncImportSkippedRule(contract.SyncImportActor)),
+		Rules: rule.NewRuleSet(rules...),
 		Authority: kernel.AuthorityRules{Allow: map[contract.ActorID][]contract.ResourceKind{
-			contract.SyncImportActor: {"memory", "skill"},
+			contract.SyncImportActor: capability.ImportableKinds(catalog),
 		}},
-		SchemaGuard: guard,
+		SchemaGuard: kernel.SchemaGuardWith(extra),
 	}
 }

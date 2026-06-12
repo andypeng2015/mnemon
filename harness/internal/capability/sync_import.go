@@ -2,10 +2,89 @@ package capability
 
 import (
 	"fmt"
+	"sort"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/rule"
 )
+
+// RemoteImportRule builds the remote-import admission rule for one importable capability and the sync
+// import principal: it observes the capability's system-derived <kind>.remote_commit.observed event
+// and dispatches to the capability's declared (closed-set) merge strategy. Returns ok=false when the
+// capability is not importable (the caller skips it).
+func RemoteImportRule(cap Capability, principal contract.ActorID) (rule.Rule, bool) {
+	if !cap.Sync.Importable {
+		return nil, false
+	}
+	strategy := importStrategy(cap.Sync.Merge)
+	if strategy == nil {
+		return nil, false
+	}
+	return rule.NewNativeRule("remote-import:"+cap.Name+":"+string(principal), principal, cap.ProposedType, []string{cap.RemoteCommitObserved()},
+		func(in rule.RuleInput) (contract.RuleDecision, error) {
+			if in.Event.Actor != principal {
+				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+			}
+			return strategy(cap, in)
+		}), true
+}
+
+// importStrategy maps a (FromSpec-validated) merge-strategy name to its closed-set implementation.
+func importStrategy(merge string) func(Capability, rule.RuleInput) (contract.RuleDecision, error) {
+	switch merge {
+	case "entry-dedup":
+		return entryDedupImport
+	case "declaration-dedup":
+		return declarationDedupImport
+	default:
+		return nil
+	}
+}
+
+// RemoteImportRules builds the remote-import rules for every importable capability in the catalog,
+// sorted by kind for determinism — the descriptor-derived replacement for the hardcoded
+// memory/skill import-rule list (PD6).
+func RemoteImportRules(catalog map[string]Capability, principal contract.ActorID) []rule.Rule {
+	var rules []rule.Rule
+	for _, cap := range sortedImportable(catalog) {
+		if r, ok := RemoteImportRule(cap, principal); ok {
+			rules = append(rules, r)
+		}
+	}
+	return rules
+}
+
+// ImportableKinds returns the resource kinds the catalog imports from Remote Workspace pulls, sorted
+// — the descriptor-derived syncable-kind set (PD6).
+func ImportableKinds(catalog map[string]Capability) []contract.ResourceKind {
+	var kinds []contract.ResourceKind
+	for _, cap := range sortedImportable(catalog) {
+		kinds = append(kinds, cap.ResourceKind)
+	}
+	return kinds
+}
+
+// RemoteCommitEventType returns the import observation event type for a pulled commit kind when the
+// catalog imports that kind — the descriptor-derived replacement for the hardcoded kind→type switch.
+func RemoteCommitEventType(catalog map[string]Capability, kind contract.ResourceKind) (string, bool) {
+	for _, cap := range catalog {
+		if cap.Sync.Importable && cap.ResourceKind == kind {
+			return cap.RemoteCommitObserved(), true
+		}
+	}
+	return "", false
+}
+
+func sortedImportable(catalog map[string]Capability) []Capability {
+	var caps []Capability
+	for _, cap := range catalog {
+		if cap.Sync.Importable {
+			caps = append(caps, cap)
+		}
+	}
+	sort.Slice(caps, func(i, j int) bool { return caps[i].ResourceKind < caps[j].ResourceKind })
+	return caps
+}
 
 // SyncImportSkippedObserved is the observation a sync puller ingests for a pulled commit whose
 // resource kind has no import mapping (v1.1 #4): instead of a silent continue, the skip enters the

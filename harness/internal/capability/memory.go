@@ -17,76 +17,73 @@ import (
 
 const (
 	MemoryWriteCandidateObserved = "memory.write_candidate.observed"
-	RemoteMemoryCommitObserved   = "remote.memory.commit_observed"
 	MemoryWriteProposed          = "memory.write.proposed"
 )
 
-// RemoteMemoryImportRule admits a remote memory commit for the sync import actor, merging non-conflicting
-// entries into the local memory resource.
-func RemoteMemoryImportRule(principal contract.ActorID) rule.Rule {
-	return rule.NewNativeRule("remote-memory-import:"+string(principal), principal, MemoryWriteProposed, []string{RemoteMemoryCommitObserved},
-		func(in rule.RuleInput) (contract.RuleDecision, error) {
-			if in.Event.Actor != principal {
-				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+// entryDedupImport is the "entry-dedup" remote-import strategy (capability-spec v2 §Sync, the
+// closed-set merge a kind selects): merge non-conflicting ENTRIES from a remote commit into the
+// resource's entry list, synthesizing one entry from a bare `content` field when the commit carries
+// none, and rejecting a same-id-different-content conflict (I15 — receiving-side admission is not
+// relaxed). Parameterized by cap (kind/proposed type), so it carries no kind literal; memory selects
+// it.
+func entryDedupImport(cap Capability, in rule.RuleInput) (contract.RuleDecision, error) {
+	commit, err := decodeRemoteMemoryCommit(in.Event.Payload)
+	if err != nil {
+		return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{err.Error()}}, nil
+	}
+	if commit.ResourceRef.Kind != cap.ResourceKind {
+		return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote import denied: resource kind does not match the importing capability"}}, nil
+	}
+	incoming := memoryEntriesFromFields(commit.Fields)
+	if len(incoming) == 0 {
+		if content := strings.TrimSpace(stringField(commit.Fields, "content")); content != "" {
+			incoming = []memoryEntry{{
+				ID:         remoteMemoryEntryID(commit),
+				Content:    content,
+				Source:     "remote",
+				Confidence: "remote",
+				Actor:      string(commit.Actor),
+				IngestSeq:  commit.LocalIngestSeq,
+			}}
+		}
+	}
+	if len(incoming) == 0 {
+		return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote import denied: no entries"}}, nil
+	}
+	version, fields := resourceFromProjection(in.View, commit.ResourceRef)
+	existing := memoryEntriesFromFields(fields)
+	byID := make(map[string]memoryEntry, len(existing))
+	for _, entry := range existing {
+		byID[entry.ID] = entry
+	}
+	var additions []memoryEntry
+	for _, entry := range incoming {
+		if current, ok := byID[entry.ID]; ok {
+			if current.Content != entry.Content {
+				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote import conflict: entry " + entry.ID + " already exists with different content"}}, nil
 			}
-			commit, err := decodeRemoteMemoryCommit(in.Event.Payload)
-			if err != nil {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{err.Error()}}, nil
-			}
-			if commit.ResourceRef.Kind != "memory" {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote memory import denied: non-memory resource"}}, nil
-			}
-			incoming := memoryEntriesFromFields(commit.Fields)
-			if len(incoming) == 0 {
-				if content := strings.TrimSpace(stringField(commit.Fields, "content")); content != "" {
-					incoming = []memoryEntry{{
-						ID:         remoteMemoryEntryID(commit),
-						Content:    content,
-						Source:     "remote",
-						Confidence: "remote",
-						Actor:      string(commit.Actor),
-						IngestSeq:  commit.LocalIngestSeq,
-					}}
-				}
-			}
-			if len(incoming) == 0 {
-				return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote memory import denied: no memory entries"}}, nil
-			}
-			version, fields := resourceFromProjection(in.View, commit.ResourceRef)
-			existing := memoryEntriesFromFields(fields)
-			byID := make(map[string]memoryEntry, len(existing))
-			for _, entry := range existing {
-				byID[entry.ID] = entry
-			}
-			var additions []memoryEntry
-			for _, entry := range incoming {
-				if current, ok := byID[entry.ID]; ok {
-					if current.Content != entry.Content {
-						return contract.RuleDecision{Verdict: contract.VerdictDeny, Reasons: []string{"remote memory conflict: entry " + entry.ID + " already exists with different content"}}, nil
-					}
-					continue
-				}
-				additions = append(additions, entry)
-			}
-			if len(additions) == 0 {
-				return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
-			}
-			entries := append(append([]memoryEntry(nil), existing...), additions...)
-			newFields := map[string]any{
-				"content":    renderMemoryContent(entries),
-				"entries":    entries,
-				"updated_by": string(in.Event.Actor),
-			}
-			write := contract.ResourceWrite{Ref: commit.ResourceRef, Kind: contract.OpCreate, Fields: newFields}
-			if version > 0 {
-				write.Kind = contract.OpUpdate
-				write.BasedOn = version
-			}
-			return contract.RuleDecision{Verdict: contract.VerdictPropose, Proposal: &contract.ProposedEvent{
-				Type:    MemoryWriteProposed,
-				Payload: map[string]any{"writes": []contract.ResourceWrite{write}},
-			}}, nil
-		})
+			continue
+		}
+		additions = append(additions, entry)
+	}
+	if len(additions) == 0 {
+		return contract.RuleDecision{Verdict: contract.VerdictAllow}, nil
+	}
+	entries := append(append([]memoryEntry(nil), existing...), additions...)
+	newFields := map[string]any{
+		"content":    renderMemoryContent(entries),
+		"entries":    entries,
+		"updated_by": string(in.Event.Actor),
+	}
+	write := contract.ResourceWrite{Ref: commit.ResourceRef, Kind: contract.OpCreate, Fields: newFields}
+	if version > 0 {
+		write.Kind = contract.OpUpdate
+		write.BasedOn = version
+	}
+	return contract.RuleDecision{Verdict: contract.VerdictPropose, Proposal: &contract.ProposedEvent{
+		Type:    cap.ProposedType,
+		Payload: map[string]any{"writes": []contract.ResourceWrite{write}},
+	}}, nil
 }
 
 func decodeRemoteMemoryCommit(payload map[string]any) (contract.LocalCommit, error) {

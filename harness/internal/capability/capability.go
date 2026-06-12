@@ -35,7 +35,23 @@ type Capability struct {
 	// render-produced keys, or the declared `required` subset). The assembler reads it to build the
 	// assembly-time SchemaGuard so a declared kind's required set has ONE source — the capability.
 	RequiredHeader []string
-	Limits         Limits
+	// Sync, when Importable, opts the kind into Remote Workspace import under the named (closed-set)
+	// merge strategy. The sync-import path derives its rules and syncable-kind set from this, so the
+	// importable kinds are no longer a hardcoded list (PD6).
+	Sync   SyncOptions
+	Limits Limits
+}
+
+type SyncOptions struct {
+	Importable bool
+	Merge      string
+}
+
+// RemoteCommitObserved is the event type the platform mints for a pulled remote commit of this kind
+// (the system-derived sync-import observation form, capability-spec v2 grammar). The import rule
+// observes it; the puller emits it.
+func (c Capability) RemoteCommitObserved() string {
+	return string(c.ResourceKind) + ".remote_commit.observed"
 }
 
 // Rule builds the capability's admission rule for one principal + resource ref. limits bounds the

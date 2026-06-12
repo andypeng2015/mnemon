@@ -84,5 +84,9 @@
     "static": {
       "name": "project"
     }
+  },
+  "sync": {
+    "importable": true,
+    "merge": "declaration-dedup"
   }
 }

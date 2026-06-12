@@ -12,7 +12,7 @@ import (
 
 func TestRemoteMemoryImportConflictDiagnosesWithoutOverwrite(t *testing.T) {
 	ref := contract.ResourceRef{Kind: "memory", ID: "project"}
-	rt, err := OpenSyncImportRuntime(filepath.Join(t.TempDir(), "local.db"), []contract.ResourceRef{ref})
+	rt, err := OpenSyncImportRuntime(filepath.Join(t.TempDir(), "local.db"), []contract.ResourceRef{ref}, nil)
 	if err != nil {
 		t.Fatalf("open sync import runtime: %v", err)
 	}
@@ -57,8 +57,8 @@ func TestRemoteMemoryImportConflictDiagnosesWithoutOverwrite(t *testing.T) {
 	var diag contract.Event
 	var diagnosed bool
 	for _, ev := range events {
-		if ev.Type == "remote.diagnostic" || ev.Type == "memory.diagnostic" {
-			if reason, _ := ev.Payload["reason"].(string); strings.Contains(reason, "remote memory conflict") {
+		if ev.Type == "memory.diagnostic" {
+			if reason, _ := ev.Payload["reason"].(string); strings.Contains(reason, "remote import conflict") {
 				diagnosed = true
 				diag = ev
 			}
@@ -70,7 +70,7 @@ func TestRemoteMemoryImportConflictDiagnosesWithoutOverwrite(t *testing.T) {
 
 	// MED-4 / v1.1: the origin attribution (origin_replica_id + local_decision_id) must be
 	// RECOVERABLE from the durable ledger on the B side — not just "a diagnostic fired". Walk the
-	// diagnostic's CausedBy to the remote.memory.commit_observed trigger and recover the identity
+	// diagnostic's CausedBy to the memory.remote_commit.observed trigger and recover the identity
 	// from its payload.commit. (The commit round-trips through the event log as a JSON object.)
 	if diag.CausedBy == "" {
 		t.Fatalf("conflict diagnostic must carry a CausedBy lineage, got %+v", diag)
@@ -79,7 +79,7 @@ func TestRemoteMemoryImportConflictDiagnosesWithoutOverwrite(t *testing.T) {
 	if !ok {
 		t.Fatalf("diagnostic CausedBy %q must resolve to a durable event", diag.CausedBy)
 	}
-	if trigger.Type != capability.RemoteMemoryCommitObserved {
+	if trigger.Type != capability.EmbeddedCatalog()["memory"].RemoteCommitObserved() {
 		t.Fatalf("diagnostic must be caused by the remote commit observation, got type %q", trigger.Type)
 	}
 	commit, ok := trigger.Payload["commit"].(map[string]any)
@@ -97,7 +97,7 @@ func TestRemoteMemoryImportConflictDiagnosesWithoutOverwrite(t *testing.T) {
 
 func TestRemoteSkillImportAppendsDeclarationsThroughLocalMnemon(t *testing.T) {
 	ref := contract.ResourceRef{Kind: "skill", ID: "project"}
-	rt, err := OpenSyncImportRuntime(filepath.Join(t.TempDir(), "local.db"), []contract.ResourceRef{ref})
+	rt, err := OpenSyncImportRuntime(filepath.Join(t.TempDir(), "local.db"), []contract.ResourceRef{ref}, nil)
 	if err != nil {
 		t.Fatalf("open sync import runtime: %v", err)
 	}
@@ -127,7 +127,7 @@ func ingestRemoteMemoryForTest(rt *runtime.Runtime, externalID string, commit co
 	_, _, err := rt.API().Ingest(contract.SyncImportActor, contract.ObservationEnvelope{
 		ExternalID: externalID,
 		Event: contract.Event{
-			Type: capability.RemoteMemoryCommitObserved,
+			Type: capability.EmbeddedCatalog()["memory"].RemoteCommitObserved(),
 			Payload: map[string]any{
 				"commit": commit,
 			},
@@ -140,7 +140,7 @@ func ingestRemoteSkillForTest(rt *runtime.Runtime, externalID string, commit con
 	_, _, err := rt.API().Ingest(contract.SyncImportActor, contract.ObservationEnvelope{
 		ExternalID: externalID,
 		Event: contract.Event{
-			Type: capability.RemoteSkillCommitObserved,
+			Type: capability.EmbeddedCatalog()["skill"].RemoteCommitObserved(),
 			Payload: map[string]any{
 				"commit": commit,
 			},
