@@ -381,6 +381,12 @@ func minimalAcceptPayload(id string) map[string]any {
 		return map[string]any{"content": "x", "source": "s", "confidence": "high"}
 	case "skill":
 		return map[string]any{"skill_id": "x-skill", "source": "s", "confidence": "high"}
+	case "project_intent":
+		return map[string]any{"statement": "ship the thing"}
+	case "assignment":
+		return map[string]any{"scope": "projection", "ttl": "2h", "assignee": "codex@impl"}
+	case "progress_digest":
+		return map[string]any{"summary": "projection 80% done"}
 	default:
 		return map[string]any{"text": "x"}
 	}

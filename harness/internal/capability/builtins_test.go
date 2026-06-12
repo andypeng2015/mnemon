@@ -7,7 +7,9 @@ import (
 )
 
 func TestBuiltinsLoadFromEmbeddedSpecs(t *testing.T) {
-	for _, id := range []string{"memory", "skill"} {
+	// memory/skill are the optional first-party packages; project_intent/assignment/progress_digest
+	// are the AgentTeam "coordination" first-party kinds (P3a, declarative path).
+	for _, id := range []string{"memory", "skill", "project_intent", "assignment", "progress_digest"} {
 		cap, ok := EmbeddedCatalog()[id]
 		if !ok {
 			t.Fatalf("builtin %q must load from assets/capabilities", id)
@@ -17,15 +19,15 @@ func TestBuiltinsLoadFromEmbeddedSpecs(t *testing.T) {
 		}
 	}
 	// The P1 demotion pin: note/decision are EXTERNAL-package/test fixtures now (their specs live
-	// in testdata/capabilities and the e2e external-package leg), never embedded — EmbeddedCatalog() is
-	// exactly {memory, skill}.
+	// in testdata/capabilities and the e2e external-package leg), never embedded.
 	for _, id := range []string{"note", "decision"} {
 		if _, ok := EmbeddedCatalog()[id]; ok {
 			t.Fatalf("%q must NOT be embedded (demoted to a test/external-package fixture)", id)
 		}
 	}
-	if len(EmbeddedCatalog()) != 2 {
-		t.Fatalf("EmbeddedCatalog() must be exactly {memory, skill}, got %d entries", len(EmbeddedCatalog()))
+	// Exactly the two optional packages + the three coordination kinds.
+	if len(EmbeddedCatalog()) != 5 {
+		t.Fatalf("EmbeddedCatalog() must be {memory, skill, project_intent, assignment, progress_digest}, got %d entries", len(EmbeddedCatalog()))
 	}
 }
 

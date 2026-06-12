@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "name": "project_intent",
+  "observed_type": "project_intent.write_candidate.observed",
+  "proposed_type": "project_intent.write.proposed",
+  "resource_kind": "project_intent",
+  "items_field": "items",
+  "fields": [
+    {
+      "name": "statement",
+      "validators": [
+        {
+          "id": "required",
+          "params": {
+            "missing_style": "empty"
+          }
+        },
+        {
+          "id": "safety:unsafe"
+        }
+      ]
+    }
+  ],
+  "render": {
+    "content": {
+      "member": "bullet-list",
+      "params": {
+        "title": "# Project Intent",
+        "field": "statement"
+      }
+    }
+  }
+}
