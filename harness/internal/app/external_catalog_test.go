@@ -61,8 +61,8 @@ func TestResolveBootCatalogIgnoreExternalNamesIgnoredPackages(t *testing.T) {
 	if _, ok := catalog["goal"]; ok {
 		t.Fatal("--ignore-external must NOT load the external goal capability")
 	}
-	if len(catalog) != len(capability.Builtins) {
-		t.Fatalf("--ignore-external catalog must be embedded-only (%d), got %d", len(capability.Builtins), len(catalog))
+	if len(catalog) != len(capability.EmbeddedCatalog()) {
+		t.Fatalf("--ignore-external catalog must be embedded-only (%d), got %d", len(capability.EmbeddedCatalog()), len(catalog))
 	}
 	if len(ignored) != 2 || ignored[0] != "bad" || ignored[1] != "goal" {
 		t.Fatalf("ignored names must carry both packages [bad goal], got %v", ignored)

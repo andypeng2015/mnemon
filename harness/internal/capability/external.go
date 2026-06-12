@@ -293,7 +293,7 @@ func ResolveCatalog(projectRoot string, requiredFields map[contract.ResourceKind
 	if err != nil {
 		return nil, err
 	}
-	return mergeExternal(Builtins, external)
+	return mergeExternal(embeddedCatalog, external)
 }
 
 // screenExternalSymlinks is fault class ⑩, on the REAL path because fs.FS has no lstat: the

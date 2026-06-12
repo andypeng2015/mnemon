@@ -19,7 +19,7 @@ func gateRuntime(t *testing.T) *runtime.Runtime {
 	t.Helper()
 	ref := contract.ResourceRef{Kind: "memory", ID: "project"}
 	rt, err := runtime.OpenRuntime(filepath.Join(t.TempDir(), "g.db"), runtime.RuntimeConfig{
-		Rules:     rule.NewRuleSet(capability.MemoryAdmissionRule(gateActor, ref)),
+		Rules:     rule.NewRuleSet(capability.EmbeddedCatalog()["memory"].Rule(gateActor, ref, capability.Limits{})),
 		Authority: kernel.AuthorityRules{Allow: map[contract.ActorID][]contract.ResourceKind{gateActor: {"memory"}}},
 		Subs:      map[contract.ActorID]contract.Subscription{gateActor: {Actor: gateActor, Refs: []contract.ResourceRef{ref}}},
 	})
@@ -184,7 +184,7 @@ func TestReplayAndShadowHonorIngestSeqOverSliceOrder(t *testing.T) {
 	subs := map[contract.ActorID]contract.Subscription{
 		gateActor: {Actor: gateActor, Refs: []contract.ResourceRef{{Kind: "memory", ID: "project"}}},
 	}
-	live := rule.NewRuleSet(capability.MemoryAdmissionRule(gateActor, contract.ResourceRef{Kind: "memory", ID: "project"}))
+	live := rule.NewRuleSet(capability.EmbeddedCatalog()["memory"].Rule(gateActor, contract.ResourceRef{Kind: "memory", ID: "project"}, capability.Limits{}))
 	a := Shadow(events, subs, live, live)
 	b := Shadow(reversed, subs, live, live)
 	if a != b {

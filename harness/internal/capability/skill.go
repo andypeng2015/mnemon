@@ -17,11 +17,6 @@ const (
 	SkillWriteProposed          = "skill.write.proposed"
 )
 
-// SkillAdmissionRule admits an append-only skill declaration from one authenticated principal. It is
-// the skill descriptor over the generic kind.
-func SkillAdmissionRule(principal contract.ActorID, ref contract.ResourceRef) rule.Rule {
-	return Builtins["skill"].Rule(principal, ref, Limits{})
-}
 
 // RemoteSkillImportRule admits a remote skill commit for the sync import actor, merging non-conflicting
 // declarations into the local skill resource.

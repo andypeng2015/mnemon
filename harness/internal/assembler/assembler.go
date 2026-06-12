@@ -23,7 +23,7 @@ import (
 // from catalog (fail-closed on an unknown id), then builds one actor-bound rule per binding that may
 // observe the capability's type, granting that principal kernel write authority for the resource kind.
 //
-// catalog selects the capability universe; nil means capability.Builtins. That nil default is the
+// catalog selects the capability universe; nil means capability.EmbeddedCatalog(). That nil default is the
 // backward-compatible seam: every pre-stage-5 caller (and the test/sync surfaces with no project
 // root to resolve external packages from) keeps embedded-only behavior unchanged, while the boot
 // path passes the merged capability.ResolveCatalog result.
@@ -34,7 +34,7 @@ import (
 // setup-written loops list and assembles here.
 func Assemble(cfg config.File, bindings []channel.ChannelBinding, catalog map[string]capability.Capability) (runtime.RuntimeConfig, error) {
 	if catalog == nil {
-		catalog = capability.Builtins
+		catalog = capability.EmbeddedCatalog()
 	}
 	var rules []rule.Rule
 	allow := map[contract.ActorID][]contract.ResourceKind{}

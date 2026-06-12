@@ -21,12 +21,6 @@ const (
 	MemoryWriteProposed          = "memory.write.proposed"
 )
 
-// MemoryAdmissionRule admits a memory write candidate from one authenticated principal, proposing an
-// append to the principal's memory resource. It is the memory descriptor over the generic kind.
-func MemoryAdmissionRule(principal contract.ActorID, ref contract.ResourceRef) rule.Rule {
-	return Builtins["memory"].Rule(principal, ref, Limits{})
-}
-
 // RemoteMemoryImportRule admits a remote memory commit for the sync import actor, merging non-conflicting
 // entries into the local memory resource.
 func RemoteMemoryImportRule(principal contract.ActorID) rule.Rule {

@@ -230,13 +230,13 @@ func TestResolveCatalogMergesBuiltinsAndExternal(t *testing.T) {
 	if _, ok := merged["goal"]; !ok {
 		t.Fatal("merged catalog must carry the external goal capability")
 	}
-	for id := range Builtins {
+	for id := range EmbeddedCatalog() {
 		if _, ok := merged[id]; !ok {
 			t.Fatalf("merged catalog must keep embedded %q", id)
 		}
 	}
-	if len(merged) != len(Builtins)+1 {
-		t.Fatalf("merged catalog size = %d, want builtins+1 = %d", len(merged), len(Builtins)+1)
+	if len(merged) != len(EmbeddedCatalog())+1 {
+		t.Fatalf("merged catalog size = %d, want builtins+1 = %d", len(merged), len(EmbeddedCatalog())+1)
 	}
 }
 
@@ -245,10 +245,10 @@ func TestResolveCatalogAbsentExternalRootIsBuiltinsOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve catalog without .mnemon/loops: %v", err)
 	}
-	if len(merged) != len(Builtins) {
-		t.Fatalf("catalog without externals must equal Builtins (%d), got %d", len(Builtins), len(merged))
+	if len(merged) != len(EmbeddedCatalog()) {
+		t.Fatalf("catalog without externals must equal EmbeddedCatalog() (%d), got %d", len(EmbeddedCatalog()), len(merged))
 	}
-	for id := range Builtins {
+	for id := range EmbeddedCatalog() {
 		if _, ok := merged[id]; !ok {
 			t.Fatalf("catalog must keep embedded %q", id)
 		}
@@ -295,13 +295,13 @@ func TestMergeExternalRejectsTypeCollisions(t *testing.T) {
 		return Capability{Name: name, ObservedType: family + ".write_candidate.observed",
 			ProposedType: name + ".write.proposed", ResourceKind: "goal"}
 	}
-	if _, err := mergeExternal(Builtins, map[string]Capability{"alt": ext("alt", "memory")}); err == nil ||
+	if _, err := mergeExternal(EmbeddedCatalog(), map[string]Capability{"alt": ext("alt", "memory")}); err == nil ||
 		!strings.Contains(err.Error(), "already claimed") {
 		t.Fatalf("observed-type collision must fail the merge, got %v", err)
 	}
 	prop := Capability{Name: "alt2", ObservedType: "alt2.write_candidate.observed",
 		ProposedType: "memory.write.proposed", ResourceKind: "goal"}
-	if _, err := mergeExternal(Builtins, map[string]Capability{"alt2": prop}); err == nil ||
+	if _, err := mergeExternal(EmbeddedCatalog(), map[string]Capability{"alt2": prop}); err == nil ||
 		!strings.Contains(err.Error(), "already claimed") {
 		t.Fatalf("proposed-type collision must fail the merge, got %v", err)
 	}
@@ -315,12 +315,12 @@ func TestMergeExternalRejectsKindCollisions(t *testing.T) {
 		return Capability{Name: name, ObservedType: family + ".write_candidate.observed",
 			ProposedType: family + ".write.proposed", ResourceKind: contract.ResourceKind(kind)}
 	}
-	_, err := mergeExternal(Builtins, map[string]Capability{"alt-memory": ext("alt-memory", "altmemory", "memory")})
+	_, err := mergeExternal(EmbeddedCatalog(), map[string]Capability{"alt-memory": ext("alt-memory", "altmemory", "memory")})
 	if err == nil || !strings.Contains(err.Error(), `resource_kind "memory" already claimed`) ||
 		!strings.Contains(err.Error(), ".mnemon/loops/alt-memory") {
 		t.Fatalf("external claiming an embedded kind must fail the merge with the package path, got %v", err)
 	}
-	_, err = mergeExternal(Builtins, map[string]Capability{
+	_, err = mergeExternal(EmbeddedCatalog(), map[string]Capability{
 		"goal-a": ext("goal-a", "goala", "goal"),
 		"goal-b": ext("goal-b", "goalb", "goal"),
 	})

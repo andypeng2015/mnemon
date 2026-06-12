@@ -14,14 +14,14 @@ import (
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
 
-// fixtureCatalog is Builtins plus the DEMOTED note/decision capabilities, compiled from their
+// fixtureCatalog is EmbeddedCatalog() plus the DEMOTED note/decision capabilities, compiled from their
 // canonical fixture specs (capability/testdata/capabilities/*.json — formerly embedded, now
 // supplied the way an external package would supply them). Mirrors the shape the boot path gets
 // from capability.ResolveCatalog when the operator lays the packages under .mnemon/loops.
 func fixtureCatalog(t *testing.T, names ...string) map[string]capability.Capability {
 	t.Helper()
 	catalog := map[string]capability.Capability{}
-	for id, c := range capability.Builtins {
+	for id, c := range capability.EmbeddedCatalog() {
 		catalog[id] = c
 	}
 	fixtures := os.DirFS(filepath.Join("..", "capability", "testdata"))
@@ -139,7 +139,7 @@ func TestAssembleRegistersDeclaredKindNotInDefaultGuard(t *testing.T) {
 
 // Stage-5: Assemble selects from the PROVIDED catalog — a capability that exists only in an
 // external package (goal) resolves when the resolved catalog is passed, and fails closed when the
-// caller passes nil (nil = capability.Builtins, the backward-compatible seam).
+// caller passes nil (nil = capability.EmbeddedCatalog(), the backward-compatible seam).
 func TestAssembleResolvesFromProvidedCatalog(t *testing.T) {
 	goalSpec := capability.CapabilitySpec{
 		SchemaVersion: 1, Name: "goal",
@@ -158,7 +158,7 @@ func TestAssembleResolvesFromProvidedCatalog(t *testing.T) {
 		t.Fatalf("compile goal spec: %v", err)
 	}
 	catalog := map[string]capability.Capability{"goal": goalCap}
-	for id, c := range capability.Builtins {
+	for id, c := range capability.EmbeddedCatalog() {
 		catalog[id] = c
 	}
 
@@ -170,7 +170,7 @@ func TestAssembleResolvesFromProvidedCatalog(t *testing.T) {
 	}}
 
 	if _, err := Assemble(cfg, []channel.ChannelBinding{binding}, nil); err == nil {
-		t.Fatal("native:goal must fail closed against the nil (Builtins) catalog")
+		t.Fatal("native:goal must fail closed against the nil (EmbeddedCatalog()) catalog")
 	}
 	rc, err := Assemble(cfg, []channel.ChannelBinding{binding}, catalog)
 	if err != nil {
@@ -210,7 +210,7 @@ func TestAssembleFailsClosedOnUnknownCapability(t *testing.T) {
 }
 
 // The P1 demotion nail: config enables note but NO external package supplies its spec (nil
-// catalog = Builtins, which is exactly {memory, skill} now) — Assemble must land on the
+// catalog = EmbeddedCatalog(), which is exactly {memory, skill} now) — Assemble must land on the
 // 'unknown rule_ref' fail-closed path, never a silent no-op or a builtin fallback.
 func TestAssembleFailsClosedOnNoteWithoutExternalPackage(t *testing.T) {
 	cfg := config.File{Capabilities: map[string]config.CapabilityConfig{
@@ -218,7 +218,7 @@ func TestAssembleFailsClosedOnNoteWithoutExternalPackage(t *testing.T) {
 	}}
 	_, err := Assemble(cfg, nil, nil)
 	if err == nil {
-		t.Fatal("native:note without an external package must fail closed against the Builtins catalog")
+		t.Fatal("native:note without an external package must fail closed against the EmbeddedCatalog() catalog")
 	}
 	if !strings.Contains(err.Error(), `unknown rule_ref "native:note"`) {
 		t.Fatalf("want the 'unknown rule_ref' fail-closed diagnostic, got %v", err)
@@ -353,7 +353,7 @@ func TestAssembleAdmitsDecisionCapabilityEndToEnd(t *testing.T) {
 // 否则 spec 文件能声明一个 kernel 永远拒绝的能力(装配期可发现的缺陷不留到运行期)。
 func TestBuiltinHeadersSatisfySchemaGuard(t *testing.T) {
 	guard := kernel.DefaultSchemaGuard()
-	for id, cap := range capability.Builtins {
+	for id, cap := range capability.EmbeddedCatalog() {
 		item, err := cap.Decode(minimalAcceptPayload(id))
 		if err != nil {
 			t.Fatalf("%s: decode minimal accept: %v", id, err)

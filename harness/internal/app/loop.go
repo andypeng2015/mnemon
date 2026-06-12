@@ -56,7 +56,7 @@ func (h *Harness) LoopValidate() ([]string, error) {
 	}
 	var externalNames []string
 	for name := range merged {
-		if _, embedded := capability.Builtins[name]; !embedded {
+		if _, embedded := capability.EmbeddedCatalog()[name]; !embedded {
 			externalNames = append(externalNames, name)
 		}
 	}

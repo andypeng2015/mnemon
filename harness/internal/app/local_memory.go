@@ -29,7 +29,7 @@ import (
 // localConfig) enable capabilities; bindings stay the source of truth for observe/pull/status scope.
 // An empty loops list (the hidden `local run --bindings` path, which has no localConfig) derives
 // enablement from the binding scope kinds ∩ catalog. catalog selects the capability universe
-// (nil = capability.Builtins); the serve path passes the boot-resolved external-merged catalog.
+// (nil = capability.EmbeddedCatalog()); the serve path passes the boot-resolved external-merged catalog.
 // The assembled policy is then merged with the sync-import half (withSyncImport), so the SERVING
 // runtime can import pulled commits in-process (v1.1 #2) without a second runtime boot.
 func OpenLocalRuntime(storePath string, loaded channel.LoadedBindings, loops []string, catalog map[string]capability.Capability) (*runtime.Runtime, error) {
@@ -112,7 +112,7 @@ func capabilityFileFromLoops(loops []string) config.File {
 // loops list is empty (the hidden bindings-only path).
 func loopsFromBindings(bindings []channel.ChannelBinding, catalog map[string]capability.Capability) []string {
 	if catalog == nil {
-		catalog = capability.Builtins
+		catalog = capability.EmbeddedCatalog()
 	}
 	seen := map[string]bool{}
 	var loops []string
@@ -208,7 +208,7 @@ func resolveBootCatalog(projectRoot string, ignoreExternal bool, errw io.Writer)
 	}
 	entries, err := os.ReadDir(filepath.Join(projectRoot, ".mnemon", "loops"))
 	if err != nil {
-		return capability.Builtins, nil, nil // absent (or unreadable) external root: nothing to ignore
+		return capability.EmbeddedCatalog(), nil, nil // absent (or unreadable) external root: nothing to ignore
 	}
 	var ignored []string
 	for _, e := range entries {
@@ -217,7 +217,7 @@ func resolveBootCatalog(projectRoot string, ignoreExternal bool, errw io.Writer)
 			fmt.Fprintf(errw, "mnemon-harness: --ignore-external: ignoring external package .mnemon/loops/%s\n", e.Name())
 		}
 	}
-	return capability.Builtins, ignored, nil
+	return capability.EmbeddedCatalog(), ignored, nil
 }
 
 // disableIgnoredLoops is the loop-list half of --ignore-external: the PRIMARY ignore scenario is

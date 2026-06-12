@@ -58,7 +58,7 @@ func sanitizePrincipal(p string) string {
 }
 
 // validateProductLoops fail-closes setup to loops that are BOTH a built-in capability
-// (capability.Builtins) AND carry projectable assets for the host (manifest.LoopsForHost over the
+// (capability.EmbeddedCatalog()) AND carry projectable assets for the host (manifest.LoopsForHost over the
 // embedded FS) — derived, not hardcoded, so a future loop whose assets land is admitted without
 // editing a literal. Today the intersection is exactly {memory, skill} (the whole builtin set
 // since the P1 note/decision demotion to external-package fixtures).
@@ -72,7 +72,7 @@ func validateProductLoops(host string, loops []string, projectRoot string) error
 	available := map[string]bool{}
 	var names []string
 	for _, loop := range hostLoops {
-		if _, ok := capability.Builtins[loop]; ok && !available[loop] {
+		if _, ok := capability.EmbeddedCatalog()[loop]; ok && !available[loop] {
 			available[loop] = true
 			names = append(names, loop)
 		}

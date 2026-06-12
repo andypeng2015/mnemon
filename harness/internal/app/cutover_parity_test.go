@@ -105,7 +105,7 @@ func TestAssembledBootMatchesBindingDerivedBoot(t *testing.T) {
 }
 
 // The hidden `local run --bindings` boot path has no localConfig: capability enablement is derived
-// from the binding scope kinds ∩ Builtins, so a memory/skill-scoped binding still boots both rules.
+// from the binding scope kinds ∩ EmbeddedCatalog(), so a memory/skill-scoped binding still boots both rules.
 func TestLoopsFromBindingsDerivesEnablement(t *testing.T) {
 	b := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{
 		{Kind: "memory", ID: "project"}, {Kind: "skill", ID: "project"},

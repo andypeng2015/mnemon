@@ -18,12 +18,12 @@ func localRuntimeConfigT(bindings []channel.ChannelBinding) RuntimeConfig {
 	for _, b := range bindings {
 		if b.Allows(channel.VerbObserve) && b.AllowsObservedType(capability.MemoryWriteCandidateObserved) {
 			if ref, ok := scopeRefT(b, "memory"); ok {
-				rules = append(rules, capability.MemoryAdmissionRule(b.Principal, ref))
+				rules = append(rules, capability.EmbeddedCatalog()["memory"].Rule(b.Principal, ref, capability.Limits{}))
 			}
 		}
 		if b.Allows(channel.VerbObserve) && b.AllowsObservedType(capability.SkillWriteCandidateObserved) {
 			if ref, ok := scopeRefT(b, "skill"); ok {
-				rules = append(rules, capability.SkillAdmissionRule(b.Principal, ref))
+				rules = append(rules, capability.EmbeddedCatalog()["skill"].Rule(b.Principal, ref, capability.Limits{}))
 			}
 		}
 		if b.ActorKind != contract.KindHostAgent {

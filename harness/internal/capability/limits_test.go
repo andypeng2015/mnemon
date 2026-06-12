@@ -9,7 +9,7 @@ import (
 )
 
 func TestAppendItemRuleEnforcesMaxPayloadBytes(t *testing.T) {
-	r := Builtins["memory"].Rule("codex@project", contract.ResourceRef{Kind: "memory", ID: "project"},
+	r := EmbeddedCatalog()["memory"].Rule("codex@project", contract.ResourceRef{Kind: "memory", ID: "project"},
 		Limits{MaxPayloadBytes: 64})
 	dec, err := r.Evaluate(rule.RuleInput{Event: contract.Event{
 		Type:  MemoryWriteCandidateObserved,
@@ -30,7 +30,7 @@ func TestAppendItemRuleEnforcesMaxPayloadBytes(t *testing.T) {
 }
 
 func TestAppendItemRuleZeroLimitMeansUnbounded(t *testing.T) {
-	r := Builtins["memory"].Rule("codex@project", contract.ResourceRef{Kind: "memory", ID: "project"}, Limits{})
+	r := EmbeddedCatalog()["memory"].Rule("codex@project", contract.ResourceRef{Kind: "memory", ID: "project"}, Limits{})
 	dec, err := r.Evaluate(rule.RuleInput{Event: contract.Event{
 		Type:  MemoryWriteCandidateObserved,
 		Actor: "codex@project",
