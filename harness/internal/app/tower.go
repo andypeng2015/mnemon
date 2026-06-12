@@ -1,6 +1,9 @@
 package app
 
 import (
+	"strings"
+
+	"github.com/mnemon-dev/mnemon/harness/internal/channel"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 	"github.com/mnemon-dev/mnemon/harness/internal/runtime"
 )
@@ -11,8 +14,50 @@ import (
 // field maps to an existing protocol object (§3.1). READ-ONLY: building a view never writes or Ticks.
 type TowerView struct {
 	Goal   GoalPage
+	Field  FieldPage
+	Inbox  InboxPage
 	Ledger LedgerPage
-	// Field + Inbox are added in P6a-3.
+}
+
+// FieldPage answers "场上谁在干什么": the agents on the field (enumerated from the BindingSet — the only
+// existing "who's on the field" source), the live assignments (scope/assignee/lease TTL), and the
+// open-escalation count. There is deliberately NO "● active / ○ idle" liveness or "evt/h" rate: the
+// data model has no heartbeat/last-seen concept, and inventing one would be a new kernel concept
+// (T1 veto, folded from the adversarial review).
+type FieldPage struct {
+	Agents      []AgentRow
+	Assignments []AssignmentRow
+	Diagnostics int // open escalations (the INBOX count, surfaced on FIELD too)
+}
+
+// AgentRow is one bound principal on the field.
+type AgentRow struct {
+	Principal contract.ActorID
+	Kind      contract.ActorKind
+}
+
+// AssignmentRow is one live assignment (who's doing what, with its lease TTL).
+type AssignmentRow struct {
+	Scope    string
+	Assignee string
+	TTL      string
+}
+
+// InboxPage answers "什么需要我": the open escalations — high-risk/denied candidates surfaced as
+// diagnostics. The operator acts by RE-OBSERVING the underlying candidate as a control-agent (P6b),
+// not by "approving a proposal" (no such kernel verb). CausedBy links each escalation to its
+// triggering candidate event.
+type InboxPage struct {
+	Escalations []InboxRow
+}
+
+// InboxRow is one escalation (a durable diagnostic) awaiting operator attention.
+type InboxRow struct {
+	Domain   string // the kind domain (e.g. "loopdef", "assignment")
+	Actor    contract.ActorID
+	Stage    string
+	Reason   string
+	CausedBy string // the triggering candidate event ID (the re-observation target, P6b)
 }
 
 // GoalPage answers "目标怎么样了": the project_intent statements (the goal) and the progress_digest
@@ -39,10 +84,11 @@ type LedgerPage struct {
 // towerScopeID is the default coordination scope every coordination kind is bound at ("project").
 const towerScopeID = contract.ResourceID("project")
 
-// BuildTowerView assembles the read-only Tower projection from the runtime. It performs only resource
-// reads and the read-only DecisionLedger — never a write or a Tick (G10/T5). (GOAL + LEDGER here;
-// FIELD + INBOX land in P6a-3.)
-func BuildTowerView(rt *runtime.Runtime) (TowerView, error) {
+// BuildTowerView assembles the read-only Tower projection from the runtime + the BindingSet. It
+// performs only resource reads, the read-only DecisionLedger, and an event-log scan — never a write or
+// a Tick (G10/T5). The bindings supply the FIELD "who's on the field" enumeration (the only existing
+// source); the ui package renders the result and never touches the store (ui↛store).
+func BuildTowerView(rt *runtime.Runtime, bindings []channel.ChannelBinding) (TowerView, error) {
 	var v TowerView
 	// GOAL: project_intent statements + progress_digest summaries (read-only resource reads; an
 	// absent resource — version 0 — simply yields no entries).
@@ -52,6 +98,46 @@ func BuildTowerView(rt *runtime.Runtime) (TowerView, error) {
 	if ver, fields, err := rt.Resource(contract.ResourceRef{Kind: "progress_digest", ID: towerScopeID}); err == nil && ver > 0 {
 		v.Goal.Progress = towerItemStrings(fields, "items", "summary")
 	}
+
+	// FIELD: agents from the BindingSet; live assignments from the assignment resource.
+	for _, b := range bindings {
+		v.Field.Agents = append(v.Field.Agents, AgentRow{Principal: b.Principal, Kind: b.ActorKind})
+	}
+	if ver, fields, err := rt.Resource(contract.ResourceRef{Kind: "assignment", ID: towerScopeID}); err == nil && ver > 0 {
+		if raw, ok := fields["items"].([]any); ok {
+			for _, r := range raw {
+				if m, ok := r.(map[string]any); ok {
+					scope, _ := m["scope"].(string)
+					assignee, _ := m["assignee"].(string)
+					ttl, _ := m["ttl"].(string)
+					v.Field.Assignments = append(v.Field.Assignments, AssignmentRow{Scope: scope, Assignee: assignee, TTL: ttl})
+				}
+			}
+		}
+	}
+
+	// INBOX: open escalations from the durable .diagnostic events (a denied/high-risk candidate
+	// surfaces as a diagnostic, never silently dropped). CausedBy links to the re-observation target.
+	events, err := rt.PendingEvents(0)
+	if err != nil {
+		return v, err
+	}
+	for _, ev := range events {
+		if !strings.HasSuffix(ev.Type, ".diagnostic") {
+			continue
+		}
+		stage, _ := ev.Payload["stage"].(string)
+		reason, _ := ev.Payload["reason"].(string)
+		v.Inbox.Escalations = append(v.Inbox.Escalations, InboxRow{
+			Domain:   strings.TrimSuffix(ev.Type, ".diagnostic"),
+			Actor:    ev.Actor,
+			Stage:    stage,
+			Reason:   reason,
+			CausedBy: ev.CausedBy,
+		})
+	}
+	v.Field.Diagnostics = len(v.Inbox.Escalations)
+
 	// LEDGER: accepted decisions with attribution.
 	decisions, err := rt.DecisionLedger()
 	if err != nil {

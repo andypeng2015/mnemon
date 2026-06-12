@@ -37,7 +37,7 @@ func TestBuildTowerViewGoalAndLedger(t *testing.T) {
 		t.Fatalf("tick: %v", err)
 	}
 
-	v, err := BuildTowerView(rt)
+	v, err := BuildTowerView(rt, []channel.ChannelBinding{binding})
 	if err != nil {
 		t.Fatalf("build tower view: %v", err)
 	}
@@ -64,6 +64,74 @@ func TestBuildTowerViewGoalAndLedger(t *testing.T) {
 	}
 }
 
+// P6a-3: FIELD enumerates agents from the BindingSet + live assignments from the assignment resource;
+// INBOX surfaces open escalations from the durable .diagnostic events. A valid assignment lands on
+// FIELD; a denied one (missing the required scope) surfaces as an INBOX escalation, never silently lost.
+func TestBuildTowerViewFieldAndInbox(t *testing.T) {
+	asgRef := contract.ResourceRef{Kind: "assignment", ID: "project"}
+	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787", []contract.ResourceRef{asgRef})
+	binding.AllowedObservedTypes = []string{"assignment.write_candidate.observed"}
+	rc, err := LocalRuntimeConfigFromBindings([]channel.ChannelBinding{binding}, nil)
+	if err != nil {
+		t.Fatalf("boot config: %v", err)
+	}
+	rt, err := runtime.OpenRuntime(filepath.Join(t.TempDir(), "field.db"), rc)
+	if err != nil {
+		t.Fatalf("open runtime: %v", err)
+	}
+	defer rt.Close()
+
+	// valid assignment -> admitted (FIELD)
+	if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+		ExternalID: "asg1",
+		Event: contract.Event{Type: "assignment.write_candidate.observed", Payload: map[string]any{
+			"scope": "fix projection", "ttl": "2h", "assignee": "codex@impl", "evidence": "ticket-1"}},
+	}); err != nil {
+		t.Fatalf("ingest valid assignment: %v", err)
+	}
+	if _, err := rt.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+	// invalid assignment (missing the required scope) -> denied -> diagnostic (INBOX)
+	if _, _, err := rt.API().Ingest("codex@project", contract.ObservationEnvelope{
+		ExternalID: "asg2",
+		Event: contract.Event{Type: "assignment.write_candidate.observed", Payload: map[string]any{
+			"ttl": "1h", "assignee": "codex@impl", "evidence": "ticket-2"}},
+	}); err != nil {
+		t.Fatalf("ingest invalid assignment: %v", err)
+	}
+	if _, err := rt.Tick(); err != nil {
+		t.Fatalf("tick: %v", err)
+	}
+
+	v, err := BuildTowerView(rt, []channel.ChannelBinding{binding})
+	if err != nil {
+		t.Fatalf("build tower view: %v", err)
+	}
+
+	// FIELD agents from the BindingSet.
+	if len(v.Field.Agents) != 1 || v.Field.Agents[0].Principal != "codex@project" {
+		t.Fatalf("FIELD must enumerate the bound agent: %+v", v.Field.Agents)
+	}
+	// FIELD assignment (only the admitted one).
+	if len(v.Field.Assignments) != 1 || v.Field.Assignments[0].Scope != "fix projection" || v.Field.Assignments[0].TTL != "2h" {
+		t.Fatalf("FIELD assignment wrong: %+v", v.Field.Assignments)
+	}
+	// INBOX: the denied assignment surfaces as an escalation.
+	var inboxedAssignment bool
+	for _, e := range v.Inbox.Escalations {
+		if e.Domain == "assignment" {
+			inboxedAssignment = true
+		}
+	}
+	if !inboxedAssignment {
+		t.Fatalf("INBOX must surface the denied assignment escalation: %+v", v.Inbox.Escalations)
+	}
+	if v.Field.Diagnostics != len(v.Inbox.Escalations) {
+		t.Fatalf("FIELD diagnostic count (%d) must equal INBOX escalations (%d)", v.Field.Diagnostics, len(v.Inbox.Escalations))
+	}
+}
+
 // An empty runtime yields empty pages (no panic, no fabricated data).
 func TestBuildTowerViewEmpty(t *testing.T) {
 	binding := channel.HostAgentBinding("codex@project", "http://127.0.0.1:8787",
@@ -79,7 +147,7 @@ func TestBuildTowerViewEmpty(t *testing.T) {
 	}
 	defer rt.Close()
 
-	v, err := BuildTowerView(rt)
+	v, err := BuildTowerView(rt, []channel.ChannelBinding{binding})
 	if err != nil {
 		t.Fatalf("build tower view: %v", err)
 	}
