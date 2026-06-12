@@ -86,3 +86,33 @@ func TestLoopAddRefusesExistingTarget(t *testing.T) {
 		t.Fatal("a second add of an existing target must refuse, not overwrite")
 	}
 }
+
+// loop capabilities resolves embedded + external kinds; loop schema returns one kind and errors on
+// an unknown one.
+func TestLoopCapabilitiesAndSchema(t *testing.T) {
+	root := t.TempDir()
+	writeExternalGoalPackage(t, root, "widget", widgetPackageSpec)
+
+	infos, err := New(root).LoopCapabilities()
+	if err != nil {
+		t.Fatalf("loop capabilities: %v", err)
+	}
+	byKind := map[string]CapabilityInfo{}
+	for _, info := range infos {
+		byKind[info.Kind] = info
+	}
+	if byKind["memory"].Source != "embedded" || !byKind["memory"].Importable || byKind["memory"].Merge != "entry-dedup" {
+		t.Fatalf("memory must be embedded + importable entry-dedup: %+v", byKind["memory"])
+	}
+	if w, ok := byKind["widget"]; !ok || w.Source != "external" || w.ObservedType != "widget.write_candidate.observed" {
+		t.Fatalf("external widget must appear with its descriptor: %+v", w)
+	}
+
+	info, err := New(root).LoopSchema("skill")
+	if err != nil || info.Merge != "declaration-dedup" {
+		t.Fatalf("loop schema skill: info=%+v err=%v", info, err)
+	}
+	if _, err := New(root).LoopSchema("nope"); err == nil {
+		t.Fatal("loop schema must error on an unknown kind, not return an empty success")
+	}
+}

@@ -70,6 +70,70 @@ func (h *Harness) LoopValidate() ([]string, error) {
 	return lines, nil
 }
 
+// CapabilityInfo is the read-only view of a resolved capability — the discoverability answer to "what
+// kinds can the agents work with and what does each expect" (P2). It is a projection of the descriptor
+// (capability.Capability), never the runtime's internal rule state: the runtime is capability-free by
+// design (PD6c), so this query resolves the project catalog from disk rather than coupling the kernel
+// to capability shapes.
+type CapabilityInfo struct {
+	Name         string   `json:"name"`
+	Kind         string   `json:"kind"`
+	ObservedType string   `json:"observed_type"`
+	ProposedType string   `json:"proposed_type"`
+	ItemsField   string   `json:"items_field"`
+	Required     []string `json:"required"`
+	Importable   bool     `json:"importable"`
+	Merge        string   `json:"merge,omitempty"`
+	Source       string   `json:"source"` // "embedded" (first-party) | "external" (.mnemon/loops package)
+}
+
+// LoopCapabilities resolves the project catalog (embedded first-party + every external package under
+// .mnemon/loops, via the SAME fail-closed boot resolution) and returns one CapabilityInfo per kind,
+// sorted by kind. It is a LOCAL read — no running server is contacted; the catalog is a disk fact.
+func (h *Harness) LoopCapabilities() ([]CapabilityInfo, error) {
+	catalog, err := capability.ResolveCatalog(h.root, kernel.DefaultSchemaGuard().Required)
+	if err != nil {
+		return nil, err
+	}
+	embedded := capability.EmbeddedCatalog()
+	infos := make([]CapabilityInfo, 0, len(catalog))
+	for _, cap := range catalog {
+		source := "external"
+		if _, ok := embedded[cap.Name]; ok {
+			source = "embedded"
+		}
+		infos = append(infos, CapabilityInfo{
+			Name:         cap.Name,
+			Kind:         string(cap.ResourceKind),
+			ObservedType: cap.ObservedType,
+			ProposedType: cap.ProposedType,
+			ItemsField:   cap.ItemsField,
+			Required:     cap.RequiredHeader,
+			Importable:   cap.Sync.Importable,
+			Merge:        cap.Sync.Merge,
+			Source:       source,
+		})
+	}
+	sort.Slice(infos, func(i, j int) bool { return infos[i].Kind < infos[j].Kind })
+	return infos, nil
+}
+
+// LoopSchema returns the CapabilityInfo for one resource kind (the `control schema --type T` answer),
+// resolved from the same project catalog. An unknown kind is an error (fail-closed — never an empty
+// success that reads as "no required fields").
+func (h *Harness) LoopSchema(kind string) (CapabilityInfo, error) {
+	infos, err := h.LoopCapabilities()
+	if err != nil {
+		return CapabilityInfo{}, err
+	}
+	for _, info := range infos {
+		if info.Kind == kind {
+			return info, nil
+		}
+	}
+	return CapabilityInfo{}, fmt.Errorf("unknown capability kind %q (run `mnemon-harness loop capabilities` to list)", kind)
+}
+
 // LoopAdd registers an external capability package from srcDir into the project's external loop root
 // (<root>/.mnemon/loops/<name>). It is the "write a directory -> register it" front door (P2 minimal
 // onboarding): the author writes a package dir, `loop add` places it under the canonical name and

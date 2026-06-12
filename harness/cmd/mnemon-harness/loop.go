@@ -1,14 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/app"
 	"github.com/spf13/cobra"
 )
 
 var (
-	loopRoot string
+	loopRoot       string
+	loopCapsJSON   bool
+	loopSchemaType string
 )
 
 var loopCmd = &cobra.Command{
@@ -30,11 +34,60 @@ var loopAddCmd = &cobra.Command{
 	RunE:  runLoopAdd,
 }
 
+var loopCapabilitiesCmd = &cobra.Command{
+	Use:   "capabilities",
+	Short: "List the resolvable capability kinds (embedded + external packages)",
+	RunE:  runLoopCapabilities,
+}
+
+var loopSchemaCmd = &cobra.Command{
+	Use:   "schema --type KIND",
+	Short: "Show one capability kind's schema (types, required fields, sync)",
+	RunE:  runLoopSchema,
+}
+
 func init() {
 	loopCmd.PersistentFlags().StringVar(&loopRoot, "root", ".", "repository root containing harness declarations")
-	loopCmd.AddCommand(loopValidateCmd, loopAddCmd)
+	loopCapabilitiesCmd.Flags().BoolVar(&loopCapsJSON, "json", false, "emit the capability list as JSON")
+	loopSchemaCmd.Flags().StringVar(&loopSchemaType, "type", "", "resource kind to describe")
+	loopSchemaCmd.Flags().BoolVar(&loopCapsJSON, "json", false, "emit the schema as JSON")
+	loopCmd.AddCommand(loopValidateCmd, loopAddCmd, loopCapabilitiesCmd, loopSchemaCmd)
 	loopCmd.GroupID = groupSpine
 	rootCmd.AddCommand(loopCmd)
+}
+
+func runLoopCapabilities(cmd *cobra.Command, args []string) error {
+	infos, err := app.New(loopRoot).LoopCapabilities()
+	if err != nil {
+		return err
+	}
+	if loopCapsJSON {
+		enc := json.NewEncoder(cmd.OutOrStdout())
+		enc.SetIndent("", "  ")
+		return enc.Encode(infos)
+	}
+	for _, info := range infos {
+		sync := "no"
+		if info.Importable {
+			sync = "import:" + info.Merge
+		}
+		fmt.Fprintf(cmd.OutOrStdout(), "%s (%s) observe=%s required=[%s] sync=%s\n",
+			info.Kind, info.Source, info.ObservedType, strings.Join(info.Required, ","), sync)
+	}
+	return nil
+}
+
+func runLoopSchema(cmd *cobra.Command, args []string) error {
+	if loopSchemaType == "" {
+		return fmt.Errorf("loop schema requires --type KIND")
+	}
+	info, err := app.New(loopRoot).LoopSchema(loopSchemaType)
+	if err != nil {
+		return err
+	}
+	enc := json.NewEncoder(cmd.OutOrStdout())
+	enc.SetIndent("", "  ")
+	return enc.Encode(info)
 }
 
 func runLoopAdd(cmd *cobra.Command, args []string) error {
