@@ -696,6 +696,50 @@ run_sync_pair() {
 	echo "    sync pair via mnemon-hub OK"
 }
 
+# run_daemon proves the local governance daemon lifecycle (PD8 / P2 acceptance "守护进程生命周期 e2e"):
+# `mnemond up` detaches a serving process (pidfile + log under .mnemon/harness/local), status/logs
+# reflect it, the DETACHED daemon governs a real observe over the channel, and `down` stops it and
+# cleans the pidfile. The bare/foreground serve face (`local run`) is unchanged and proven elsewhere.
+run_daemon() {
+	CUR_HOST="daemon"
+	local proj="$WORK/proj-daemon" addr="127.0.0.1:8788"
+	mkdir -p "$proj"
+	echo "=== E2E mnemond daemon lifecycle ==="
+	go build -o "$WORK/mnemond" ./harness/cmd/mnemond
+	(
+		cd "$proj"
+		local tok=".mnemon/harness/channel/credentials/codex-project.token"
+		"$MH" setup --host codex --loop memory --principal codex@project --control-url "http://$addr" >/dev/null
+
+		"$WORK/mnemond" status --root . | grep -q "stopped" || { echo "status before up must be stopped"; exit 1; }
+		"$WORK/mnemond" up --root . --addr "$addr" >"$WORK/daemon-up.log" 2>&1 \
+			|| { echo "mnemond up failed"; cat "$WORK/daemon-up.log"; exit 1; }
+		# register the detached pid for the cleanup trap (own session, not a $WORK-tracked child)
+		cp .mnemon/harness/local/mnemond.pid "$WORK/daemon.pid" 2>/dev/null || true
+		"$WORK/mnemond" status --root . | grep -q "running" \
+			|| { echo "status after up must be running"; "$WORK/mnemond" logs --root .; exit 1; }
+		"$WORK/mnemond" logs --root . | grep -q "Local Mnemon: ready" \
+			|| { echo "logs must show the serve banner"; exit 1; }
+		# a second up over a live daemon must refuse
+		if "$WORK/mnemond" up --root . --addr "$addr" >/dev/null 2>&1; then
+			echo "a second up over a live daemon must refuse"; exit 1
+		fi
+
+		# the DETACHED daemon governs a real observe over the channel
+		local out
+		out="$("$MH" control observe --addr "http://$addr" --principal codex@project --token-file "$tok" \
+			--type memory.write_candidate.observed --external-id d1 \
+			--payload '{"content":"daemon governs this","source":"user","confidence":"high"}')"
+		case "$out" in *ticked=true*) ;; *) echo "daemon observe: $out"; exit 1 ;; esac
+
+		"$WORK/mnemond" down --root . >/dev/null || { echo "mnemond down failed"; exit 1; }
+		"$WORK/mnemond" status --root . | grep -q "stopped" || { echo "status after down must be stopped"; exit 1; }
+		[ ! -f .mnemon/harness/local/mnemond.pid ] || { echo "down must remove the pidfile"; exit 1; }
+	) || fail "daemon lifecycle failed (see $WORK/daemon-up.log)"
+	rm -f "$WORK/daemon.pid"
+	echo "    mnemond daemon lifecycle OK"
+}
+
 run_host codex codex@project 8787 .codex
 run_host claude-code claude@project 8899 .claude
 run_skill codex codex@project
@@ -704,5 +748,6 @@ run_note
 run_external_goal
 run_foo_external
 run_sync_pair
+run_daemon
 
-echo "E2E PASS (codex + claude-code; memory + skill + note-external-package + external-goal + foo-projection + sync-pair[memory+journal])"
+echo "E2E PASS (codex + claude-code; memory + skill + note-external-package + external-goal + foo-projection + sync-pair[memory+journal] + daemon)"
