@@ -44,6 +44,8 @@ func run(ctx context.Context, args []string, out, errw io.Writer) error {
 			return daemonUp(args[1:], out, errw)
 		case "down":
 			return daemonDown(args[1:], out, errw)
+		case "reload":
+			return daemonReload(args[1:], out, errw)
 		case "status":
 			return daemonStatus(args[1:], out, errw)
 		case "logs":

@@ -85,3 +85,46 @@ func materializeDraft(projectRoot, specJSON string, loopdefVersion contract.Vers
 	}
 	return os.WriteFile(markerPath, marker, 0o600)
 }
+
+// emitLoopdefActivations records, ON BOOT, a durable activation event for every materialized loopdef
+// package present under .mnemon/loops (the G4 ledger). It is a one-time scan at boot — never a Tick
+// watch (G1) — and is idempotent: the ExternalID keys on (name, version, digest), so re-booting the
+// same catalog records nothing new. The event carries no rule and writes no resource; it is an audit
+// marker in the event log from which "which loopdef version was active across each reload" is
+// reconstructable. Best-effort: a malformed marker is skipped, never fatal to boot.
+func emitLoopdefActivations(rt *runtime.Runtime, projectRoot string) error {
+	loopsDir := filepath.Join(projectRoot, ".mnemon", "loops")
+	entries, err := os.ReadDir(loopsDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		raw, err := os.ReadFile(filepath.Join(loopsDir, e.Name(), ".managed"))
+		if err != nil {
+			continue // no marker = human-placed package: nothing to activate-log
+		}
+		var marker map[string]any
+		if json.Unmarshal(raw, &marker) != nil {
+			continue
+		}
+		digest, _ := marker["digest"].(string)
+		version := marker["version"]
+		env := contract.ObservationEnvelope{
+			ExternalID: fmt.Sprintf("loopdef-activated:%s:%v:%s", e.Name(), version, digest),
+			Event: contract.Event{
+				Type:    "loopdef.activated.observed",
+				Payload: map[string]any{"name": e.Name(), "version": version, "digest": digest},
+			},
+		}
+		if _, _, err := rt.IngestTrusted(contract.LoopdefActivator, env); err != nil {
+			return fmt.Errorf("record loopdef activation for %q: %w", e.Name(), err)
+		}
+	}
+	return nil
+}

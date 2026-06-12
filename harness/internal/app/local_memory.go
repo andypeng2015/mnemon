@@ -257,6 +257,11 @@ func RunLocalHTTPServerWithBindings(ctx context.Context, addr, storePath string,
 	if err != nil {
 		return err
 	}
+	// Record the G4 activation ledger for any materialized loopdef packages this boot is governing —
+	// once, at boot (the reload that re-assembled them is the activation), never on a Tick watch (G1).
+	if err := emitLoopdefActivations(rt, opts.ProjectRoot); err != nil {
+		fmt.Fprintf(os.Stderr, "mnemon-harness: loopdef activation ledger: %v\n", err)
+	}
 	// Shutdown ordering (MED-5): the background driver and sync worker write through rt's open store
 	// on their own goroutines. rt.Close() must not race a mid-flight worker store write, so JOIN both
 	// goroutines (they exit promptly on ctx cancel) BEFORE closing the store. Defers run LIFO, so the
