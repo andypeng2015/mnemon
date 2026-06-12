@@ -28,5 +28,8 @@
       "skills/memory-set/SKILL.md"
     ],
     "subagents": []
+  },
+  "store": {
+    "native": true
   }
 }

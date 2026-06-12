@@ -14,6 +14,14 @@ type LoopManifest struct {
 	Description   string            `json:"description,omitempty"`
 	Surfaces      Surfaces          `json:"surfaces"`
 	Assets        LoopAssets        `json:"assets"`
+	// Store, when present and Native, declares that the loop is backed by a native `mnemon` store
+	// (the projector ensures it via the mnemon CLI when --store is set). Declarative replacement for
+	// the hardcoded loop.Name == "memory" gate (PD4); absent = not store-backed.
+	Store *LoopStore `json:"store,omitempty"`
+}
+
+type LoopStore struct {
+	Native bool `json:"native"`
 }
 
 type LoopAssets struct {

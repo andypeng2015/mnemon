@@ -76,6 +76,41 @@ func TestLoadLoopRejectsUnknownKey(t *testing.T) {
 	}
 }
 
+// PD4 store sink: the optional `store` declaration loads, and an unknown key inside it fails closed
+// on both decode paths (struct LoadLoop + map ValidateFS), the G6 discipline.
+func TestLoopStoreDeclaration(t *testing.T) {
+	root := t.TempDir()
+	writeFixtureHarness(t, root, "skills/memory-get/SKILL.md")
+	writeFile(t, filepath.Join(root, "loops", "memory", "loop.json"), `{
+  "schema_version": 2,
+  "name": "memory",
+  "surfaces": { "projection": [], "observation": [] },
+  "assets": { "guide": "GUIDE.md", "env": "env.sh", "runtime_files": ["MEMORY.md"], "skills": ["skills/memory-get/SKILL.md"], "subagents": [] },
+  "store": { "native": true }
+}`)
+	loop, err := LoadLoop(os.DirFS(root), "memory")
+	if err != nil {
+		t.Fatalf("a loop declaring a native store must load: %v", err)
+	}
+	if loop.Store == nil || !loop.Store.Native {
+		t.Fatalf("store.native must decode true, got %+v", loop.Store)
+	}
+
+	writeFile(t, filepath.Join(root, "loops", "memory", "loop.json"), `{
+  "schema_version": 2,
+  "name": "memory",
+  "surfaces": { "projection": [], "observation": [] },
+  "assets": { "guide": "GUIDE.md", "env": "env.sh", "runtime_files": ["MEMORY.md"], "skills": ["skills/memory-get/SKILL.md"], "subagents": [] },
+  "store": { "bogus": true }
+}`)
+	if _, err := LoadLoop(os.DirFS(root), "memory"); err == nil || !strings.Contains(err.Error(), "bogus") {
+		t.Fatalf("LoadLoop must reject an unknown store key (struct path); got %v", err)
+	}
+	if _, err := ValidateFS(os.DirFS(root)); err == nil || !strings.Contains(err.Error(), "bogus") {
+		t.Fatalf("ValidateFS must reject an unknown store key (map path); got %v", err)
+	}
+}
+
 func TestValidateHarnessRejectsUnknownLoopKey(t *testing.T) {
 	root := t.TempDir()
 	writeFixtureHarness(t, root, "skills/memory-get/SKILL.md")

@@ -266,7 +266,7 @@ func (p codexProjector) installLoop(ctx context.Context, loop manifest.LoopManif
 			return err
 		}
 	}
-	if loop.Name == "memory" && p.hostOptions.storeName != "" {
+	if loop.Store != nil && loop.Store.Native && p.hostOptions.storeName != "" {
 		if err := p.ensureStore(ctx, p.hostOptions.storeName); err != nil {
 			return err
 		}

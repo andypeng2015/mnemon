@@ -125,6 +125,16 @@ func (v *harnessValidator) validateLoop(loopDir string) error {
 		}
 	}
 
+	if hasField(data, "store") {
+		store, err := objectField(data, "store")
+		if err != nil {
+			return fmt.Errorf("loop manifest invalid store: %s: %w", manifest, err)
+		}
+		if err := rejectUnknownKeys(store, allowedLoopStoreKeys, manifest); err != nil {
+			return fmt.Errorf("loop store %w", err)
+		}
+	}
+
 	v.lines = append(v.lines, fmt.Sprintf("ok %s", name))
 	return nil
 }
@@ -322,8 +332,9 @@ func readManifest(fsys fs.FS, name string, target any) error {
 var (
 	allowedLoopKeys = map[string]bool{
 		"schema_version": true, "name": true, "version": true, "description": true,
-		"surfaces": true, "assets": true,
+		"surfaces": true, "assets": true, "store": true,
 	}
+	allowedLoopStoreKeys = map[string]bool{"native": true}
 	allowedLoopAssetKeys = map[string]bool{
 		"guide": true, "env": true, "runtime_files": true, "skills": true, "subagents": true,
 	}
