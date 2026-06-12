@@ -146,6 +146,24 @@ func (r *Runtime) PendingEvents(afterSeq int64) ([]contract.Event, error) {
 	return r.store.PendingEvents(afterSeq)
 }
 
+// DecisionLedger returns the full decision log in append order — the operator-wide, cross-actor
+// decision history that backs the Control Tower's LEDGER (accepted) and INBOX (rejected escalations)
+// pages (P6). It is READ-ONLY (wraps Store.DecisionsAfter); it opens NO write path. This is the one
+// operator-scoped read the channel's per-actor PullProjection cannot serve, so the Tower facade —
+// which holds the *Runtime — reads it here rather than over the channel. The caller filters by status
+// (Accepted -> LEDGER, Rejected -> INBOX); the ui package never touches this directly (ui↛store).
+func (r *Runtime) DecisionLedger() ([]contract.Decision, error) {
+	rows, err := r.store.DecisionsAfter(0)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]contract.Decision, len(rows))
+	for i, row := range rows {
+		out[i] = row.Decision
+	}
+	return out, nil
+}
+
 // Status builds the principal's channel status. When bindings are configured it is gated on the
 // binding's channel.VerbStatus (a grant distinct from pull). The digest is the principal's server-configured
 // scope, read through the kernel store directly (the server owns the runtime), so status does not
