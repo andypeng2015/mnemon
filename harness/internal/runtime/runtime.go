@@ -43,6 +43,12 @@ type RuntimeConfig struct {
 	NewID     func() string
 	Now       func() string
 
+	// SchemaGuard is the kernel's per-kind required-fields guard. The assembler builds it from the
+	// governance kinds plus each enabled capability's declared required header (PD2), so a declared
+	// user kind's required set has ONE source — the capability. The zero value (nil Required) falls
+	// back to kernel.DefaultSchemaGuard for callers that do not assemble a catalog.
+	SchemaGuard kernel.SchemaGuard
+
 	// Bindings, when non-empty, gates the runtime's channel API with a channel.BindingSet authorizer (P2.1):
 	// every principal must have a binding granting the verb / observed type / pull scope it uses. The
 	// zero (nil) leaves the API unbound — correct for a trusted in-process owner (embedded coreengine).
@@ -61,6 +67,9 @@ func (cfg RuntimeConfig) withDefaults() RuntimeConfig {
 	}
 	if cfg.Subs == nil {
 		cfg.Subs = map[contract.ActorID]contract.Subscription{}
+	}
+	if cfg.SchemaGuard.Required == nil {
+		cfg.SchemaGuard = kernel.DefaultSchemaGuard()
 	}
 	return cfg
 }
@@ -89,7 +98,7 @@ func OpenRuntime(storePath string, cfg RuntimeConfig) (*Runtime, error) {
 		return nil, fmt.Errorf("open kernel store: %w", err)
 	}
 	cfg = cfg.withDefaults()
-	k := kernel.NewKernel(store, kernel.DefaultSchemaGuard(), cfg.Authority)
+	k := kernel.NewKernel(store, cfg.SchemaGuard, cfg.Authority)
 	cs := New(store, k, cfg.Rules, cfg.Subs, cfg.Modes, cfg.NewID, cfg.Now)
 	rt := &Runtime{store: store, cs: cs, api: cs, storePath: storePath}
 	if len(cfg.Bindings) > 0 {

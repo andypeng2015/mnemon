@@ -40,6 +40,25 @@ var sampleEvents = []contract.Event{
 	proposeWrite("p3", contract.ResourceWrite{Ref: contract.ResourceRef{Kind: "memory", ID: "m1"}, Kind: contract.OpUpdate, BasedOn: 1, Fields: map[string]any{"content": "stale"}}), // stale -> conflict
 }
 
+// I6 determinism under data-driven kinds (PD2b): replay derives the kernel's schema guard from the
+// LOG, not a compiled default — a proposal writing a kind absent from kernel.DefaultSchemaGuard
+// (e.g. an external/declared kind, or a graduated memory/skill after PD5) must still reconcile to
+// Accepted, exactly as the live run that produced the log did. A guard pinned to DefaultSchemaGuard
+// would reject it as an unknown kind, silently breaking I6 once user kinds leave the compiled set.
+func TestReplayDerivesGuardFromLogNotDefault(t *testing.T) {
+	ev := contract.Event{ID: "w1", Type: "widget.write.proposed", Actor: "agent",
+		Payload: map[string]any{"writes": []contract.ResourceWrite{{
+			Ref: contract.ResourceRef{Kind: "widget", ID: "x1"}, Kind: contract.OpCreate,
+			Fields: map[string]any{"content": "v"}}}}}
+	decisions := Replay([]contract.Event{ev}, rule.RuleSet{})
+	if len(decisions) != 1 {
+		t.Fatalf("want 1 decision, got %d", len(decisions))
+	}
+	if decisions[0].Status != contract.Accepted {
+		t.Fatalf("a kind present only in the log must reconcile to Accepted (replay guard is log-derived), got %q", decisions[0].Status)
+	}
+}
+
 // S8: replaying the event log over a FRESH throwaway kernel reproduces the live decisions, identical after
 // masking the dynamic fields (DecisionID/AppliedAt).
 func TestReplayReproducesDecisionsMasked(t *testing.T) {

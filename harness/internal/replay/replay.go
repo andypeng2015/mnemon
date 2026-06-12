@@ -36,14 +36,54 @@ func ordered(events []contract.Event) []contract.Event {
 	return out
 }
 
-// permissiveAuthority lets every actor that appears in the events write every catalog kind, so replay does
+// logWriteKinds is the set of resource kinds the log's proposals write — the kinds replay's kernel
+// must both KNOW (schema) and AUTHORIZE so it never adds a rejection the live run did not have.
+// Live only ever proposes a kind its enabled capabilities registered, so this is exactly the kinds
+// live accepted writes for; sourcing them from the log (not a compiled catalog) keeps replay
+// deterministic however the LIVE run's user kinds are sourced — a graduated memory/skill or an
+// external declared kind replays identically (I6, D3/PD5). The write extraction mirrors
+// reconcile.opFromEvent's JSON round-trip (Payload["writes"] decodes to []any after AppendEvent).
+func logWriteKinds(events []contract.Event) []contract.ResourceKind {
+	seen := map[contract.ResourceKind]bool{}
+	var kinds []contract.ResourceKind
+	for _, ev := range events {
+		raw, ok := ev.Payload["writes"]
+		if !ok {
+			continue
+		}
+		b, err := json.Marshal(raw)
+		if err != nil {
+			continue
+		}
+		var writes []contract.ResourceWrite
+		if json.Unmarshal(b, &writes) != nil {
+			continue
+		}
+		for _, w := range writes {
+			if !seen[w.Ref.Kind] {
+				seen[w.Ref.Kind] = true
+				kinds = append(kinds, w.Ref.Kind)
+			}
+		}
+	}
+	return kinds
+}
+
+// logSchemaGuard registers every log-write kind with NO required fields: replay re-derives and
+// never re-polices, so a kind whose writes were live-accepted (carrying their fields) must validate.
+func logSchemaGuard(events []contract.Event) kernel.SchemaGuard {
+	required := map[contract.ResourceKind][]string{}
+	for _, k := range logWriteKinds(events) {
+		required[k] = nil
+	}
+	return kernel.SchemaGuard{Required: required}
+}
+
+// permissiveAuthority lets every actor that appears in the events write every log-write kind, so replay does
 // not introduce authz rejections the live run did not have (the live authority is reproduced by the events
 // themselves having been accepted; replay only re-derives, it does not re-police).
 func permissiveAuthority(events []contract.Event) kernel.AuthorityRules {
-	var kinds []contract.ResourceKind
-	for k := range contract.KindCatalog {
-		kinds = append(kinds, k)
-	}
+	kinds := logWriteKinds(events)
 	allow := map[contract.ActorID][]contract.ResourceKind{}
 	for _, ev := range events {
 		if _, ok := allow[ev.Actor]; !ok {
@@ -87,7 +127,7 @@ func Shadow(events []contract.Event, subs map[contract.ActorID]contract.Subscrip
 		return rule.ShadowReport{}
 	}
 	defer s.Close()
-	k := kernel.NewKernel(s, kernel.DefaultSchemaGuard(), permissiveAuthority(events))
+	k := kernel.NewKernel(s, logSchemaGuard(events), permissiveAuthority(events))
 	r := reconcile.NewReconciler(s, k)
 
 	diffs := 0
@@ -160,7 +200,7 @@ func drive(events []contract.Event) []contract.Decision {
 		return nil
 	}
 	defer s.Close()
-	k := kernel.NewKernel(s, kernel.DefaultSchemaGuard(), permissiveAuthority(events))
+	k := kernel.NewKernel(s, logSchemaGuard(events), permissiveAuthority(events))
 	r := reconcile.NewReconciler(s, k)
 	for _, ev := range events {
 		if _, err := s.AppendEvent(ev); err != nil {
