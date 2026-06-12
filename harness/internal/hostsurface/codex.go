@@ -261,8 +261,8 @@ func (p codexProjector) installLoop(ctx context.Context, loop manifest.LoopManif
 	if err := p.projectHooks(loop, binding); err != nil {
 		return err
 	}
-	if p.codexHooksEnabled(loop.Name) {
-		if err := p.patchHooks(loop.Name); err != nil {
+	if loop.HasHooks() {
+		if err := p.patchHooks(loop); err != nil {
 			return err
 		}
 	}
@@ -296,7 +296,7 @@ func (p codexProjector) uninstallLoop(loop manifest.LoopManifest) error {
 		return err
 	}
 	p.beginManaged(loop.Name) // load recorded ownership so uninstall preserves user-edited/foreign skills
-	if p.codexHooksEnabled(loop.Name) {
+	if loop.HasHooks() {
 		if err := p.unpatchHooks(loop.Name); err != nil {
 			return err
 		}
@@ -368,31 +368,25 @@ func (p codexProjector) projectedSkillContent(loop manifest.LoopManifest, bindin
 	return append(content, []byte(note)...), nil
 }
 
-func (p codexProjector) patchHooks(loopName string) error {
+func (p codexProjector) patchHooks(loop manifest.LoopManifest) error {
 	if p.dryRun {
 		p.printf("would patch %s\n", pathJoin(p.paths.configDir, "hooks.json"))
 		return nil
 	}
-	return patchCodexHooks(p.resolve(pathJoin(p.paths.configDir, "hooks.json")), p.paths.configDir, "mnemon-"+loopName, p.hookOptions(loopName))
+	return patchCodexHooks(p.resolve(pathJoin(p.paths.configDir, "hooks.json")), p.paths.configDir, "mnemon-"+loop.Name, p.hookOptions(loop))
 }
 
 func (p codexProjector) unpatchHooks(loopName string) error {
 	return unpatchCodexHooks(p.resolve(pathJoin(p.paths.configDir, "hooks.json")), "mnemon-"+loopName)
 }
 
-func (p codexProjector) hookOptions(loopName string) codexHookOptions {
-	switch loopName {
-	case "memory":
-		return codexHookOptions{Remind: true, Nudge: true, Compact: true}
-	case "skill":
-		return codexHookOptions{Nudge: true, Compact: true}
-	default:
+// hookOptions reads the loop's declared per-loop hook intent (PD4 — no loop.Name switch); codex
+// applies all three bits directly. Absent declaration = no hooks.
+func (p codexProjector) hookOptions(loop manifest.LoopManifest) codexHookOptions {
+	if loop.HookOptions == nil {
 		return codexHookOptions{}
 	}
-}
-
-func (p codexProjector) codexHooksEnabled(loopName string) bool {
-	return loopName == "memory" || loopName == "skill"
+	return codexHookOptions{Remind: loop.HookOptions.Remind, Nudge: loop.HookOptions.Nudge, Compact: loop.HookOptions.Compact}
 }
 
 func (p codexProjector) writeHostManifest(loop manifest.LoopManifest, binding manifest.BindingManifest, ownership projectionOwnership) error {
@@ -424,7 +418,7 @@ func (p codexProjector) writeHostManifest(loop manifest.LoopManifest, binding ma
 		"skills":  p.hostSkillsDir(loop.Name),
 		"runtime": binding.RuntimeSurface,
 	}
-	if p.codexHooksEnabled(loop.Name) {
+	if loop.HasHooks() {
 		surfaces["hooks"] = pathJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name)
 	}
 	manifest.Loops[loop.Name] = hostManifestLoop{
@@ -471,7 +465,7 @@ func (p codexProjector) loopOwnership(loop manifest.LoopManifest, binding manife
 	for _, skill := range loop.Assets.Skills {
 		files = append(files, pathJoin(p.hostSkillsDir(loop.Name), skillID(skill), "SKILL.md"))
 	}
-	if p.codexHooksEnabled(loop.Name) {
+	if loop.HasHooks() {
 		files = append(files, pathJoin(binding.ProjectionPath, "hooks.json"))
 	}
 	// Ownership enumerates the generated hook shells from the same intents source projectHooks
@@ -484,7 +478,7 @@ func (p codexProjector) loopOwnership(loop manifest.LoopManifest, binding manife
 		}
 	}
 	dirs := []string{binding.RuntimeSurface}
-	if p.codexHooksEnabled(loop.Name) {
+	if loop.HasHooks() {
 		dirs = append(dirs, pathJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name))
 	}
 	sort.Strings(files)

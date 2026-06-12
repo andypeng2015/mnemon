@@ -243,8 +243,8 @@ func (p claudeProjector) installLoop(ctx context.Context, loop manifest.LoopMani
 	if err := p.projectHooks(loop, binding); err != nil {
 		return err
 	}
-	if loop.Name == "memory" || loop.Name == "skill" {
-		if err := p.patchSettings(loop.Name); err != nil {
+	if loop.HasHooks() {
+		if err := p.patchSettings(loop); err != nil {
 			return err
 		}
 	}
@@ -277,7 +277,7 @@ func (p claudeProjector) installLoop(ctx context.Context, loop manifest.LoopMani
 
 func (p claudeProjector) uninstallLoop(loop manifest.LoopManifest, binding manifest.BindingManifest) error {
 	p.beginManaged(loop.Name) // load recorded ownership so uninstall preserves user-edited/foreign skills
-	if loop.Name == "memory" || loop.Name == "skill" {
+	if loop.HasHooks() {
 		if err := p.unpatchSettings(loop.Name); err != nil {
 			return err
 		}
@@ -341,22 +341,28 @@ func (p claudeProjector) projectAgents(loop manifest.LoopManifest, binding manif
 	return nil
 }
 
-func (p claudeProjector) patchSettings(loopName string) error {
+func (p claudeProjector) patchSettings(loop manifest.LoopManifest) error {
 	if p.dryRun {
 		p.printf("would patch %s\n", pathJoin(p.paths.configDir, "settings.json"))
 		return nil
 	}
-	return patchClaudeSettings(p.resolve(pathJoin(p.paths.configDir, "settings.json")), p.paths.configDir, "mnemon-"+loopName, p.hookOptions(loopName))
+	return patchClaudeSettings(p.resolve(pathJoin(p.paths.configDir, "settings.json")), p.paths.configDir, "mnemon-"+loop.Name, p.hookOptions(loop))
 }
 
 func (p claudeProjector) unpatchSettings(loopName string) error {
 	return unpatchClaudeSettings(p.resolve(pathJoin(p.paths.configDir, "settings.json")), "mnemon-"+loopName)
 }
 
-func (p claudeProjector) hookOptions(loopName string) claudeHookOptions {
-	remind := p.hostOptions.remind
-	if !p.hostOptions.remindSet {
-		remind = loopName == "memory"
+// hookOptions takes Remind from the loop's DECLARATION (PD4 — no loop.Name default), which the
+// operator --remind still overrides; Nudge/Compact stay claude operator-flag-driven (preserving
+// claude's semantics, where the declared nudge/compact are codex's concern).
+func (p claudeProjector) hookOptions(loop manifest.LoopManifest) claudeHookOptions {
+	remind := false
+	if loop.HookOptions != nil {
+		remind = loop.HookOptions.Remind
+	}
+	if p.hostOptions.remindSet {
+		remind = p.hostOptions.remind
 	}
 	return claudeHookOptions{
 		Remind:  remind,
@@ -425,7 +431,7 @@ func (p claudeProjector) loopOwnership(loop manifest.LoopManifest, binding manif
 		pathJoin(binding.RuntimeSurface, "env.sh"),
 		pathJoin(binding.RuntimeSurface, "GUIDE.md"),
 	}
-	if loop.Name == "memory" || loop.Name == "skill" {
+	if loop.HasHooks() {
 		files = append(files, pathJoin(binding.ProjectionPath, "settings.json"))
 	}
 	for _, runtimeFile := range loop.Assets.RuntimeFiles {

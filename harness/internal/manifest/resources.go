@@ -29,6 +29,23 @@ type LoopManifest struct {
 	// refs ${VAR} / ${VAR:-default}, and safe literals — so an external package can never inject
 	// shell into a sourced file (the env injection lock).
 	Env []EnvVar `json:"env,omitempty"`
+	// HookOptions declares the loop's per-loop hook timing intent (declarative replacement for the
+	// hardcoded codex/claude hookOptions switch; PD4). A host applies it per its own semantics:
+	// codex uses all three bits directly; claude uses Remind as the default (operator --remind
+	// overrides) and keeps nudge/compact operator-flag-driven. Absent = the loop has no hooks.
+	HookOptions *HookOptions `json:"hook_options,omitempty"`
+}
+
+type HookOptions struct {
+	Remind  bool `json:"remind"`
+	Nudge   bool `json:"nudge"`
+	Compact bool `json:"compact"`
+}
+
+// HasHooks reports whether the loop declares any hook timing — the declarative replacement for the
+// projector's `loop.Name == "memory" || loop.Name == "skill"` hooks-enabled gates.
+func (l LoopManifest) HasHooks() bool {
+	return l.HookOptions != nil && (l.HookOptions.Remind || l.HookOptions.Nudge || l.HookOptions.Compact)
 }
 
 type EnvVar struct {

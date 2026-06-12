@@ -34,5 +34,10 @@
   },
   "env": [
     { "name": "MNEMON_MEMORY_LOOP_MAX_NON_EMPTY_LINES", "value": "${MNEMON_MEMORY_LOOP_MAX_NON_EMPTY_LINES:-200}" }
-  ]
+  ],
+  "hook_options": {
+    "remind": true,
+    "nudge": true,
+    "compact": true
+  }
 }
