@@ -68,14 +68,27 @@ discusses secrets ("never store API keys in memory") and a secret-marker substri
 fail-close honest security guidance. Embedded GUIDEs are reviewed code and unscanned; external prose
 is untrusted input and scanned, fail-closed, naming the package path.
 
-## loop.json v2 declarative fields (specified with the projector, PD4)
+## loop.json v2 declarative fields
 
-v2 makes the projector generic by moving per-loop special-casing into closed-set loop.json
-declarations: `hook_options` (the `{remind, nudge, compact}` flags), `env` (host-neutral runtime
-env, names namespaced and values restricted to a closed shell-safe grammar), `store`, and
-`surfaces.mirror` (declarative mirror regeneration). These fields and their grammars are authored
-into this face by PD4, where the projector that consumes them — and the env injection lock — land.
+v2 moves the per-loop HOOK / STORE / ENV / STATE-DIR special-casing out of the projector into
+closed-set loop.json declarations the projector consumes:
+
+- `hook_options` — the `{remind, nudge, compact}` flags; `LoopManifest.HasHooks()` is the
+  declarative replacement for the hardcoded `loop.Name == "memory" || "skill"` hooks-enabled gate.
+- `store` — `{native: true}`, the store-backed gate that was hardcoded to memory.
+- `env` — host-neutral runtime env vars, names namespaced `^MNEMON_…` and values in a CLOSED
+  shell-safe grammar (closed projector vars `${state_dir}`/`${host_skills_dir}`, runtime bash refs,
+  safe literals) — the env injection lock, so an external package can never splice shell into a
+  sourced file.
+- `state_dirs` — loop state directories the projector creates at install (safe relative paths).
+
 The dead `host_adapters` field is removed in the same revision.
+
+**Not yet declarative (deferred — the "投影器特判" residue PD4 left to a later, golden-managed pass):**
+MIRROR regeneration is still kind-hardcoded (`mirror.go` regenerates only `memory` content; there is
+NO `surfaces.mirror` field), and a few host operator actions remain special-cased by loop name
+(skill-view purge, the memory runtime-file skip, memory purge). The projector is generic for
+hooks/store/env/state-dirs, not yet for mirror/purge.
 
 ## Enforcement map (v2)
 

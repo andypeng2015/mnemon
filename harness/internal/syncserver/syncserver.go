@@ -1,6 +1,7 @@
-// Package syncserver is the hub half of Remote Workspace sync (sync-abi-v1): push adjudication
-// against the append-only sync_remote_commits log, pull serving with the ONE scope clamp, and the
-// status counters. It is extracted from the runtime so the standalone hub binary (mnemon-hub) can host
+// Package syncserver is the hub half of Remote Workspace sync (sync-abi-v2; the accept surface is the
+// grant scope, §4): push adjudication against the append-only sync_remote_commits log, pull serving
+// with the ONE scope clamp, and the status counters. It is extracted from the runtime so the
+// standalone hub binary (mnemon-hub) can host
 // the same wire without the runtime: it imports ONLY contract + store (+stdlib) — never channel /
 // runtime / app / hostsurface (the trust-domain import boundary, pinned by a test). Replica
 // authorization enters through the Grants seam; the co-hosted runtime adapts its channel bindings to

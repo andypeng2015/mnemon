@@ -40,7 +40,7 @@ A spec that declares a system-derived form is rejected by name ("system-derived,
 spec-declarable"). New event families are added as a table ROW, not by reshaping the compile path
 — this is the G7 extension point that lets P3's coordination/model-event families exist without
 the grammar fighting them. The `remote_commit` form is the sync-import wire (`sync-abi-v2.md` §6);
-its rule and producer land in P2 PD6.
+its rule and producer landed in PD6 (descriptor-derived import dispatch + the produce surface).
 
 ## Declared kind + required fields
 
@@ -65,15 +65,16 @@ kind's kernel-required fields DERIVE from the spec rather than a parallel hand-w
 
 The mechanism (splitting `KindCatalog` into compiled governance kinds + an assembled declared set,
 and threading the resulting `SchemaGuard` through both the live kernel and replay so a log produced
-under one kind set replays deterministically) lands in PD2. This document fixes the contract; the
-wiring is in the runtime.
+under one kind set replays deterministically) landed in PD2/PD6a. This document fixes the contract;
+the wiring is in the runtime.
 
 ## Reserved namespace (G8)
 
-A declared kind may NOT: be a governance kind (`lease`/`budget`/`receipt`/`coordination`); use the
-`mnemon.` prefix; collide with a first-party event family whose diagnostics share a domain
-(`sync`, `session`, `remote`); or shadow any already-loaded capability on the four axes (name,
-observed type, proposed type, resource kind). External package text remains untrusted input —
+A declared kind may NOT: be a governance kind (`lease`/`budget`/`receipt`/`coordination`); be in the
+reserved `mnemon` namespace (the exact kind `mnemon` or a `mnemon_` prefix — the kind grammar
+`^[a-z][a-z0-9_]*$` admits no dot, so the namespace separator is `_`); collide with a first-party
+event family whose diagnostics share a domain (`sync`, `session`, `remote`); or shadow any
+already-loaded capability on the four axes (name, observed type, proposed type, resource kind). External package text remains untrusted input —
 values scanned by the secret/prompt-injection scanners, identifiers pattern-locked — exactly as in
 v1's external-loader section.
 
