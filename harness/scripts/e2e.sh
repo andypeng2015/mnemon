@@ -437,21 +437,27 @@ run_foo_external() {
 		"$MH" setup --host codex --memory --principal codex@project --control-url http://127.0.0.1:8787 >/dev/null
 		"$MH" setup --host claude-code --memory --principal claude@project --control-url http://127.0.0.1:8899 >/dev/null
 
-		mkdir -p .mnemon/loops/foo/skills/foo-set
-		cat >.mnemon/loops/foo/capability.json <<-'JSONEOF'
+		# Author writes a package DIRECTORY, then registers it via the product front door
+		# (`loop add`) — the minimal-onboarding path (P2): copy under the canonical name + validate
+		# through the same fail-closed boot resolution. No hand-placement into .mnemon/loops.
+		mkdir -p src/foo/skills/foo-set
+		cat >src/foo/capability.json <<-'JSONEOF'
 		{"schema_version":1,"name":"foo","observed_type":"foo.write_candidate.observed",
 		"proposed_type":"foo.write.proposed","resource_kind":"foo","items_field":"items",
 		"fields":[{"name":"text","validators":[{"id":"required","params":{"missing_style":"empty"}}]}],
 		"render":{"content":{"member":"bullet-list","params":{"title":"# Foo","field":"text"}}}}
 		JSONEOF
-		cat >.mnemon/loops/foo/loop.json <<-'JSONEOF'
+		cat >src/foo/loop.json <<-'JSONEOF'
 		{"schema_version":2,"name":"foo",
 		"surfaces":{"projection":[],"observation":[]},
 		"assets":{"guide":"GUIDE.md","env":"env.sh","skills":["skills/foo-set/SKILL.md"],"subagents":[]}}
 		JSONEOF
-		printf '# Foo\n\nA declarative external loop package.\n' >.mnemon/loops/foo/GUIDE.md
-		printf '#!/usr/bin/env bash\n' >.mnemon/loops/foo/env.sh
-		printf 'Use this to record a foo. Reject vague entries.\n' >.mnemon/loops/foo/skills/foo-set/SKILL.md
+		printf '# Foo\n\nA declarative external loop package.\n' >src/foo/GUIDE.md
+		printf '#!/usr/bin/env bash\n' >src/foo/env.sh
+		printf 'Use this to record a foo. Reject vague entries.\n' >src/foo/skills/foo-set/SKILL.md
+		"$MH" loop add src/foo >"$WORK/foo-add.log" 2>&1 || { echo "loop add foo failed"; cat "$WORK/foo-add.log"; exit 1; }
+		[ -f .mnemon/loops/foo/capability.json ] || { echo "loop add did not place foo under .mnemon/loops"; exit 1; }
+		[ -f .mnemon/loops/foo/skills/foo-set/SKILL.md ] || { echo "loop add did not copy the package subtree"; exit 1; }
 
 		# Project foo to BOTH hosts.
 		"$MH" setup --host codex --loop foo --principal codex@project --control-url http://127.0.0.1:8787 >"$WORK/foo-codex.log" 2>&1 \

@@ -2,9 +2,12 @@ package app
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/assets"
@@ -65,6 +68,91 @@ func (h *Harness) LoopValidate() ([]string, error) {
 		lines = append(lines, fmt.Sprintf("external capability %s: OK", name))
 	}
 	return lines, nil
+}
+
+// LoopAdd registers an external capability package from srcDir into the project's external loop root
+// (<root>/.mnemon/loops/<name>). It is the "write a directory -> register it" front door (P2 minimal
+// onboarding): the author writes a package dir, `loop add` places it under the canonical name and
+// validates it through the SAME fail-closed boot resolution `local run` uses (capability.ResolveCatalog
+// — symlink screen + LoadExternal + four-axis shadowing merge). A package that would refuse boot is
+// rejected here and the copy is rolled back, so a half-added package never lingers. The canonical name
+// is the spec's `name` (the external loader requires the directory name to equal it); an existing
+// target is NOT overwritten (remove it first to replace). Returns the registered name.
+func (h *Harness) LoopAdd(srcDir string) (string, error) {
+	raw, err := os.ReadFile(filepath.Join(srcDir, "capability.json"))
+	if err != nil {
+		return "", fmt.Errorf("read %s/capability.json: %w", srcDir, err)
+	}
+	var spec struct {
+		Name string `json:"name"`
+	}
+	if err := json.Unmarshal(raw, &spec); err != nil {
+		return "", fmt.Errorf("parse %s/capability.json: %w", srcDir, err)
+	}
+	if spec.Name == "" {
+		return "", fmt.Errorf("%s/capability.json has no name", srcDir)
+	}
+	target := filepath.Join(h.root, ".mnemon", "loops", spec.Name)
+	srcAbs, _ := filepath.Abs(srcDir)
+	tgtAbs, _ := filepath.Abs(target)
+	if srcAbs == tgtAbs {
+		return "", fmt.Errorf("loop %q is already in place at %s", spec.Name, target)
+	}
+	if _, err := os.Stat(target); err == nil {
+		return "", fmt.Errorf("loop %q already added (%s exists); remove it first to replace", spec.Name, target)
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o700); err != nil {
+		return "", err
+	}
+	if err := copyTree(srcDir, target); err != nil {
+		_ = os.RemoveAll(target)
+		return "", fmt.Errorf("copy package: %w", err)
+	}
+	// Validate through the exact boot resolution; roll the copy back on any refusal so a rejected
+	// package never lingers as a half-added, boot-sinking directory.
+	if _, err := capability.ResolveCatalog(h.root, kernel.DefaultSchemaGuard().Required); err != nil {
+		_ = os.RemoveAll(target)
+		return "", fmt.Errorf("loop %q rejected (fail-closed): %w", spec.Name, err)
+	}
+	return spec.Name, nil
+}
+
+// copyTree copies a package directory tree, rejecting symlinks (fail-closed: the external loader
+// screens them anyway, so refuse at copy rather than place a tree that cannot boot). Regular files
+// and directories only; file modes are preserved.
+func copyTree(src, dst string) error {
+	return filepath.WalkDir(src, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.Type()&fs.ModeSymlink != 0 {
+			return fmt.Errorf("symlink not allowed in a loop package: %s", path)
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		out := filepath.Join(dst, rel)
+		if d.IsDir() {
+			info, err := d.Info()
+			if err != nil {
+				return err
+			}
+			return os.MkdirAll(out, info.Mode().Perm()|0o700)
+		}
+		if !d.Type().IsRegular() {
+			return fmt.Errorf("not a regular file in a loop package: %s", path)
+		}
+		info, err := d.Info()
+		if err != nil {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(out, data, info.Mode().Perm())
+	})
 }
 
 // LoopProject runs the product projector action against a supported host
