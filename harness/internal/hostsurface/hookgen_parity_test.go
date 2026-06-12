@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"fmt"
 	"testing"
+
+	"github.com/mnemon-dev/mnemon/harness/internal/assets"
 )
 
 var (
@@ -45,7 +47,7 @@ func TestGeneratedHooksMatchGoldens(t *testing.T) {
 		for _, loop := range []string{"memory", "skill"} {
 			for _, timing := range []string{"prime", "remind", "nudge", "compact"} {
 				key := host + "/" + loop + "/" + timing
-				content, err := RenderHook(loop, host, timing)
+				content, err := RenderHook(assets.FS, loop, host, timing)
 				if err != nil {
 					t.Fatalf("render %s: %v", key, err)
 				}
@@ -66,16 +68,16 @@ func TestHookgenDeterministic(t *testing.T) {
 	for _, host := range hookgenHosts {
 		for _, loop := range hookgenLoops {
 			for _, timing := range hookTimings {
-				first, err := RenderHook(loop, host, timing)
+				first, err := RenderHook(assets.FS, loop, host, timing)
 				if err != nil {
-					t.Fatalf("RenderHook(%s, %s, %s) first render: %v", loop, host, timing, err)
+					t.Fatalf("RenderHook(assets.FS, %s, %s, %s) first render: %v", loop, host, timing, err)
 				}
-				second, err := RenderHook(loop, host, timing)
+				second, err := RenderHook(assets.FS, loop, host, timing)
 				if err != nil {
-					t.Fatalf("RenderHook(%s, %s, %s) second render: %v", loop, host, timing, err)
+					t.Fatalf("RenderHook(assets.FS, %s, %s, %s) second render: %v", loop, host, timing, err)
 				}
 				if first != second {
-					t.Fatalf("RenderHook(%s, %s, %s) is not deterministic:\n%s", loop, host, timing, describeDivergence(first, second))
+					t.Fatalf("RenderHook(assets.FS, %s, %s, %s) is not deterministic:\n%s", loop, host, timing, describeDivergence(first, second))
 				}
 			}
 		}
@@ -153,13 +155,13 @@ func TestDecodeHostMechanicsFailClosed(t *testing.T) {
 // RenderHook itself must fail closed on unknown coordinates: a misspelled timing or loop cannot
 // fall back to an empty hook.
 func TestRenderHookFailClosed(t *testing.T) {
-	if _, err := RenderHook("memory", "codex", "boot"); err == nil {
+	if _, err := RenderHook(assets.FS, "memory", "codex", "boot"); err == nil {
 		t.Error("unknown timing accepted")
 	}
-	if _, err := RenderHook("nonexistent", "codex", "prime"); err == nil {
+	if _, err := RenderHook(assets.FS, "nonexistent", "codex", "prime"); err == nil {
 		t.Error("unknown loop accepted")
 	}
-	if _, err := RenderHook("memory", "nonexistent", "prime"); err == nil {
+	if _, err := RenderHook(assets.FS, "memory", "nonexistent", "prime"); err == nil {
 		t.Error("unknown host accepted")
 	}
 }

@@ -40,6 +40,46 @@ type projectorCore struct {
 	stdout            io.Writer
 	stderr            io.Writer
 	managed           *managedState // no-clobber projection state for managed definition files
+	// assetFS resolves a loop's projected assets: the embedded asset FS overlaid with external
+	// packages under .mnemon/loops, so a read of "loops/<name>/<rel>" serves the embedded asset
+	// when present, else the external package's file (PD4 AssetRoot). Host mechanics ("hosts/...")
+	// and hook fragments are NEVER served externally — those reads stay on assets.FS directly. Nil
+	// (zero-value test projectors) falls back to the embedded assets.FS.
+	assetFS fs.FS
+}
+
+// loopAssetOverlay overlays the embedded asset FS with external loop packages. A read of
+// "loops/<name>/<rel>" tries embedded first (first-party loops), then the external package's
+// "<name>/<rel>" under .mnemon/loops. Any other path (hosts/..., fragments) resolves embedded-only.
+type loopAssetOverlay struct {
+	embedded fs.FS
+	external fs.FS // os.DirFS(projectRoot/.mnemon/loops); reads fail closed when the dir is absent
+}
+
+func (o loopAssetOverlay) Open(name string) (fs.File, error) {
+	f, err := o.embedded.Open(name)
+	if err == nil {
+		return f, nil
+	}
+	if o.external != nil {
+		if rest, ok := strings.CutPrefix(name, "loops/"); ok {
+			return o.external.Open(rest)
+		}
+	}
+	return f, err
+}
+
+func newLoopAssetOverlay(projectRoot string) fs.FS {
+	return loopAssetOverlay{embedded: assets.FS, external: os.DirFS(filepath.Join(projectRoot, ".mnemon", "loops"))}
+}
+
+// assets resolves the loop-asset FS (overlay), falling back to the embedded assets.FS for
+// zero-value projectors used in unit tests.
+func (c projectorCore) assets() fs.FS {
+	if c.assetFS != nil {
+		return c.assetFS
+	}
+	return assets.FS
 }
 
 // pathJoin is the package's display-path primitive: forward-slash joins for the host
@@ -66,7 +106,7 @@ func (c projectorCore) exists(displayPath string) bool {
 // copyFile reads src from the embedded asset FS (a forward-slash key like "loops/<loop>/GUIDE.md")
 // and writes it to the on-disk host surface at dstDisplay.
 func (c projectorCore) copyFile(src, dstDisplay string, mode os.FileMode) error {
-	data, err := fs.ReadFile(assets.FS, src)
+	data, err := fs.ReadFile(c.assets(), src)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", src, err)
 	}
@@ -183,7 +223,7 @@ func (c projectorCore) removeHostManifestLoop(loopName string) error {
 // cannot reach an installed workspace, because loop validate and projectHooks both fail closed on
 // it first.
 func (c projectorCore) hostHookExists(loopName, phase string) bool {
-	timings, err := DeclaredHookTimings(loopName)
+	timings, err := DeclaredHookTimings(c.assets(), loopName)
 	if err != nil {
 		return false
 	}
@@ -308,15 +348,15 @@ func (p projectorCore) ensureStore(ctx context.Context, storeName string) error 
 // Render errors fail the install closed — a half-migrated loop must never silently install with
 // zero hooks (the legacy code skipped absent asset files, which would have masked exactly that).
 func (p projectorCore) projectHooks(loop manifest.LoopManifest, binding manifest.BindingManifest) error {
-	timings, err := DeclaredHookTimings(loop.Name)
+	timings, err := DeclaredHookTimings(p.assets(), loop.Name)
 	if err != nil {
 		return fmt.Errorf("hook intents for %s: %w", loop.Name, err)
 	}
-	if len(timings) == 0 && hasHookIntents(loop.Name) {
+	if len(timings) == 0 && hasHookIntents(p.assets(), loop.Name) {
 		return fmt.Errorf("loop %s declares hook intents but renders zero hook timings: refusing to install zero hooks", loop.Name)
 	}
 	for _, phase := range timings {
-		content, err := RenderHook(loop.Name, p.host, phase)
+		content, err := RenderHook(p.assets(), loop.Name, p.host, phase)
 		if err != nil {
 			return fmt.Errorf("render hook %s/%s for %s: %w", loop.Name, phase, p.host, err)
 		}

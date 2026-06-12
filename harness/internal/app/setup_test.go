@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mnemon-dev/mnemon/harness/internal/assets"
 	"github.com/mnemon-dev/mnemon/harness/internal/hostsurface"
 )
 
@@ -270,7 +271,7 @@ func TestAgentIntegrationAssetsDoNotReferenceRemoteWorkspace(t *testing.T) {
 	for _, host := range []string{"codex", "claude-code"} {
 		for _, loop := range []string{"memory", "skill"} {
 			for _, timing := range []string{"prime", "remind", "nudge", "compact"} {
-				content, err := hostsurface.RenderHook(loop, host, timing)
+				content, err := hostsurface.RenderHook(assets.FS, loop, host, timing)
 				if err != nil {
 					t.Fatalf("render %s/%s/%s: %v", host, loop, timing, err)
 				}

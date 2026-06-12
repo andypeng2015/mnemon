@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/mnemon-dev/mnemon/harness/internal/assets"
 	"github.com/mnemon-dev/mnemon/harness/internal/contract"
 )
 
@@ -65,7 +64,7 @@ func (c projectorCore) beginManaged(loopName string) {
 // the no-clobber policy (classifyManaged): it writes + records the hash when the file is ours to
 // update, or preserves + reports when the user has edited it.
 func (c projectorCore) projectManaged(src, dstDisplay string, mode os.FileMode) error {
-	desired, err := fs.ReadFile(assets.FS, src)
+	desired, err := fs.ReadFile(c.assets(), src)
 	if err != nil {
 		return fmt.Errorf("read %s: %w", src, err)
 	}

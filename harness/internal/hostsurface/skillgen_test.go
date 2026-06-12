@@ -61,7 +61,7 @@ func TestPayloadContractTokenCoverage(t *testing.T) {
 	for _, tc := range payloadContractSkills {
 		t.Run(tc.loop+"/"+tc.skill, func(t *testing.T) {
 			spec, tmpl := loadContractFixture(t, tc.loop, tc.skill, tc.capName)
-			rendered, err := RenderPayloadContract(tc.loop, tc.skill)
+			rendered, err := RenderPayloadContract(assets.FS, tc.loop, tc.skill)
 			if err != nil {
 				t.Fatalf("render: %v", err)
 			}
@@ -241,19 +241,19 @@ func TestPayloadContractEnumDocsFailClosed(t *testing.T) {
 // A skill with a marker but no template.json must fail to render (the projector turns this into a
 // failed install rather than projecting a literal marker).
 func TestPayloadContractMissingTemplateFailsClosed(t *testing.T) {
-	if _, err := RenderPayloadContract("memory", "memory-get"); err == nil {
+	if _, err := RenderPayloadContract(assets.FS, "memory", "memory-get"); err == nil {
 		t.Fatal("a skill without template.json must not render a contract")
 	}
 }
 
 func TestPayloadContractDeterministic(t *testing.T) {
 	for _, tc := range payloadContractSkills {
-		first, err := RenderPayloadContract(tc.loop, tc.skill)
+		first, err := RenderPayloadContract(assets.FS, tc.loop, tc.skill)
 		if err != nil {
 			t.Fatalf("render %s/%s: %v", tc.loop, tc.skill, err)
 		}
 		for i := 0; i < 5; i++ {
-			again, err := RenderPayloadContract(tc.loop, tc.skill)
+			again, err := RenderPayloadContract(assets.FS, tc.loop, tc.skill)
 			if err != nil {
 				t.Fatalf("re-render %s/%s: %v", tc.loop, tc.skill, err)
 			}
@@ -309,7 +309,7 @@ func TestClaudeProjectedSkillExpandsPayloadContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	rendered, err := RenderPayloadContract("memory", "memory-set")
+	rendered, err := RenderPayloadContract(assets.FS, "memory", "memory-set")
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}

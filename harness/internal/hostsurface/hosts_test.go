@@ -4,6 +4,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/mnemon-dev/mnemon/harness/internal/assets"
 )
 
 // bareMnemonCLI matches an invocation of the legacy `mnemon` binary (a space-delimited command), but
@@ -20,7 +22,7 @@ func TestHostPrimesRouteThroughChannel(t *testing.T) {
 	}
 	for _, pr := range primes {
 		p := pr.host + "/" + pr.loop + "/prime"
-		content, err := RenderHook(pr.loop, pr.host, "prime")
+		content, err := RenderHook(assets.FS, pr.loop, pr.host, "prime")
 		if err != nil {
 			t.Fatalf("render %s: %v", p, err)
 		}

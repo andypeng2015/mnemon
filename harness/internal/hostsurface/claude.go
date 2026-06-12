@@ -81,6 +81,7 @@ func newClaudeProjector(opts ClaudeOptions) (claudeProjector, []string, error) {
 			stdout:      opts.Stdout,
 			stderr:      opts.Stderr,
 			managed:     newManagedState(),
+			assetFS:     newLoopAssetOverlay(projectRoot),
 
 			skillsDirOverride: hostOptions.hostSkillsDir,
 			purgeMemory:       hostOptions.purgeMemory,
@@ -448,7 +449,7 @@ func (p claudeProjector) loopOwnership(loop manifest.LoopManifest, binding manif
 	}
 	// Ownership enumerates the generated hook shells from the same intents source projectHooks
 	// writes them from, so the audit stays truthful to what install can produce.
-	hookTimings, _ := DeclaredHookTimings(loop.Name)
+	hookTimings, _ := DeclaredHookTimings(p.assets(), loop.Name)
 	for _, phase := range hookTimings {
 		hook := pathJoin(binding.ProjectionPath, "hooks", "mnemon-"+loop.Name, phase+".sh")
 		if p.exists(hook) || p.hostHookExists(loop.Name, phase) {

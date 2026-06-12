@@ -125,14 +125,14 @@ func validateContractLine(text, where string) error {
 // RenderPayloadContract renders the payload-contract section for loops/<loop>/skills/<skill>:
 // template.json supplies the teaching data, capability.LoadSpec the mechanical truth. It is the
 // generator entry point — pure with respect to everything except assets.FS.
-func RenderPayloadContract(loop, skill string) (string, error) {
+func RenderPayloadContract(fsys fs.FS, loop, skill string) (string, error) {
 	if !markerNamePattern.MatchString(loop) {
 		return "", fmt.Errorf("invalid loop name %q", loop)
 	}
 	if !markerNamePattern.MatchString(skill) {
 		return "", fmt.Errorf("invalid skill id %q", skill)
 	}
-	raw, err := fs.ReadFile(assets.FS, "loops/"+loop+"/skills/"+skill+"/template.json")
+	raw, err := fs.ReadFile(fsys, "loops/"+loop+"/skills/"+skill+"/template.json")
 	if err != nil {
 		return "", fmt.Errorf("read skill template for %s/%s: %w", loop, skill, err)
 	}
@@ -342,14 +342,14 @@ func stringInSlice(values []string, want string) bool {
 // their canonical asset; a marker whose contract cannot render fails the install closed — a
 // SKILL.md must never project with a literal marker where its payload mechanics belong.
 func (c projectorCore) canonicalSkillContent(loop manifest.LoopManifest, skill string) ([]byte, error) {
-	content, err := fs.ReadFile(assets.FS, c.loopAsset(loop, skill))
+	content, err := fs.ReadFile(c.assets(), c.loopAsset(loop, skill))
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", skill, err)
 	}
 	if !bytes.Contains(content, []byte(payloadContractMarker)) {
 		return content, nil
 	}
-	section, err := RenderPayloadContract(loop.Name, skillID(skill))
+	section, err := RenderPayloadContract(c.assets(), loop.Name, skillID(skill))
 	if err != nil {
 		return nil, fmt.Errorf("render payload contract for %s/%s: %w", loop.Name, skillID(skill), err)
 	}

@@ -25,7 +25,7 @@ import (
 // RenderHook renders the hook shell for (loop, host, timing) from the embedded assets.
 // It is the generator entry point: pure with respect to everything except assets.FS,
 // which is compiled into the binary.
-func RenderHook(loop, host, timing string) (string, error) {
+func RenderHook(fsys fs.FS, loop, host, timing string) (string, error) {
 	if !markerNamePattern.MatchString(loop) {
 		return "", fmt.Errorf("invalid loop name %q", loop)
 	}
@@ -35,7 +35,7 @@ func RenderHook(loop, host, timing string) (string, error) {
 	if !isHookTiming(timing) {
 		return "", fmt.Errorf("unknown hook timing %q (closed set: %s)", timing, strings.Join(hookTimings, "|"))
 	}
-	rawIntents, err := fs.ReadFile(assets.FS, "loops/"+loop+"/hooks/intents.json")
+	rawIntents, err := fs.ReadFile(fsys, "loops/"+loop+"/hooks/intents.json")
 	if err != nil {
 		return "", fmt.Errorf("read hook intents for loop %s: %w", loop, err)
 	}
@@ -566,11 +566,11 @@ func (r *hookRender) includeBlock(fragment string) (string, error) {
 // DeclaredHookTimings returns the lifecycle timings the loop's intents declare, in canonical
 // order. A loop without an intents file is a hook-less loop (nil, nil) — legitimate, not an
 // error; a present-but-invalid intents file fails closed.
-func DeclaredHookTimings(loop string) ([]string, error) {
+func DeclaredHookTimings(fsys fs.FS, loop string) ([]string, error) {
 	if !markerNamePattern.MatchString(loop) {
 		return nil, fmt.Errorf("invalid loop name %q", loop)
 	}
-	raw, err := fs.ReadFile(assets.FS, "loops/"+loop+"/hooks/intents.json")
+	raw, err := fs.ReadFile(fsys, "loops/"+loop+"/hooks/intents.json")
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
@@ -592,11 +592,11 @@ func DeclaredHookTimings(loop string) ([]string, error) {
 
 // hasHookIntents reports whether the embedded loop ships a hooks/intents.json declaration — the
 // signal that the loop is supposed to install hooks, backing the zero-hook refuse-install guard.
-func hasHookIntents(loop string) bool {
+func hasHookIntents(fsys fs.FS, loop string) bool {
 	if !markerNamePattern.MatchString(loop) {
 		return false
 	}
-	_, err := fs.Stat(assets.FS, "loops/"+loop+"/hooks/intents.json")
+	_, err := fs.Stat(fsys, "loops/"+loop+"/hooks/intents.json")
 	return err == nil
 }
 
@@ -631,7 +631,7 @@ func EmbeddedHookUniverse() (hosts, loops []string, err error) {
 func ValidateGeneratedHooks(hosts, loops []string) ([]string, error) {
 	var lines []string
 	for _, loop := range loops {
-		timings, err := DeclaredHookTimings(loop)
+		timings, err := DeclaredHookTimings(assets.FS, loop)
 		if err != nil {
 			return nil, fmt.Errorf("loop %s: %w", loop, err)
 		}
@@ -640,7 +640,7 @@ func ValidateGeneratedHooks(hosts, loops []string) ([]string, error) {
 		}
 		for _, host := range hosts {
 			for _, timing := range timings {
-				if _, err := RenderHook(loop, host, timing); err != nil {
+				if _, err := RenderHook(assets.FS, loop, host, timing); err != nil {
 					return nil, fmt.Errorf("render %s/%s/%s: %w", host, loop, timing, err)
 				}
 			}
