@@ -328,10 +328,10 @@ func (p codexProjector) uninstallLoop(loop manifest.LoopManifest) error {
 	return nil
 }
 
+// projectRuntimeMirrors seeds each declared runtime_file as a managed mirror in the runtime surface
+// (PD4 — no loop.Name gate; the declared runtime_files list drives it, so memory seeds MEMORY.md and
+// a loop declaring none is a no-op).
 func (p codexProjector) projectRuntimeMirrors(loop manifest.LoopManifest, binding manifest.BindingManifest) error {
-	if loop.Name != "memory" {
-		return nil
-	}
 	for _, runtimeFile := range loop.Assets.RuntimeFiles {
 		// Hash-recorded too: seeds the mirror on first install, preserves a live (prime-regenerated) or
 		// user-edited mirror on re-setup and uninstall instead of clobbering/deleting it.
