@@ -4,6 +4,11 @@
 // main: it imports internal/app and shares the boot face in app/localboot.go with `local run`,
 // so flags, banner, T1 loopback floor, and serve behavior stay alias-identical. One daemon per
 // project store (the store's single-writer flock enforces it).
+//
+// mnemond is a real daemon (P2 / PD8): `up` starts the serve loop as a detached background
+// process (pidfile + log under .mnemon/harness/local/), `down` stops it, `status` reports it,
+// `logs` shows its output. The bare/`serve` invocation is the FOREGROUND serve the daemon child
+// runs — and the same foreground face `mnemon-harness local run` keeps for debugging.
 package main
 
 import (
@@ -15,6 +20,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/app"
 )
@@ -28,11 +34,46 @@ func main() {
 	}
 }
 
-// run is the whole daemon behind a testable seam: parse the `local run`-equivalent flag face,
-// resolve the SAME boot chain (app.ResolveLocalBoot: setup config discovery, endpoint-derived
-// listen address, T1 loopback validation), print the same banner, and serve Local Mnemon until
-// ctx cancels.
+// run dispatches the daemon lifecycle verbs (up/down/status/logs) and otherwise FOREGROUND-serves
+// (bare flags, or an explicit `serve` — what `up` re-execs as the detached child). Keeping bare flags
+// = foreground serve preserves the `local run` alias contract and the boot/T1 smoke tests.
 func run(ctx context.Context, args []string, out, errw io.Writer) error {
+	if len(args) > 0 {
+		switch args[0] {
+		case "up":
+			return daemonUp(args[1:], out, errw)
+		case "down":
+			return daemonDown(args[1:], out, errw)
+		case "status":
+			return daemonStatus(args[1:], out, errw)
+		case "logs":
+			return daemonLogs(args[1:], out, errw)
+		case "serve":
+			args = args[1:]
+		}
+	}
+	cfg, err := parseServe(args, errw)
+	if err != nil {
+		return err
+	}
+	return serveForeground(ctx, cfg, out)
+}
+
+// serveConfig is the resolved foreground-serve plan, shared by the foreground path and the `up`
+// pre-flight (so `up` reports setup/T1 errors in the foreground before it detaches).
+type serveConfig struct {
+	projectRoot         string
+	listenAddr          string
+	boot                app.LocalBoot
+	ignoreExternal      bool
+	allowInsecureRemote bool
+	syncInterval        time.Duration
+}
+
+// parseServe parses the `local run`-equivalent flag face and resolves the SAME boot chain
+// (ResolveLocalBoot, endpoint-derived listen address, T1 loopback validation), returning the plan or
+// the first boot/validation error — the seam both `serve` and `up` share.
+func parseServe(args []string, errw io.Writer) (serveConfig, error) {
 	fs := flag.NewFlagSet("mnemond", flag.ContinueOnError)
 	fs.SetOutput(errw)
 	root := fs.String("root", ".", "project root")
@@ -42,7 +83,7 @@ func run(ctx context.Context, args []string, out, errw io.Writer) error {
 	ignoreExternal := fs.Bool("ignore-external", false, "boot the embedded-only capability catalog, ignoring external packages under .mnemon/loops (each ignored package is named on stderr)")
 	allowInsecureRemote := fs.Bool("allow-insecure-remote", false, "let the background sync worker use a plaintext http:// Remote Workspace endpoint with a non-loopback host (T2: fail-closed by default)")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return serveConfig{}, err
 	}
 	projectRoot := "."
 	if *root != "" {
@@ -50,7 +91,7 @@ func run(ctx context.Context, args []string, out, errw io.Writer) error {
 	}
 	boot, err := app.ResolveLocalBoot(projectRoot, "", "")
 	if err != nil {
-		return err
+		return serveConfig{}, err
 	}
 	listenAddr := *addr
 	addrChanged := false
@@ -63,17 +104,30 @@ func run(ctx context.Context, args []string, out, errw io.Writer) error {
 		listenAddr = app.ListenAddrFromEndpoint(boot.Config.Endpoint, *addr)
 	}
 	if err := app.ValidateListenAddr(listenAddr, *allowNonLoopback); err != nil {
-		return err
+		return serveConfig{}, err
 	}
+	return serveConfig{
+		projectRoot:         projectRoot,
+		listenAddr:          listenAddr,
+		boot:                boot,
+		ignoreExternal:      *ignoreExternal,
+		allowInsecureRemote: *allowInsecureRemote,
+		syncInterval:        *syncInterval,
+	}, nil
+}
+
+// serveForeground runs the governed HTTP server in the foreground until ctx cancels — the body of
+// `mnemond serve` and the process the daemon child runs.
+func serveForeground(ctx context.Context, cfg serveConfig, out io.Writer) error {
 	fmt.Fprintln(out, "Local Mnemon: ready")
-	fmt.Fprintln(out, "Remote Workspace: "+app.RemoteWorkspaceStatus(projectRoot))
-	return app.RunLocalHTTPServerWithBindings(ctx, listenAddr, boot.StorePath, boot.Loaded, app.ServeOptions{
-		Loops:               boot.Config.Loops,
-		Hosts:               boot.Config.Hosts,
-		ProjectRoot:         projectRoot,
-		MirrorMode:          boot.Config.MirrorMode,
-		IgnoreExternal:      *ignoreExternal,
-		AllowInsecureRemote: *allowInsecureRemote,
-		SyncInterval:        *syncInterval,
+	fmt.Fprintln(out, "Remote Workspace: "+app.RemoteWorkspaceStatus(cfg.projectRoot))
+	return app.RunLocalHTTPServerWithBindings(ctx, cfg.listenAddr, cfg.boot.StorePath, cfg.boot.Loaded, app.ServeOptions{
+		Loops:               cfg.boot.Config.Loops,
+		Hosts:               cfg.boot.Config.Hosts,
+		ProjectRoot:         cfg.projectRoot,
+		MirrorMode:          cfg.boot.Config.MirrorMode,
+		IgnoreExternal:      cfg.ignoreExternal,
+		AllowInsecureRemote: cfg.allowInsecureRemote,
+		SyncInterval:        cfg.syncInterval,
 	}, io.Discard)
 }
