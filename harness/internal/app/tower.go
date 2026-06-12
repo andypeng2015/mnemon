@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/mnemon-dev/mnemon/harness/internal/channel"
@@ -174,4 +175,44 @@ func towerItemStrings(fields map[string]any, itemsField, field string) []string 
 		}
 	}
 	return out
+}
+
+// ReobserveCandidate is the Tower's ONLY write action (P6b): it resolves an INBOX escalation by
+// RE-OBSERVING the underlying candidate as the operator (a control-agent principal) — the action that
+// clears a high-risk operator-gate denial (RiskOperatorGate exempts the control-agent). It is NOT
+// "approve a proposal": no such kernel verb exists, and the wire rejects *.proposed/*.diagnostic. The
+// original observed candidate is recovered from the durable event log by the escalation's CausedBy id
+// and re-emitted through the SAME Ingest path under the operator (so the operator's binding governs
+// it, G9). It fails loud if CausedBy does not name an OBSERVED candidate — the Tower never even
+// attempts to ingest a trusted internal event. Idempotent per escalation (the re-observe ExternalID
+// derives from CausedBy, so re-observing the same escalation twice dedups).
+func ReobserveCandidate(rt *runtime.Runtime, operator contract.ActorID, escalation InboxRow) error {
+	if escalation.CausedBy == "" {
+		return fmt.Errorf("tower: escalation %q has no causing candidate to re-observe", escalation.Domain)
+	}
+	events, err := rt.PendingEvents(0)
+	if err != nil {
+		return err
+	}
+	var candidate *contract.Event
+	for i := range events {
+		if events[i].ID == escalation.CausedBy {
+			candidate = &events[i]
+			break
+		}
+	}
+	if candidate == nil {
+		return fmt.Errorf("tower: candidate event %q not found in the log", escalation.CausedBy)
+	}
+	// T3: re-observe ONLY an observed candidate — never a trusted internal event. A *.proposed or
+	// *.diagnostic does not end in ".observed"; fail loud here so the Tower never even tries (the wire
+	// would reject it anyway), keeping the "no backdoor ingest" guarantee explicit at the facade.
+	if !strings.HasSuffix(candidate.Type, ".observed") {
+		return fmt.Errorf("tower: refuse to re-observe non-candidate event type %q", candidate.Type)
+	}
+	_, _, err = rt.API().Ingest(operator, contract.ObservationEnvelope{
+		ExternalID: "tower-reobserve:" + escalation.CausedBy,
+		Event:      contract.Event{Type: candidate.Type, Payload: candidate.Payload, CorrelationID: candidate.CorrelationID},
+	})
+	return err
 }
