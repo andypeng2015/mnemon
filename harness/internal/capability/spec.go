@@ -57,7 +57,7 @@ type SyncSpec struct {
 }
 
 // syncMergeStrategies is the CLOSED set of remote-import merge strategies a spec may select.
-var syncMergeStrategies = map[string]bool{"entry-dedup": true, "declaration-dedup": true}
+var syncMergeStrategies = map[string]bool{"entry-dedup": true, "declaration-dedup": true, "item-dedup": true}
 
 // riskTiers is the CLOSED set of governance risk tiers a spec may select (empty = low = no gate).
 var riskTiers = map[string]bool{"low": true, "mid": true, "high": true}
@@ -225,7 +225,7 @@ func FromSpec(spec CapabilitySpec) (Capability, error) {
 	if spec.Sync != nil {
 		sync = SyncOptions{Importable: spec.Sync.Importable, Merge: spec.Sync.Merge}
 		if sync.Importable && !syncMergeStrategies[sync.Merge] {
-			return Capability{}, fmt.Errorf("capability spec %q: sync merge %q not in the closed set (entry-dedup|declaration-dedup)", spec.Name, sync.Merge)
+			return Capability{}, fmt.Errorf("capability spec %q: sync merge %q not in the closed set (entry-dedup|declaration-dedup|item-dedup)", spec.Name, sync.Merge)
 		}
 		if !sync.Importable && sync.Merge != "" {
 			return Capability{}, fmt.Errorf("capability spec %q: sync merge %q set on a non-importable kind", spec.Name, sync.Merge)

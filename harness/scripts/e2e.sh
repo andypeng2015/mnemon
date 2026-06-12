@@ -562,9 +562,9 @@ run_sync_pair() {
 	  "schema_version": 1,
 	  "replicas": [
 	    {"principal": "replica-a@hub", "credential_ref": "replica-a.token",
-	     "scopes": [{"kind": "memory", "id": "project"}, {"kind": "skill", "id": "project"}, {"kind": "journal", "id": "project"}]},
+	     "scopes": [{"kind": "memory", "id": "project"}, {"kind": "skill", "id": "project"}, {"kind": "journal", "id": "project"}, {"kind": "assignment", "id": "project"}]},
 	    {"principal": "replica-b@hub", "credential_ref": "replica-b.token",
-	     "scopes": [{"kind": "memory", "id": "project"}, {"kind": "journal", "id": "project"}]}
+	     "scopes": [{"kind": "memory", "id": "project"}, {"kind": "journal", "id": "project"}, {"kind": "assignment", "id": "project"}]}
 	  ]
 	}
 	JSON
@@ -604,6 +604,11 @@ run_sync_pair() {
 		"$MH" control observe --addr http://127.0.0.1:8787 --principal codex@project --token-file "$tok" \
 			--type journal.write_candidate.observed --external-id jp1 \
 			--payload '{"content":"journal entry from replica A","source":"user","confidence":"high"}' >/dev/null
+		# assignment (first-party coordination kind, item-dedup merge): the §577 generic append-merge
+		# syncs a kind whose items carry arbitrary fields (scope/ttl/assignee), preserving them all.
+		"$MH" control observe --addr http://127.0.0.1:8787 --principal codex@project --token-file "$tok" \
+			--type assignment.write_candidate.observed --external-id ap1 \
+			--payload '{"scope":"assignment from replica A","ttl":"2h","assignee":"codex@impl","evidence":"ticket-7"}' >/dev/null
 	) || fail "replica A flow failed (see $WORK/run-sync-a.log / $WORK/mnemon-hub.log)"
 	apid="$(cat "$WORK/sync-a.pid")"
 
@@ -616,21 +621,22 @@ run_sync_pair() {
 			--token-file "$hubdir/replica-b.token" --ca-file "$tlsdir/cert.pem" >/dev/null
 		"$MH" local run --sync-interval 100ms >"$WORK/run-sync-b.log" 2>&1 &
 		echo $! >"$WORK/sync-b.pid"
-		local up=0 i seen=0 jseen=0
+		local up=0 i seen=0 jseen=0 aseen=0
 		for i in $(seq 1 60); do
 			"$MH" control status --addr http://127.0.0.1:8899 --principal codex@project --token-file "$tok" >/dev/null 2>&1 && { up=1; break; }
 			sleep 0.1
 		done
 		[ "$up" = 1 ] || { cat "$WORK/run-sync-b.log"; exit 1; }
 		# A worker pushes -> hub -> B worker pulls -> import re-enters intake -> governed pull sees it.
-		# Both the embedded memory entry AND the external journal entry must arrive — the journal arm
-		# proves the descriptor-derived sync path carries a kind the platform code never names.
+		# memory (entry-dedup) + journal (external, entry-dedup) + assignment (coordination, item-dedup)
+		# must all arrive — three kinds, three descriptor-selected merge strategies, no kind literal.
 		for i in $(seq 1 100); do
 			local bpull
 			bpull="$("$MH" control pull --json --addr http://127.0.0.1:8899 --principal codex@project --token-file "$tok" 2>/dev/null)"
 			case "$bpull" in *"sync pair payload from replica A"*) seen=1 ;; esac
 			case "$bpull" in *"journal entry from replica A"*) jseen=1 ;; esac
-			[ "$seen" = 1 ] && [ "$jseen" = 1 ] && break
+			case "$bpull" in *"assignment from replica A"*) aseen=1 ;; esac
+			[ "$seen" = 1 ] && [ "$jseen" = 1 ] && [ "$aseen" = 1 ] && break
 			sleep 0.2
 		done
 		# Diagnosable-flake margin (LOW-11): assert the hub actually RECEIVED A's push, separately
@@ -648,6 +654,7 @@ run_sync_pair() {
 		esac
 		[ "$seen" = 1 ] || { echo "B never saw A's memory commit within 20s (hub received the push: $hubstatus -> pull side failed)"; tail -5 "$WORK/run-sync-b.log"; exit 1; }
 		[ "$jseen" = 1 ] || { echo "B never saw A's external journal commit within 20s (descriptor-derived sync path failed for a declared kind)"; tail -5 "$WORK/run-sync-b.log"; exit 1; }
+		[ "$aseen" = 1 ] || { echo "B never saw A's assignment commit within 20s (item-dedup coordination sync failed)"; tail -5 "$WORK/run-sync-b.log"; exit 1; }
 		# attribution: the import preserves A's entries VERBATIM (faithful provenance) and the
 		# write itself is attributed to the sync importer; the full origin chain (replica id,
 		# decision id) lives in B's event log + decisions, pinned by sync_import Go tests.
@@ -874,4 +881,4 @@ run_daemon
 run_coordination
 run_dloop
 
-echo "E2E PASS (codex + claude-code; memory + skill + note-external-package + external-goal + foo-projection + sync-pair[memory+journal] + daemon + coordination + dloop)"
+echo "E2E PASS (codex + claude-code; memory + skill + note-external-package + external-goal + foo-projection + sync-pair[memory+journal+assignment] + daemon + coordination + dloop)"

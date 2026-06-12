@@ -36,6 +36,8 @@ func importStrategy(merge string) func(Capability, rule.RuleInput) (contract.Rul
 		return entryDedupImport
 	case "declaration-dedup":
 		return declarationDedupImport
+	case "item-dedup":
+		return itemDedupImport
 	default:
 		return nil
 	}

@@ -39,5 +39,9 @@
     }
   },
   "default_enabled": true,
-  "risk": "mid"
+  "risk": "mid",
+  "sync": {
+    "importable": true,
+    "merge": "item-dedup"
+  }
 }

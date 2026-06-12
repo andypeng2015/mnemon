@@ -37,13 +37,25 @@ func TestSyncImportSkippedRuleDeniesNamingKind(t *testing.T) {
 // Workspace import, each under its declared closed-set merge strategy. This is the pin the deleted
 // contract.clamp_test invariant moved to — its home is now the catalog that declares it.
 func TestEmbeddedImportableKindsAreMemoryAndSkill(t *testing.T) {
-	kinds := ImportableKinds(EmbeddedCatalog())
-	if len(kinds) != 2 || kinds[0] != "memory" || kinds[1] != "skill" {
-		t.Fatalf("embedded importable kinds must be exactly [memory skill] (sorted): %v", kinds)
-	}
+	// memory/skill plus the three coordination kinds are importable; each selects its declared
+	// closed-set merge strategy (the descriptor-derived sync set — no hardcoded list).
 	cat := EmbeddedCatalog()
-	if cat["memory"].Sync.Merge != "entry-dedup" || cat["skill"].Sync.Merge != "declaration-dedup" {
-		t.Fatalf("merge strategies must match the descriptors: memory=%q skill=%q", cat["memory"].Sync.Merge, cat["skill"].Sync.Merge)
+	wantMerge := map[contract.ResourceKind]string{
+		"memory": "entry-dedup", "skill": "declaration-dedup",
+		"project_intent": "item-dedup", "assignment": "item-dedup", "progress_digest": "item-dedup",
+	}
+	kinds := ImportableKinds(cat)
+	if len(kinds) != len(wantMerge) {
+		t.Fatalf("importable kinds = %v, want %d kinds", kinds, len(wantMerge))
+	}
+	for kind, merge := range wantMerge {
+		if cat[string(kind)].Sync.Merge != merge {
+			t.Fatalf("%s merge = %q, want %q", kind, cat[string(kind)].Sync.Merge, merge)
+		}
+	}
+	// loopdef must NOT be importable in P3 (single-machine D-loop; sync is P4).
+	if cat["loopdef"].Sync.Importable {
+		t.Fatal("loopdef must not be syncable in P3")
 	}
 	if got := cat["memory"].RemoteCommitObserved(); got != "memory.remote_commit.observed" {
 		t.Fatalf("remote-commit observation must be the system-derived form, got %q", got)
