@@ -1,0 +1,46 @@
+{
+  "schema_version": 2,
+  "name": "codex",
+  "display_name": "Codex",
+  "description": "Projects Mnemon memory and skill Agent Integration assets into Codex repo-local skills and hooks.",
+  "surfaces": {
+    "projection": [
+      ".codex/skills",
+      ".codex/hooks",
+      ".codex/hooks.json",
+      ".codex/mnemon-memory",
+      ".codex/mnemon-skill"
+    ],
+    "observation": [
+      ".mnemon/hosts/codex/manifest.json",
+      ".mnemon/harness/*/status.json",
+      "skill usage evidence"
+    ]
+  },
+  "lifecycle_mapping": {
+    "prime": "SessionStart",
+    "remind": "UserPromptSubmit",
+    "nudge": "Stop",
+    "compact": "PreCompact",
+    "maintenance": "manual skill invocation"
+  },
+  "supports": {
+    "skills": true,
+    "hooks": true,
+    "subagents": false
+  },
+  "mechanics": {
+    "stdin_read": {
+      "default": "tolerant"
+    },
+    "dialect": {
+      "default": "system-message-only",
+      "overrides": {
+        "memory": {
+          "compact": "codex-continue"
+        }
+      }
+    },
+    "json_escape": true
+  }
+}

@@ -1,6 +1,8 @@
 # Binary
 /mnemon
 /mnemon-harness
+/mnemon-hub
+/mnemond
 /bin/
 
 # Local dogfood / capability test sandboxes (per-test subdirs)

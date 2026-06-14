@@ -1,55 +1,39 @@
-# Mnemon Harness 公开 Beta
+# Mnemon Harness Public Beta
 
-`mnemon-harness` 是一个实验性 beta 层，用来把 host agent 接入项目本地的受治理状态。它目前只支持源码构建，并且有意和稳定的 `mnemon` CLI 保持分离。
+`mnemon-harness` 是实验性 beta，用于安装 host-agent integration 资产，并把
+它们连接到本地 Mnemon 服务。
 
-它还不是生产可用版本，也不提供兼容性保证。命令、文件布局、schema、projection surface 和行为都可能在稳定版前发生 breaking change。
+稳定版 Mnemon 仍然是 memory CLI。Harness 只支持源码构建，没有兼容性保证，
+当前范围限定在 memory 和 skill integration。
 
-稳定版 Mnemon 仍然专注于记忆与召回。Harness 在 Codex、Claude Code 等 host agent 周围加入 lifecycle exchange、evidence、proposal、audit、coordination topology 和审阅 TUI。
+## 1. 产品界面
 
-## 1. What It Is
+面向用户的命令面刻意保持很小：
 
-Mnemon Harness 是一个 governed agent-state substrate。
+- `setup`: 安装 memory 和 skill Agent Integration 资产。
+- `local`: 运行或查看 Local Mnemon。
+- `status`: 查看 Agent Integration、Local Mnemon 和 Remote Workspace 状态。
+- `sync`: 把 Local Mnemon 连接到 Remote Workspace。
 
-```text
-host agent
-  <-> Lifecycle Exchange
-      context out: .codex/.claude projection files
-      signal in:   .mnemon/events.jsonl
-  <-> governed project state
-      profile + goals + proposals + audit + coordination
-```
+其他实现命令都是内部命令，不属于 beta 产品契约。
 
-`.codex`、`.claude` 等目录只是投影表面。真正的 canonical state 是 `.mnemon/` 下的 append-only event log 和受治理记录。
+## 2. 当前范围
 
-## 2. Current Beta Surface
+这个 beta 支持 Codex 和 Claude Code 的 memory/skill loop 投影。`.codex/`
+和 `.claude/` 等 host 目录是生成出来的 surface。本地状态位于
+`.mnemon/harness/`。
 
-公开 beta 包含：
+当前 beta 不承诺生产可用、自动 apply、多 agent governance、广义组织范围，
+或通用 eval runtime。
 
-- lifecycle event append/status/daemon 命令
-- Codex 与 Claude Code projection surface
-- projection envelope 与 readback verification
-- profile 投影到 host context
-- goal、eval、proposal、apply、audit 命令
-- coordination topology 与 governed coordination apply
-- hosts、evidence、proposals、profile、coordination、trace 的 TUI 视图
-- 由显式用户动作和 cost gate 保护的 Codex runner check
-
-它不承诺生产可用、自动 apply、完整个人/team/org scope composition，或完整多 agent runtime。
-
-## 3. Separation From Stable Mnemon
+## 3. 与稳定版 Mnemon 分离
 
 `mnemon-harness` 从 `./harness/cmd/mnemon-harness` 构建。
 
-稳定版 `mnemon` binary 不 import harness package。它只暴露一个很窄、默认关闭的 event seam，让项目可以写入 harness 之后会读取的事件。
+除非用户显式开启 harness event emission 或直接运行 `mnemon-harness`，稳定版
+`mnemon` 行为不变。
 
-```sh
-MNEMON_HARNESS_EVENT_EMIT=1 mnemon remember "..." --cat note
-mnemon event emit custom.observed --payload '{"ok":true}'
-```
-
-如果没有 opt-in 环境变量或显式 `mnemon event` 命令，稳定版 Mnemon 的行为不变。
-
-## 4. Try It
+## 4. 试用
 
 构建两个 binary：
 
@@ -58,29 +42,17 @@ go build -o mnemon .
 go build -o mnemon-harness ./harness/cmd/mnemon-harness
 ```
 
-运行 no-model smoke：
+为项目安装 memory 和 skill integration：
 
 ```sh
-tmpdir="$(mktemp -d)"
-./mnemon-harness lifecycle --root "$tmpdir" init
-./mnemon-harness lifecycle --root "$tmpdir" event append --json '{
-  "schema_version": 1,
-  "id": "evt_harness_smoke_001",
-  "ts": "2026-05-31T00:00:00Z",
-  "type": "memory.hot_write_observed",
-  "loop": "memory",
-  "host": "codex",
-  "actor": "host-agent",
-  "source": "harness-smoke",
-  "correlation_id": "corr_harness_smoke",
-  "payload": {"reason": "smoke"}
-}'
-./mnemon-harness lifecycle --root "$tmpdir" status refresh
-./mnemon-harness ui --root "$tmpdir"
+./mnemon-harness setup --host codex --loop memory --loop skill --project-root .
+./mnemon-harness local run
+./mnemon-harness status
 ```
 
 更多命令示例见 [USAGE.md](USAGE.md)。
 
-## 5. Release Boundary
+## 5. 发布边界
 
-这个 beta 只发布最少量公开文档。内部计划、内部验证材料、生成站点 HTML 和详细未来计划不进入这个分支。
+这个 beta 只发布最小公开文档。内部计划、实验命令面、生成站点 HTML 和未来
+governance 实验都不属于产品契约。
