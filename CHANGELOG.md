@@ -7,6 +7,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.15] - 2026-06-18
+
+### Added
+
+- `mnemon setup --target cursor` now installs a Cursor integration, including a
+  Mnemon skill, prompt files, and Cursor lifecycle hooks under `.cursor/` or
+  `~/.cursor/`. The session-start hook primes Cursor with Mnemon guidance and
+  memory status, the stop hook can nudge for durable-memory writeback, and an
+  optional pre-compaction hook can remind users to preserve durable context.
+- `mnemon setup --eject --target cursor` removes the installed Cursor skill and
+  Mnemon hook entries while preserving unrelated Cursor hook configuration.
+- Cursor environment detection is included in interactive setup when the
+  `cursor` binary or `~/.cursor/` config directory is present.
+
+### Fixed
+
+- CI workflow permissions are now declared explicitly for the code-scanning
+  workflow surface.
+
+### Tests
+
+- Added Cursor setup coverage for skill installation, executable hook writes,
+  hook registration, preservation of unrelated Cursor hooks, and eject cleanup.
+
+### Note
+
+- Harness modules remain experimental and are not part of the v0.1.15 public
+  stability guarantee. This release includes substantial internal harness
+  iteration, documentation, and validation work, but release-path commands such
+  as `mnemon setup` continue to keep formal integrations under `cmd/` and
+  `internal/`.
+
 ## [0.1.14] - 2026-06-08
 
 ### Added
@@ -241,7 +273,8 @@ Initial public release.
 - Release pipeline: GoReleaser, GitHub Actions, Homebrew tap
 - Comprehensive documentation with Chinese translations
 
-[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.14...HEAD
+[Unreleased]: https://github.com/mnemon-dev/mnemon/compare/v0.1.15...HEAD
+[0.1.15]: https://github.com/mnemon-dev/mnemon/compare/v0.1.14...v0.1.15
 [0.1.14]: https://github.com/mnemon-dev/mnemon/compare/v0.1.13...v0.1.14
 [0.1.11]: https://github.com/mnemon-dev/mnemon/compare/v0.1.10...v0.1.11
 [0.1.10]: https://github.com/mnemon-dev/mnemon/compare/v0.1.9...v0.1.10
